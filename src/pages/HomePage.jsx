@@ -75,7 +75,7 @@ function HomePage() {
           </Link>
 
           {/* Module 2 — GIS (Parami) */}
-          <div className="bg-slate-800 rounded-2xl p-6 border border-slate-700 hover:border-blue-500 transition-all group">
+          <Link to="/parami" className="bg-slate-800 rounded-2xl p-6 border border-slate-700 hover:border-blue-500 transition-all group block">
             <div className="flex items-start justify-between mb-4">
               <div className="bg-blue-900 p-3 rounded-xl">
                 <span className="text-2xl">🗺️</span>
@@ -105,9 +105,9 @@ function HomePage() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-slate-500 text-xs">Parami</span>
-              <span className="text-blue-400 text-xs">Coming Soon →</span>
+              <span className="text-blue-400 text-xs group-hover:translate-x-1 transition-transform">Open Module →</span>
             </div>
-          </div>
+          </Link>
 
           {/* Module 3 — Image Module (Ilshan) — ACTIVE */}
           <Link
