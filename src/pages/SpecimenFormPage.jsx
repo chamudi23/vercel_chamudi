@@ -72,10 +72,10 @@ export default function SpecimenFormPage() {
     if (
       form.excavation_year &&
       (isNaN(form.excavation_year) ||
-        form.excavation_year < 1800 ||
-        form.excavation_year > new Date().getFullYear())
+        parseInt(form.excavation_year) < 1 ||
+        parseInt(form.excavation_year) > new Date().getFullYear())
     ) {
-      e.excavation_year = `Year must be between 1800 and ${new Date().getFullYear()}.`;
+      e.excavation_year = `Year must be between 1 and ${new Date().getFullYear()}.`;
     }
     return e;
   }
@@ -120,14 +120,34 @@ export default function SpecimenFormPage() {
   }
 
   const inputClass = (field) =>
-    `w-full bg-white/5 border ${
+    `w-full bg-[#0f1a14] border ${
       errors[field] ? "border-red-500" : "border-white/10"
     } rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:border-emerald-500 transition-colors`;
+
+  const selectClass = (field) =>
+    `w-full bg-[#0f1a14] border ${
+      errors[field] ? "border-red-500" : "border-white/10"
+    } rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors appearance-none cursor-pointer`;
 
   const labelClass = "block text-xs text-white/50 uppercase tracking-wider mb-1.5";
 
   return (
     <div className="min-h-screen bg-[#0f1a14] text-white">
+      {/* Fix dropdown option colors globally */}
+      <style>{`
+        select option {
+          background-color: #0f1a14;
+          color: white;
+        }
+        select option:hover {
+          background-color: #1a2e1f;
+        }
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+          opacity: 1;
+        }
+      `}</style>
+
       {/* Top bar */}
       <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between">
         <button
@@ -230,7 +250,12 @@ export default function SpecimenFormPage() {
 
               <div>
                 <label className={labelClass}>District</label>
-                <select name="district" value={form.district} onChange={handleChange} className={inputClass("district")}>
+                <select
+                  name="district"
+                  value={form.district}
+                  onChange={handleChange}
+                  className={selectClass("district")}
+                >
                   <option value="">Select district</option>
                   {DISTRICTS.map((d) => <option key={d} value={d}>{d}</option>)}
                 </select>
@@ -238,7 +263,12 @@ export default function SpecimenFormPage() {
 
               <div>
                 <label className={labelClass}>Province</label>
-                <select name="province" value={form.province} onChange={handleChange} className={inputClass("province")}>
+                <select
+                  name="province"
+                  value={form.province}
+                  onChange={handleChange}
+                  className={selectClass("province")}
+                >
                   <option value="">Select province</option>
                   {PROVINCES.map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
@@ -249,8 +279,16 @@ export default function SpecimenFormPage() {
                 <input
                   name="excavation_year"
                   type="number"
+                  min="1"
+                  max={new Date().getFullYear()}
                   value={form.excavation_year}
-                  onChange={handleChange}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    // Prevent negative and zero
+                    if (val === "" || parseInt(val) >= 1) {
+                      handleChange(e);
+                    }
+                  }}
                   placeholder={`e.g. ${new Date().getFullYear()}`}
                   className={inputClass("excavation_year")}
                 />
@@ -259,7 +297,12 @@ export default function SpecimenFormPage() {
 
               <div>
                 <label className={labelClass}>Time Period</label>
-                <select name="time_period" value={form.time_period} onChange={handleChange} className={inputClass("time_period")}>
+                <select
+                  name="time_period"
+                  value={form.time_period}
+                  onChange={handleChange}
+                  className={selectClass("time_period")}
+                >
                   <option value="">Select period</option>
                   {TIME_PERIODS.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
@@ -273,7 +316,12 @@ export default function SpecimenFormPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Preservation State</label>
-                <select name="preservation_state" value={form.preservation_state} onChange={handleChange} className={inputClass("preservation_state")}>
+                <select
+                  name="preservation_state"
+                  value={form.preservation_state}
+                  onChange={handleChange}
+                  className={selectClass("preservation_state")}
+                >
                   <option value="">Select state</option>
                   {PRESERVATION_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
