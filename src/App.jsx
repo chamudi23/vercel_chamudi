@@ -8,6 +8,7 @@ import IlshanModulePage from './pages/IlshanModulePage'
 import MinuriModulePage from "./pages/MinuriModulePage";
 import SpecimenFormPage from "./pages/SpecimenFormPage";
 import ParamiModulePage from "./pages/ParamiModulePage";
+import SpecimenListPage from "./pages/SpecimenListPage";
 
 function App() {
   return (
@@ -50,7 +51,7 @@ function App() {
           <Route path="/module" element={<IlshanModulePage />} />
           <Route path="/minuri" element={<MinuriModulePage />} />
           <Route path="/specimens/add" element={<SpecimenFormPage />} />
-          <Route path="/specimens" element={<div className="p-8 text-white">Specimen List — coming next</div>} />
+          <Route path="/specimens" element={<SpecimenListPage />} />
           <Route path="/parami" element={<ParamiModulePage />} />
         </Routes>
 

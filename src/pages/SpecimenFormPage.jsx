@@ -25,10 +25,39 @@ const PROVINCES = [
 ];
 
 const BONE_TYPES = [
-  "Femur", "Tibia", "Fibula", "Humerus", "Radius", "Ulna",
-  "Skull", "Mandible", "Clavicle", "Scapula", "Pelvis",
-  "Vertebra", "Rib", "Sternum", "Patella", "Calcaneus",
-  "Metacarpal", "Metatarsal", "Phalanx", "Other",
+  // Skull & Jaw
+  "Skull", "Mandible (Left)", "Mandible (Right)",
+  "Maxilla (Left)", "Maxilla (Right)", "Maxilla (Upper)",
+
+  // Teeth
+  "Incisor (Upper)", "Incisor (Lower)",
+  "Canine (Upper)", "Canine (Lower)",
+  "Premolar 1st (Upper)", "Premolar 1st (Lower)",
+  "Premolar 2nd (Upper)", "Premolar 2nd (Lower)",
+  "Molar 1st (Upper)", "Molar 1st (Lower)",
+  "Molar 2nd (Upper)", "Molar 2nd (Lower)",
+  "Molar 3rd (Upper)", "Molar 3rd (Lower)",
+
+  // Upper Limb
+  "Humerus", "Humerus (Distal End)",
+  "Radius", "Ulna",
+  "Metacarpal", "Metacarpal 1st", "Metacarpal 2nd",
+  "Metacarpal 3rd", "Metacarpal 4th", "Metacarpal 5th",
+
+  // Lower Limb
+  "Femur", "Tibia", "Fibula", "Patella",
+  "Calcaneum (Left)", "Calcaneum (Right)",
+  "Astragalus (Left)", "Astragalus (Right)",
+  "Metatarsal", "Metatarsal 1st", "Metatarsal 2nd",
+  "Metatarsal 3rd", "Metatarsal 4th", "Metatarsal 5th",
+
+  // Other Bones
+  "Clavicle", "Scapula", "Pelvis",
+  "Vertebra", "Rib", "Sternum",
+  "Phalanx (Hand)", "Phalanx (Foot)",
+  "Phalanx Proximal (Foot)", "Phalanx Proximal (Hand)",
+
+  "Other",
 ];
 
 const MEASUREMENT_TYPES = [
