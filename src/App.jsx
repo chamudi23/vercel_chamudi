@@ -11,6 +11,7 @@ import ParamiModulePage from "./pages/ParamiModulePage";
 import SpecimenListPage from "./pages/SpecimenListPage";
 import SpecimenDetailPage from "./pages/SpecimenDetailPage";
 import DataImportPage from "./pages/DataImportPage";
+import DataQualityPage from "./pages/DataQualityPage";
 
 function App() {
   return (
@@ -56,6 +57,7 @@ function App() {
           <Route path="/specimens/import" element={<DataImportPage />} />
           <Route path="/specimens" element={<SpecimenListPage />} />
           <Route path="/specimens/:id" element={<SpecimenDetailPage />} />
+          <Route path="/data-quality" element={<DataQualityPage />} />
           <Route path="/parami" element={<ParamiModulePage />} />
         </Routes>
 
