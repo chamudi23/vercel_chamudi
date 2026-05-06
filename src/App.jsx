@@ -9,6 +9,7 @@ import MinuriModulePage from "./pages/MinuriModulePage";
 import SpecimenFormPage from "./pages/SpecimenFormPage";
 import ParamiModulePage from "./pages/ParamiModulePage";
 import SpecimenListPage from "./pages/SpecimenListPage";
+import SpecimenDetailPage from "./pages/SpecimenDetailPage";
 
 function App() {
   return (
@@ -52,6 +53,7 @@ function App() {
           <Route path="/minuri" element={<MinuriModulePage />} />
           <Route path="/specimens/add" element={<SpecimenFormPage />} />
           <Route path="/specimens" element={<SpecimenListPage />} />
+          <Route path="/specimens/:id" element={<SpecimenDetailPage />} />
           <Route path="/parami" element={<ParamiModulePage />} />
         </Routes>
 
