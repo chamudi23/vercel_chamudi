@@ -24,7 +24,7 @@ export default function SpecimenDetailPage() {
     const { data: specData, error: specError } = await supabase
       .from("specimens")
       .select("*")
-      .eq("id", id)
+      .eq("specimen_id", id)
       .single();
 
     if (specError || !specData) {
