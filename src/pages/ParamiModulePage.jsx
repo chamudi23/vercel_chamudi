@@ -512,30 +512,7 @@ function ParamiModulePage() {
         )}
       </div>
 
-      {/* API endpoints */}
-      <div className="bg-slate-800 rounded-xl p-5 border border-slate-700">
-        <h3 className="text-slate-300 font-semibold mb-3 text-sm uppercase tracking-wide">
-          Backend GIS API
-          <span className="text-slate-500 font-normal normal-case ml-2">
-            — run <code className="text-blue-400">node server.js</code> in /backend
-          </span>
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs font-mono">
-          {[
-            '/api/gis/sites/map',
-            '/api/gis/sites/temporal',
-            '/api/gis/sites/cluster-data',
-            '/api/gis/sites/by-district',
-            '/api/gis/sites/excavation-phases',
-            '/api/gis/spatial-stats',
-          ].map(ep => (
-            <div key={ep} className="flex items-center gap-2 text-slate-400">
-              <span className="text-emerald-400">GET</span>
-              <span>{ep}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+
 
     </div>
   )
