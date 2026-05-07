@@ -7,6 +7,7 @@ import SkeletonViewerPage from './pages/SkeletonViewerPage'
 import IlshanModulePage from './pages/IlshanModulePage'
 import MinuriModulePage from "./pages/MinuriModulePage";
 import SpecimenFormPage from "./pages/SpecimenFormPage";
+import SiteDetailPage from "./pages/SiteDetailPage";
 import ParamiModulePage from "./pages/ParamiModulePage";
 
 function App() {
@@ -52,6 +53,7 @@ function App() {
           <Route path="/specimens/add" element={<SpecimenFormPage />} />
           <Route path="/specimens" element={<div className="p-8 text-white">Specimen List — coming next</div>} />
           <Route path="/parami" element={<ParamiModulePage />} />
+          <Route path="/parami/site/:siteId" element={<SiteDetailPage />} />
         </Routes>
 
       </div>

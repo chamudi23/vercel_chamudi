@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import 'leaflet/dist/leaflet.css'
-import { MapContainer, TileLayer, CircleMarker, Popup, Circle } from 'react-leaflet'
+import { MapContainer, TileLayer, CircleMarker, Popup, Circle, useMap } from 'react-leaflet'
 import DBSCAN from 'density-clustering'
 
 const RISK_COLOUR = {
@@ -40,6 +40,23 @@ function StatCard({ label, value, color = 'blue' }) {
   )
 }
 
+// Leaflet Heatmap Component
+function HeatLayer({ points }) {
+  const map = useMap()
+  useEffect(() => {
+    if (!map || points.length === 0) return
+    import('leaflet.heat').then(() => {
+      const heat = window.L.heatLayer(
+        points.map(p => [p.lat, p.lng, p.intensity]),
+        { radius: 35, blur: 20, maxZoom: 10, max: 1.0 }
+      )
+      heat.addTo(map)
+      return () => { map.removeLayer(heat) }
+    })
+  }, [map, points])
+  return null
+}
+
 // Simple period guesser from free-text time_period field
 function guessPeriodYear(timePeriod) {
   if (!timePeriod) return null
@@ -62,14 +79,17 @@ const CLUSTER_COLOURS = [
 ]
 
 function ParamiModulePage() {
+  const navigate = useNavigate()
   const [sites,        setSites]        = useState([])
   const [stats,        setStats]        = useState(null)
   const [loading,      setLoading]      = useState(true)
   const [error,        setError]        = useState(null)
   const [periodIdx,    setPeriodIdx]    = useState(0)
   const [showClusters, setShowClusters] = useState(false)
+  const [showHeatmap, setShowHeatmap] = useState(false)
   const [eps,          setEps]          = useState(0.8)
   const [minPts,       setMinPts]       = useState(2)
+  const [searchTerm,   setSearchTerm]   = useState('')
 
   useEffect(() => {
     async function load() {
@@ -109,13 +129,22 @@ function ParamiModulePage() {
   // Filter sites by selected time period
   const filteredSites = useMemo(() => {
     const period = TIME_PERIODS[periodIdx]
-    if (periodIdx === 0) return sites
-    return sites.filter(s => {
+    let result = periodIdx === 0 ? sites : sites.filter(s => {
       const year = guessPeriodYear(s.time_period)
       if (year === null) return false
       return year >= period.min && year <= period.max
     })
-  }, [sites, periodIdx])
+    if (searchTerm.trim()) {
+      const q = searchTerm.toLowerCase()
+      result = result.filter(s =>
+        (s.site_name && s.site_name.toLowerCase().includes(q)) ||
+        (s.district && s.district.toLowerCase().includes(q)) ||
+        (s.site_type && s.site_type.toLowerCase().includes(q)) ||
+        (s.time_period && s.time_period.toLowerCase().includes(q))
+      )
+    }
+    return result
+  }, [sites, periodIdx, searchTerm])
 
   // Run DBSCAN on filtered sites
   const clusters = useMemo(() => {
@@ -129,6 +158,13 @@ function ParamiModulePage() {
     return result
   }, [filteredSites, showClusters, eps, minPts])
 
+const heatmapPoints = useMemo(() => {
+    return filteredSites.map(s => ({
+      lat: parseFloat(s.latitude),
+      lng: parseFloat(s.longitude),
+      intensity: s.risk_level === 'High' ? 1.0 : s.risk_level === 'Medium' ? 0.6 : 0.3,
+    }))
+  }, [filteredSites])
   // Map each site index to its cluster id
   const siteClusterMap = useMemo(() => {
     const map = {}
@@ -232,6 +268,38 @@ function ParamiModulePage() {
           <span>50,000 BP</span>
           <span>Present</span>
         </div>
+      </div>
+
+{/* ── HEATMAP TOGGLE ── */}
+      <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-slate-200 font-semibold">Site Density Heatmap</h3>
+            <p className="text-slate-500 text-xs mt-0.5">
+              Visualize concentration of archaeological sites on the map
+            </p>
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <span className="text-slate-400 text-sm">Show heatmap</span>
+            <div
+              onClick={() => setShowHeatmap(v => !v)}
+              className={`w-10 h-5 rounded-full transition-colors relative cursor-pointer ${
+                showHeatmap ? 'bg-orange-500' : 'bg-slate-600'
+              }`}
+            >
+              <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                showHeatmap ? 'translate-x-5' : 'translate-x-0.5'
+              }`} />
+            </div>
+          </label>
+        </div>
+        {showHeatmap && (
+          <div className="mt-3 flex items-center gap-6 text-xs text-slate-400">
+            <span>🔴 High risk sites = more intense</span>
+            <span>🟡 Medium risk = moderate</span>
+            <span>🟢 Low risk = light</span>
+          </div>
+        )}
       </div>
 
       {/* ── DBSCAN CLUSTERING CONTROLS ── */}
@@ -344,6 +412,8 @@ function ParamiModulePage() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             />
+                    {/* Heatmap Layer */}
+         {showHeatmap && <HeatLayer points={heatmapPoints} />}
 
             {/* Cluster radius circles */}
             {showClusters && clusters.map((cluster, ci) => {
@@ -371,10 +441,13 @@ function ParamiModulePage() {
                 ? { radius: 9, fillColor: clusterColour, color: '#fff', weight: 2, fillOpacity: 0.95 }
                 : markerOptions(site.risk_level)
               return (
-                <CircleMarker
+              <CircleMarker
                   key={site.id}
                   center={[parseFloat(site.latitude), parseFloat(site.longitude)]}
                   pathOptions={opts}
+                  eventHandlers={{
+                    click: () => navigate(`/parami/site/${site.id}`)
+                  }}
                 >
                   <Popup>
                     <div style={{ minWidth: '180px' }}>
@@ -457,9 +530,26 @@ function ParamiModulePage() {
 
       {/* Sites table */}
       <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden mb-6">
-        <div className="px-6 py-4 border-b border-slate-700 flex items-center justify-between">
+        <div className="px-6 py-4 border-b border-slate-700 flex items-center justify-between flex-wrap gap-3">
           <h3 className="text-slate-200 font-semibold">Mapped Archaeological Sites</h3>
-          <span className="text-slate-500 text-sm">{filteredSites.length} sites shown</span>
+          <div className="flex items-center gap-3">
+            <input
+              type="text"
+              placeholder="Search by name, district, type..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="bg-slate-700 border border-slate-600 text-slate-200 text-sm rounded-lg px-4 py-2 w-64 focus:outline-none focus:border-blue-500 placeholder-slate-500"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="text-slate-400 hover:text-slate-200 text-sm transition-colors"
+              >
+                ✕ Clear
+              </button>
+            )}
+            <span className="text-slate-500 text-sm">{filteredSites.length} sites</span>
+          </div>
         </div>
         {loading ? (
           <div className="p-6 text-slate-500 text-sm">Loading sites...</div>
@@ -482,7 +572,14 @@ function ParamiModulePage() {
               <tbody>
                 {filteredSites.map((site, i) => (
                   <tr key={site.id} className={`border-b border-slate-700 hover:bg-slate-700 transition-colors ${i % 2 !== 0 ? 'bg-slate-800/50' : ''}`}>
-                    <td className="px-6 py-3 text-slate-200 font-medium">{site.site_name}</td>
+                    <td className="px-6 py-3 text-slate-200 font-medium">
+  <button
+    onClick={() => navigate(`/parami/site/${site.id}`)}
+    className="hover:text-blue-400 transition-colors text-left underline underline-offset-2 decoration-slate-600 hover:decoration-blue-400"
+  >
+    {site.site_name}
+  </button>
+</td>
                     <td className="px-6 py-3 text-slate-400">{site.district || '—'}</td>
                     <td className="px-6 py-3 text-slate-400">{site.site_type || '—'}</td>
                     <td className="px-6 py-3 text-slate-400 max-w-[160px] truncate">{site.time_period || '—'}</td>
