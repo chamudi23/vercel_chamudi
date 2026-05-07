@@ -7,6 +7,7 @@ import SkeletonViewerPage from './pages/SkeletonViewerPage'
 import IlshanModulePage from './pages/IlshanModulePage'
 import MinuriModulePage from "./pages/MinuriModulePage";
 import SpecimenFormPage from "./pages/SpecimenFormPage";
+import SiteDetailPage from "./pages/SiteDetailPage";
 import ParamiModulePage from "./pages/ParamiModulePage";
 import SpecimenListPage from "./pages/SpecimenListPage";
 import SpecimenDetailPage from "./pages/SpecimenDetailPage";
@@ -59,6 +60,7 @@ function App() {
           <Route path="/specimens/:id" element={<SpecimenDetailPage />} />
           <Route path="/data-quality" element={<DataQualityPage />} />
           <Route path="/parami" element={<ParamiModulePage />} />
+          <Route path="/parami/site/:siteId" element={<SiteDetailPage />} />
         </Routes>
 
       </div>
