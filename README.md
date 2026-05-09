@@ -18,7 +18,46 @@ OAHRIS is a centralized digital platform for managing osteoarchaeological resear
 | IT22159908 | Ilshan | Data Integration Module |
 | **IT22889874** | **Parami K K J** | **GIS Spatial Analysis Module** |
 | IT21824210 | — | Image Management Module |
+| **IT22299802** | **Chamudi Gayeshika** | **Skeletal Analysis System Module** |
 | IT22299802 | Minuri | Research Analytics Module |
+
+---
+
+## 🧬 Module 3.1 — Skeletal Analysis System (IT22299802)
+
+**Developer:** Chamudi Gayeshika (IT22299802)
+
+This module provides automated skeletal gender and age estimation using machine learning analysis of cranial and post-cranial measurements.
+
+### Features
+
+- **Multi-Step Analysis Workflow** — Intuitive step-by-step interface for skeletal specimen analysis:
+  - Step 1: Basic specimen information (Case ID, date found, location, specimen type)
+  - Step 2: Skeletal measurements (cranial and bone measurements)
+  - Step 3: Review and prediction results
+- **Cranial Measurement Analysis** — Automated assessment of cranial features:
+  - Brow ridge morphology (Prominent/Smooth)
+  - Jaw shape classification (Square/V-Shape)
+  - Nuchal crest presence (Present/Absent)
+  - Mastoid process size (Large/Small)
+  - Cranial suture closure patterns (Open/Closed)
+- **AI-Powered Predictions** — Machine learning-based gender and age estimation
+- **Gender Classification** — Automated binary gender prediction (Male/Female)
+- **Age Range Estimation** — Predicted age range with confidence intervals
+- **Morphological Analysis** — Height and stature estimation
+- **Confidence Scoring** — Reliability metrics for all predictions
+- **Similar Cases Database** — Find and compare with historically similar cases
+- **Report Generation** — Comprehensive PDF reports with measurements, predictions, and confidence levels
+- **Case History** — Browse and manage past skeletal analyses
+- **Dashboard Visualization** — Statistics on age distribution, gender ratios, and analysis trends
+
+### Route
+Access this module at: `http://localhost:5173/kgc-skeletal`
+
+### Database Integration
+- Stores all skeletal measurements and analysis results
+- Links to specimen images and documentation
+- Maintains historical case data for comparison analysis
 
 ---
 
@@ -91,16 +130,31 @@ Open your browser and go to `http://localhost:5173`
 ```
 src/
   pages/
-    ParamiModulePage.jsx     ← GIS Spatial Analysis (IT22889874)
-    IlshanModulePage.jsx     ← Data Integration
-    MinuriModulePage.jsx     ← Research Analytics
+    KgcSkeletalModulePage.jsx      ← Skeletal Analysis System (IT22299802)
+    KgcDashboard.jsx               ← Dashboard & Statistics
+    KgcPastAnalysis.jsx            ← Case History
+    KgcReport.jsx                  ← Report Generation
+    SpecimenFormPage.jsx           ← Specimen Entry
+    BoneDetailPage.jsx             ← Bone Details
+    NewAnalysis/
+      KgcStep1BasicInfo.jsx        ← Step 1: Basic Info
+      KgcStep2Measurements.jsx     ← Step 2: Measurements
+      KgcStep3Review.jsx           ← Step 3: Review & Predict
+    ParamiModulePage.jsx           ← GIS Spatial Analysis (IT22889874)
+    IlshanModulePage.jsx           ← Data Integration
+    MinuriModulePage.jsx           ← Research Analytics
     HomePage.jsx
     BonePage.jsx
-    BoneDetailPage.jsx
     ImageSearchPage.jsx
     SkeletonViewerPage.jsx
-  supabase.js                ← Supabase client config
-  App.jsx                    ← Routes & navigation
+  components/
+    KgcSkeletalHeader.jsx          ← Module header
+    SkeletonViewer.jsx             ← 3D skeleton visualization
+    BoneForm.jsx                   ← Bone measurement form
+    BoneList.jsx                   ← Case list view
+    ImageUpload.jsx                ← Image upload functionality
+  supabase.js                      ← Supabase client config
+  App.jsx                          ← Routes & navigation
   main.jsx
 ```
 
