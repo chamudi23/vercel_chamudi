@@ -9,6 +9,7 @@ import MinuriModulePage from "./pages/MinuriModulePage";
 import SpecimenFormPage from "./pages/SpecimenFormPage";
 import SiteDetailPage from "./pages/SiteDetailPage";
 import ParamiModulePage from "./pages/ParamiModulePage";
+import AddSitePage from "./pages/AddSitePage";
 
 function App() {
   return (
@@ -54,6 +55,7 @@ function App() {
           <Route path="/specimens" element={<div className="p-8 text-white">Specimen List — coming next</div>} />
           <Route path="/parami" element={<ParamiModulePage />} />
           <Route path="/parami/site/:siteId" element={<SiteDetailPage />} />
+          <Route path="/parami/add-site" element={<AddSitePage />} />
         </Routes>
 
       </div>
