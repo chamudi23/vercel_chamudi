@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import 'leaflet/dist/leaflet.css'
 import { MapContainer, TileLayer, CircleMarker, Popup, Circle, useMap } from 'react-leaflet'
-import DBSCAN from 'density-clustering'
+import { DBSCAN } from 'density-clustering'
 
 const RISK_COLOUR = {
   High:   '#f87171',
@@ -197,9 +197,17 @@ const heatmapPoints = useMemo(() => {
             Site mapping, temporal layers, and AI spatial pattern detection
           </p>
         </div>
-        <Link to="/" className="text-slate-400 hover:text-slate-200 text-sm transition-colors">
-          ← Back
-        </Link>
+        <div className="flex items-center gap-3">
+  <Link to="/" className="text-slate-400 hover:text-slate-200 text-sm transition-colors">
+    ← Back
+  </Link>
+  <Link
+    to="/parami/add-site"
+    className="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-2 rounded-lg transition-colors"
+  >
+    + Add New Site
+  </Link>
+</div>
       </div>
 
       {error && (

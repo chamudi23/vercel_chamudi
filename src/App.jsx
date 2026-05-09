@@ -8,7 +8,8 @@ import IlshanModulePage from './pages/IlshanModulePage'
 import MinuriModulePage from './pages/MinuriModulePage'
 import SpecimenFormPage from './pages/SpecimenFormPage'
 import SiteDetailPage from "./pages/SiteDetailPage";
-import ParamiModulePage from './pages/ParamiModulePage'
+import ParamiModulePage from "./pages/ParamiModulePage";
+import AddSitePage from "./pages/AddSitePage";
 import ImageUploadPage from './pages/ImageUploadPage'
 import AIAssistantPage from './pages/AIAssistantPage'
 import SpecimenListPage from "./pages/SpecimenListPage";
@@ -65,6 +66,7 @@ function App() {
           <Route path="/data-quality" element={<DataQualityPage />} />
           <Route path="/parami" element={<ParamiModulePage />} />
           <Route path="/parami/site/:siteId" element={<SiteDetailPage />} />
+          <Route path="/parami/add-site" element={<AddSitePage />} />
         </Routes>
 
       </div>
