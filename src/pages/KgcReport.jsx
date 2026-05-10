@@ -49,6 +49,119 @@ const formatDate = (dateStr) => {
   } catch { return dateStr; }
 };
 
+/**
+ * Generate a professional PDF-ready HTML report and trigger browser print/save.
+ * Uses zero external dependencies — pure HTML + CSS in a new window.
+ */
+function downloadReport({ basicInfo, measurements, predictions, bonesType, measurementFields, similarCases }) {
+  const caseId = basicInfo.caseId || 'UNKNOWN';
+  const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  // Build measurement rows
+  const measurementRows = Object.entries(measurementFields)
+    .map(([key, val]) => `<tr><td>${formatKey(key)}</td><td>${getLabel(val)}</td></tr>`)
+    .join('');
+
+  // Build similar cases rows
+  const similarRows = (similarCases || []).length > 0
+    ? (similarCases || []).map(c =>
+        `<tr><td>${c.case_id}</td><td>${c.bone_type}</td><td>${c.location}</td><td>${formatDate(c.date_found)}</td></tr>`
+      ).join('')
+    : '<tr><td colspan="4" style="text-align:center;color:#999;">No similar cases found</td></tr>';
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>OAHRIS Report — ${caseId}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, sans-serif; color: #1e293b; background: #fff; padding: 40px; max-width: 800px; margin: 0 auto; }
+  .header { border-bottom: 3px solid #f97316; padding-bottom: 16px; margin-bottom: 28px; }
+  .header h1 { font-size: 22px; color: #0f172a; margin-bottom: 2px; }
+  .header .subtitle { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1.5px; }
+  .header .case-id { font-size: 14px; color: #f97316; font-weight: 600; margin-top: 6px; }
+  .meta { display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; margin-bottom: 24px; }
+  h2 { font-size: 14px; font-weight: 700; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 28px; }
+  .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table th { background: #f1f5f9; color: #475569; font-weight: 600; text-align: left; padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
+  table td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+  .pred-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px; }
+  .pred-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; text-align: center; }
+  .pred-card .label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+  .pred-card .value { font-size: 20px; font-weight: 700; color: #0f172a; margin-top: 4px; }
+  .pred-card.confidence .value { color: #059669; }
+  .footer { margin-top: 36px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; text-align: center; }
+  @media print {
+    body { padding: 20px; }
+    .no-print { display: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="subtitle">OAHRIS — Automated Skeletal Analysis</div>
+  <h1>Biological Profile Prediction Report</h1>
+  <div class="case-id">Case ${caseId}</div>
+</div>
+
+<div class="meta">
+  <span>Generated: ${today}</span>
+  <span>Methodology: Bass, W.M. (2005) Human Osteology, 5th Ed.</span>
+</div>
+
+<h2>Prediction Results</h2>
+<div class="pred-grid">
+  <div class="pred-card"><div class="label">Predicted Sex</div><div class="value">${predictions.gender || '—'}</div></div>
+  <div class="pred-card"><div class="label">Age Range</div><div class="value">${predictions.ageRange || '—'}</div></div>
+  <div class="pred-card"><div class="label">Est. Height</div><div class="value">${predictions.height || '—'}</div></div>
+  <div class="pred-card confidence"><div class="label">Confidence</div><div class="value">${predictions.confidence || '—'}</div></div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h2>Case Information</h2>
+    <table>
+      <tr><td style="color:#64748b;">Case ID</td><td><strong>${caseId}</strong></td></tr>
+      <tr><td style="color:#64748b;">Investigator</td><td>${basicInfo.userName || '—'}</td></tr>
+      <tr><td style="color:#64748b;">Bone Type</td><td>${bonesType || basicInfo.bonesType || '—'}</td></tr>
+      <tr><td style="color:#64748b;">Location</td><td>${basicInfo.location || '—'}</td></tr>
+      <tr><td style="color:#64748b;">Date Found</td><td>${basicInfo.dateFound || '—'}</td></tr>
+      <tr><td style="color:#64748b;">Analysis Date</td><td>${basicInfo.analysisDate || '—'}</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Measurements — ${bonesType || basicInfo.bonesType || 'N/A'}</h2>
+    <table>${measurementRows || '<tr><td colspan="2" style="color:#999;">No measurements recorded</td></tr>'}</table>
+  </div>
+</div>
+
+<h2>Similar Cases</h2>
+<table>
+  <thead><tr><th>Case ID</th><th>Bone Type</th><th>Location</th><th>Date Found</th></tr></thead>
+  <tbody>${similarRows}</tbody>
+</table>
+
+<div class="footer">
+  OAHRIS — Osteoarchaeological Human Remains Identification System &nbsp;|&nbsp; Module: Automated Skeletal Analysis (KGC) &nbsp;|&nbsp; IT22299802 — Chamudi
+</div>
+
+<script>window.onload = function() { window.print(); }</script>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, '_blank');
+  // Clean up after a delay
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
 export default function Report() {
   const { analysisData, currentCaseId } = useAnalysis();
   const { basicInfo, measurements, predictions } = analysisData;
@@ -88,7 +201,10 @@ export default function Report() {
           <button className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
             ✉️ Send Mail
           </button>
-          <button className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+          <button
+            onClick={() => downloadReport({ basicInfo, measurements, predictions, bonesType, measurementFields, similarCases })}
+            className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+          >
             ⬇️ Download Report
           </button>
         </div>
