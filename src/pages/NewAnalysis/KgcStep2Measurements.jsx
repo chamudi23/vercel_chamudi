@@ -1,7 +1,29 @@
+/**
+ * KgcStep2Measurements.jsx
+ * ========================
+ * Step 2 of 3: Skeletal Measurements collection and data entry.
+ * 
+ * Dynamic form based on selected bone type with fields like:
+ * - Skull: brow ridge, mastoid size, jaw shape, cranial suture
+ * - Pelvis: subpubic angle, sciatic notch, pubic symphysis
+ * - Limbs: bone lengths, head diameters, growth plate status
+ * - Thorax: rib shape, sternum length
+ * - Teeth: type, dental wear, eruption stage
+ * 
+ * Features:
+ * - Saves measurements to bone-specific Supabase tables
+ * - Auto-maps camelCase → snake_case for database
+ * - Shows which measurements predict which characteristics (Sex/Age/Height)
+ * - Validates numeric and select inputs
+ * - Provides helpful error messages
+ */
+
 import { useForm } from 'react-hook-form';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useState } from 'react';
 import SkeletalHeader from '../../components/KgcSkeletalHeader';
 import { useAnalysis } from '../../context/AnalysisContext';
+import { saveMeasurements } from '../../services/supabaseService';
 
 // Measurement configurations per bone type based on osteoarchaeological analysis
 const measurementConfig = {
@@ -99,15 +121,32 @@ const predictBadge = {
 export default function Step2Measurements() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { setMeasurements } = useAnalysis();
+  const { currentCaseId, setMeasurements } = useAnalysis();
   const bonesType = searchParams.get('bonesType') || 'Skull';
   const config = measurementConfig[bonesType] || measurementConfig.Skull;
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
 
   const { register, handleSubmit, formState: { errors } } = useForm();
-  const onSubmit = (data) => {
-    // Save all measurements to shared context
-    setMeasurements(bonesType, data);
-    navigate(`/skeletal/analysis/step3?bonesType=${encodeURIComponent(bonesType)}`);
+
+  const onSubmit = async (data) => {
+    setSaving(true);
+    setSaveError(null);
+
+    try {
+      // Save measurements to the correct bone-type table in Supabase
+      const { error } = await saveMeasurements(currentCaseId, bonesType, data);
+      if (error) throw new Error(`Measurements save failed: ${error.message}`);
+
+      // Save to context & navigate
+      setMeasurements(bonesType, data);
+      navigate(`/skeletal/analysis/step3?bonesType=${encodeURIComponent(bonesType)}`);
+    } catch (err) {
+      console.error('Step 2 save error:', err);
+      setSaveError(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const steps = ['Basic Information', 'Skeletal Measurements', 'Review & Predict'];
@@ -135,6 +174,13 @@ export default function Step2Measurements() {
             {bonesType}
           </span>
         </div>
+
+        {/* Error banner */}
+        {saveError && (
+          <div className="mb-6 bg-red-900/30 border border-red-700/50 text-red-300 px-4 py-3 rounded-lg text-sm">
+            <strong>Error:</strong> {saveError}
+          </div>
+        )}
 
         <div className="bg-slate-800 rounded-xl border border-slate-700 p-8">
           <h3 className="text-slate-100 text-xl font-semibold mb-2">{config.title}</h3>
@@ -180,7 +226,16 @@ export default function Step2Measurements() {
 
             <div className="flex justify-between pt-4">
               <button type="button" onClick={() => navigate('/skeletal/analysis/new')} className="bg-red-600 hover:bg-red-500 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors">← Back</button>
-              <button type="submit" className="bg-orange-500 hover:bg-orange-400 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors">Next →</button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="bg-orange-500 hover:bg-orange-400 disabled:bg-orange-500/50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              >
+                {saving && (
+                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" /><path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" className="opacity-75" /></svg>
+                )}
+                {saving ? 'Saving…' : 'Next →'}
+              </button>
             </div>
           </form>
         </div>

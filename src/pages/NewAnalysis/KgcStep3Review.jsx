@@ -1,6 +1,26 @@
+/**
+ * KgcStep3Review.jsx
+ * ==================
+ * Step 3 of 3: Review measurements, generate predictions, and finalize analysis.
+ * 
+ * Workflow:
+ * 1. Review all collected data from Step 1 & 2
+ * 2. Generate biological profile predictions using bass/anthropometric formulas
+ * 3. Save predictions to kgc_predictions table
+ * 4. Update case status from 'in_progress' → 'completed' in Supabase
+ * 5. Display final report with similar cases for comparison
+ * 
+ * Prediction Logic: References Bass, W.M. (2005) Human Osteology, 5th edition
+ * - Sex determination from dimorphic traits (brow ridge, mastoid, pelvis shape)
+ * - Age estimation from fusion/degeneration (cranial suture, pubic symphysis)
+ * - Stature calculation using Trotter & Gleser formulae
+ */
+
 import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import SkeletalHeader from '../../components/KgcSkeletalHeader';
 import { useAnalysis } from '../../context/AnalysisContext';
+import { savePrediction, updateCaseStatus, fetchSimilarCases } from '../../services/supabaseService';
 
 // Helper: get human-readable label for a measurement value
 const labelMap = {
@@ -68,16 +88,12 @@ function computePredictions(measurements) {
     confidence = Math.min(95, 72 + factors * 7);
 
   } else if (bonesType === 'Lower Limb') {
-    // Sex from femur head diameter (Bass, 2005)
-    // Thresholds adjusted for South Asian populations (smaller avg body size)
     if (data.femurHeadDiameter) {
       const d = parseFloat(data.femurHeadDiameter);
       gender = d > 43 ? 'Male' : d < 41 ? 'Female' : 'Indeterminate';
     }
-    // Stature: Bass's Mongoloid male formula (Trotter & Gleser as cited by Bass)
-    // Stature = 2.15 × Femur(cm) + 72.57 (±3.80 cm)
     if (data.femurLength) {
-      const cmLen = parseFloat(data.femurLength) / 10; // convert mm → cm
+      const cmLen = parseFloat(data.femurLength) / 10;
       height = `${(2.15 * cmLen + 72.57).toFixed(1)} cm`;
     }
     if (data.growthPlate === 'unfused') ageRange = '< 18';
@@ -91,10 +107,8 @@ function computePredictions(measurements) {
     if (data.boneRobusticity === 'robust') gender = 'Male';
     else if (data.boneRobusticity === 'gracile') gender = 'Female';
 
-    // Stature: Bass's Mongoloid male humerus formula
-    // Stature = 2.68 × Humerus(cm) + 83.19 (±4.25 cm)
     if (data.humerusLength) {
-      const cmLen = parseFloat(data.humerusLength) / 10; // convert mm → cm
+      const cmLen = parseFloat(data.humerusLength) / 10;
       height = `${(2.68 * cmLen + 83.19).toFixed(1)} cm`;
     }
 
@@ -127,8 +141,11 @@ function computePredictions(measurements) {
 
 export default function Step3Review() {
   const navigate = useNavigate();
-  const { analysisData, setPredictions } = useAnalysis();
+  const { analysisData, currentCaseId, setPredictions } = useAnalysis();
   const steps = ['Basic Information', 'Skeletal Measurements', 'Review & Predict'];
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+  const [similarCases, setSimilarCases] = useState([]);
 
   const { basicInfo, measurements } = analysisData;
 
@@ -138,15 +155,44 @@ export default function Step3Review() {
   // Build a summary of measurements entered
   const { bonesType, ...measurementFields } = measurements;
 
-  const mockCases = [
-    { caseId: 'C089', bonesType: 'Skull', location: 'Texas', foundDate: '2023-01-15' },
-    { caseId: 'C102', bonesType: 'Skull', location: 'Nevada', foundDate: '2023-04-22' },
-  ];
+  // Fetch similar cases from Supabase
+  useEffect(() => {
+    if (bonesType) {
+      fetchSimilarCases(bonesType, currentCaseId, 5).then(({ data }) => {
+        setSimilarCases(data || []);
+      });
+    }
+  }, [bonesType, currentCaseId]);
 
-  const handleGenerateReport = () => {
-    // Save predictions to context before navigating
-    setPredictions(predictions);
-    navigate('/skeletal/report');
+  const handleGenerateReport = async () => {
+    setSaving(true);
+    setSaveError(null);
+
+    try {
+      // 1. Save predictions to Supabase
+      const { error: predErr } = await savePrediction(currentCaseId, predictions);
+      if (predErr) throw new Error(`Prediction save failed: ${predErr.message}`);
+
+      // 2. Update case status to 'completed'
+      const { error: statusErr } = await updateCaseStatus(currentCaseId, 'completed');
+      if (statusErr) throw new Error(`Status update failed: ${statusErr.message}`);
+
+      // 3. Save predictions to context & navigate
+      setPredictions(predictions);
+      navigate('/skeletal/report');
+    } catch (err) {
+      console.error('Step 3 save error:', err);
+      setSaveError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '—';
+    try {
+      return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    } catch { return dateStr; }
   };
 
   return (
@@ -162,6 +208,13 @@ export default function Step3Review() {
             </div>
           ))}
         </div>
+
+        {/* Error banner */}
+        {saveError && (
+          <div className="mb-6 bg-red-900/30 border border-red-700/50 text-red-300 px-4 py-3 rounded-lg text-sm">
+            <strong>Error:</strong> {saveError}
+          </div>
+        )}
 
         <div className="space-y-6">
           {/* Prediction Summary Cards */}
@@ -207,7 +260,7 @@ export default function Step3Review() {
             </div>
           )}
 
-          {/* Similar Cases */}
+          {/* Similar Cases — from Supabase */}
           <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-700"><h3 className="text-slate-200 font-semibold">Similar Cases</h3></div>
             <table className="w-full text-sm">
@@ -217,15 +270,33 @@ export default function Step3Review() {
                 <th className="text-left px-6 py-3 text-slate-400 font-medium">Location</th>
                 <th className="text-left px-6 py-3 text-slate-400 font-medium">Date</th>
               </tr></thead>
-              <tbody>{mockCases.map((r, i) => (
-                <tr key={i} className="border-b border-slate-700 hover:bg-slate-700/50"><td className="px-6 py-3 text-slate-300">{r.caseId}</td><td className="px-6 py-3 text-slate-300">{r.bonesType}</td><td className="px-6 py-3 text-slate-300">{r.location}</td><td className="px-6 py-3 text-slate-300">{r.foundDate}</td></tr>
-              ))}</tbody>
+              <tbody>
+                {similarCases.length === 0 ? (
+                  <tr><td colSpan={4} className="px-6 py-6 text-center text-slate-500">No similar cases found yet</td></tr>
+                ) : similarCases.map((r) => (
+                  <tr key={r.case_id} className="border-b border-slate-700 hover:bg-slate-700/50">
+                    <td className="px-6 py-3 text-slate-300">{r.case_id}</td>
+                    <td className="px-6 py-3 text-slate-300">{r.bone_type}</td>
+                    <td className="px-6 py-3 text-slate-300">{r.location}</td>
+                    <td className="px-6 py-3 text-slate-300">{formatDate(r.date_found)}</td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
 
           <div className="flex justify-between pt-4">
             <button onClick={() => navigate('/skeletal/dashboard')} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors">Back To Dashboard</button>
-            <button onClick={handleGenerateReport} className="bg-orange-500 hover:bg-orange-400 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors">Generate Report →</button>
+            <button
+              onClick={handleGenerateReport}
+              disabled={saving}
+              className="bg-orange-500 hover:bg-orange-400 disabled:bg-orange-500/50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+            >
+              {saving && (
+                <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" /><path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" className="opacity-75" /></svg>
+              )}
+              {saving ? 'Saving…' : 'Generate Report →'}
+            </button>
           </div>
         </div>
       </div>

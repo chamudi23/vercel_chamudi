@@ -1,7 +1,21 @@
-import React from 'react';
+/**
+ * KgcReport.jsx
+ * =============
+ * Displays the final skeletal analysis report with predictions.
+ * Shows biological profile (age, sex, height) based on measurements.
+ * 
+ * - Renders collected measurements from the 3-step analysis wizard
+ * - Displays predicted biological profile (age range, sex, height)
+ * - Shows similar cases for comparison (fetched from Supabase)
+ * - Allows downloading/sending report
+ * - References: Bass, W.M. (2005) Human Osteology, 5th ed.
+ */
+
+import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import SkeletalHeader from '../components/KgcSkeletalHeader';
 import { useAnalysis } from '../context/AnalysisContext';
+import { fetchSimilarCases } from '../services/supabaseService';
 
 // Helper: get human-readable label for a measurement value
 const labelMap = {
@@ -28,17 +42,30 @@ function formatKey(key) {
   return key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
 }
 
+const formatDate = (dateStr) => {
+  if (!dateStr) return '—';
+  try {
+    return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  } catch { return dateStr; }
+};
+
 export default function Report() {
-  const { analysisData } = useAnalysis();
+  const { analysisData, currentCaseId } = useAnalysis();
   const { basicInfo, measurements, predictions } = analysisData;
+  const [similarCases, setSimilarCases] = useState([]);
 
   // Extract measurement fields (exclude bonesType)
   const { bonesType, ...measurementFields } = measurements;
 
-  const mockSimilarCasesData = [
-    { caseId: 'C089', name: 'Unknown', bonesType: 'Skull', location: 'Texas', foundDate: '2023-01-15' },
-    { caseId: 'C102', name: 'Unknown', bonesType: 'Skull', location: 'Nevada', foundDate: '2023-04-22' },
-  ];
+  // Fetch similar cases from Supabase
+  useEffect(() => {
+    const bt = bonesType || basicInfo.bonesType;
+    if (bt) {
+      fetchSimilarCases(bt, currentCaseId, 5).then(({ data }) => {
+        setSimilarCases(data || []);
+      });
+    }
+  }, [bonesType, basicInfo.bonesType, currentCaseId]);
 
   const mockAgeData = [
     { ageGroup: '0-18', count: 5 },
@@ -129,12 +156,14 @@ export default function Report() {
                   </tr>
                 </thead>
                 <tbody>
-                  {mockSimilarCasesData.map((row, i) => (
-                    <tr key={i} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors">
-                      <td className="px-6 py-3 text-slate-300">{row.caseId}</td>
-                      <td className="px-6 py-3 text-slate-300">{row.bonesType}</td>
+                  {similarCases.length === 0 ? (
+                    <tr><td colSpan={4} className="px-6 py-6 text-center text-slate-500">No similar cases found</td></tr>
+                  ) : similarCases.map((row) => (
+                    <tr key={row.case_id} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors">
+                      <td className="px-6 py-3 text-slate-300">{row.case_id}</td>
+                      <td className="px-6 py-3 text-slate-300">{row.bone_type}</td>
                       <td className="px-6 py-3 text-slate-300">{row.location}</td>
-                      <td className="px-6 py-3 text-slate-300">{row.foundDate}</td>
+                      <td className="px-6 py-3 text-slate-300">{formatDate(row.date_found)}</td>
                     </tr>
                   ))}
                 </tbody>

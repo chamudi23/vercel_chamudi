@@ -1,26 +1,29 @@
-import { useState, useMemo } from 'react';
+/**
+ * KgcPastAnalysis.jsx
+ * ===================
+ * Displays all historical skeletal analysis cases from Supabase.
+ * Users can filter, search, and sort through past analyses.
+ * 
+ * Features:
+ * - Fetches all cases from kgc_cases table
+ * - Search by case ID, bone type, and location
+ * - Filter by bone type and analysis status
+ * - Sort by date (newest/oldest)
+ * - Click case to view detailed report
+ */
+
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import SkeletalHeader from '../components/KgcSkeletalHeader';
-
-const allData = Array.from({ length: 15 }, (_, i) => ({
-  caseId: `C0${(i + 1).toString().padStart(2, '0')}`,
-  name: ['A N Perera', 'K Silva', 'R Fernando', 'D Jayawardena', 'S Bandara'][i % 5],
-  bonesType: ['Skull', 'Pelvis', 'Femur', 'Ribs', 'Mandible'][i % 5],
-  location: ['Kottawa', 'Anuradhapura', 'Polonnaruwa', 'Kandy', 'Galle'][i % 5],
-  foundDate: `2026-02-${(i + 1).toString().padStart(2, '0')}`,
-}));
+import { fetchAllCases } from '../services/supabaseService';
 
 const columns = [
-  { key: 'caseId', label: 'Case ID' },
-  { key: 'name', label: 'Name' },
-  { key: 'bonesType', label: 'Bones Type' },
+  { key: 'case_id', label: 'Case ID' },
+  { key: 'bone_type', label: 'Bones Type' },
   { key: 'location', label: 'Location' },
-  { key: 'foundDate', label: 'Found Date' },
+  { key: 'status', label: 'Status' },
+  { key: 'date_found', label: 'Found Date' },
 ];
-
-// Extract unique values for filters
-const boneTypes = [...new Set(allData.map(d => d.bonesType))];
-const locations = [...new Set(allData.map(d => d.location))];
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '—';
@@ -35,11 +38,38 @@ const formatDate = (dateStr) => {
   }
 };
 
+const statusBadge = (status) => {
+  const styles = {
+    draft: 'bg-slate-700 text-slate-300',
+    in_progress: 'bg-yellow-900/40 text-yellow-400',
+    completed: 'bg-emerald-900/40 text-emerald-400',
+    archived: 'bg-blue-900/40 text-blue-400',
+  };
+  return styles[status] || styles.draft;
+};
+
 export default function PastAnalysis() {
+  const [allData, setAllData] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [boneFilter, setBoneFilter] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [sortBy, setSortBy] = useState('newest');
+
+  // Fetch all cases from Supabase
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      const { data } = await fetchAllCases();
+      setAllData(data || []);
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  // Dynamic filter options from live data
+  const boneTypes = useMemo(() => [...new Set(allData.map(d => d.bone_type))], [allData]);
+  const locations = useMemo(() => [...new Set(allData.map(d => d.location))], [allData]);
 
   const filtered = useMemo(() => {
     let result = allData;
@@ -48,13 +78,13 @@ export default function PastAnalysis() {
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(row =>
-        Object.values(row).some(val => val.toLowerCase().includes(q))
+        Object.values(row).some(val => String(val).toLowerCase().includes(q))
       );
     }
 
     // Bone type filter
     if (boneFilter) {
-      result = result.filter(row => row.bonesType === boneFilter);
+      result = result.filter(row => row.bone_type === boneFilter);
     }
 
     // Location filter
@@ -64,13 +94,13 @@ export default function PastAnalysis() {
 
     // Sort
     if (sortBy === 'oldest') {
-      result = [...result].sort((a, b) => a.foundDate.localeCompare(b.foundDate));
+      result = [...result].sort((a, b) => (a.date_found || '').localeCompare(b.date_found || ''));
     } else {
-      result = [...result].sort((a, b) => b.foundDate.localeCompare(a.foundDate));
+      result = [...result].sort((a, b) => (b.date_found || '').localeCompare(a.date_found || ''));
     }
 
     return result;
-  }, [search, boneFilter, locationFilter, sortBy]);
+  }, [allData, search, boneFilter, locationFilter, sortBy]);
 
   const activeFilterCount = [boneFilter, locationFilter].filter(Boolean).length;
 
@@ -97,7 +127,7 @@ export default function PastAnalysis() {
               <svg className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
               <input
                 type="text"
-                placeholder="Search by Case ID, Name, Location..."
+                placeholder="Search by Case ID, Location..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full bg-slate-900 border border-slate-600 rounded-lg pl-9 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500 transition-colors"
@@ -185,7 +215,9 @@ export default function PastAnalysis() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
+                {loading ? (
+                  <tr><td colSpan={columns.length + 1} className="px-6 py-12 text-center text-slate-500">Loading cases…</td></tr>
+                ) : filtered.length === 0 ? (
                   <tr>
                     <td colSpan={columns.length + 1} className="px-6 py-12 text-center">
                       <div className="text-slate-500">
@@ -195,13 +227,17 @@ export default function PastAnalysis() {
                       </div>
                     </td>
                   </tr>
-                ) : filtered.map((row, i) => (
-                  <tr key={i} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors">
-                    {columns.map((col) => (
-                      <td key={col.key} className="px-6 py-3 text-slate-300">
-                        {col.key === 'foundDate' ? formatDate(row[col.key]) : row[col.key]}
-                      </td>
-                    ))}
+                ) : filtered.map((row) => (
+                  <tr key={row.case_id} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors">
+                    <td className="px-6 py-3 text-slate-300 font-mono text-xs">{row.case_id}</td>
+                    <td className="px-6 py-3 text-slate-300">{row.bone_type}</td>
+                    <td className="px-6 py-3 text-slate-300">{row.location}</td>
+                    <td className="px-6 py-3">
+                      <span className={`text-xs px-2 py-1 rounded-full ${statusBadge(row.status)}`}>
+                        {row.status?.replace('_', ' ') || 'draft'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-3 text-slate-300">{formatDate(row.date_found)}</td>
                     <td className="px-6 py-3">
                       <Link to="/skeletal/report" className="text-blue-400 hover:text-blue-300 text-xs transition-colors">
                         View Report
