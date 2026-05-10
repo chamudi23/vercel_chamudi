@@ -5,7 +5,7 @@
  * 
  * Uses environment variables (VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY)
  * to connect to the Supabase PostgreSQL database hosted at:
- * https://siyqkcnnicsdnztquahf.supabase.co
+ * https://yiamplfqhyurgxxbpeur.supabase.co
  * 
  * All database queries throughout the app use this singleton client.
  * @see supabaseService.js for all database operations
