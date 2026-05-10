@@ -214,14 +214,48 @@ export default function Step2Measurements() {
             {/* Guide section */}
             <div className="border-t border-slate-700 pt-6">
               <h4 className="text-slate-200 font-medium mb-3">Guide For {bonesType} Measurements</h4>
-              <div className="bg-slate-900 p-4 rounded-lg border border-slate-700 text-slate-500 text-sm leading-relaxed">
-                {bonesType === 'Skull' && 'Examine the brow ridge prominence, mastoid process size behind the ear, jaw angle shape, and cranial suture closure pattern to determine sex and age.'}
-                {bonesType === 'Pelvis' && 'Measure the subpubic angle width, greater sciatic notch shape, and pubic symphysis surface texture. Symphysis stages: Smooth/Flat (young), Ridged (middle), Granular (older), Eroded (elderly).'}
-                {bonesType === 'Lower Limb' && 'Measure femur maximum length and head diameter with calipers. Check growth plate fusion status at the distal and proximal ends of the femur.'}
-                {bonesType === 'Upper Limb' && 'Measure humerus maximum length with an osteometric board. Assess bone robusticity by examining muscle attachment sites and cortical bone thickness.'}
-                {bonesType === 'Thorax' && 'Examine rib sternal end morphology for age indicators. Measure sternum length from manubrium to xiphoid process.'}
-                {bonesType === 'Teeth' && 'Identify teeth as deciduous, permanent, or mixed dentition. Assess dental wear on occlusal surfaces and eruption stage of third molars.'}
-              </div>
+
+              {bonesType === 'Skull' && (
+                <div className="space-y-4">
+                  <div className="rounded-lg overflow-hidden border border-slate-700">
+                    <img src="/guides/skull_guide.png" alt="Skull Measurement Guide" className="w-full object-contain bg-slate-950" />
+                  </div>
+                  <div className="bg-slate-900 p-5 rounded-lg border border-slate-700">
+                    <p className="text-orange-400 text-sm font-semibold mb-3">Step-by-Step Measurement Guide</p>
+                    <div className="space-y-3">
+                      <div className="flex gap-3"><span className="bg-orange-500/20 text-orange-400 text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5">1</span><div><p className="text-slate-300 text-sm font-medium">Brow Ridge Projection</p><p className="text-slate-500 text-xs">Examine the supraorbital ridge from the front and side view. Measure the projection above the orbit using a caliper. Categories: Smooth (0–5mm), Less Developed (3–5mm), Moderate (5–7mm), Prominent (7–10mm), Thick (&gt;10mm).</p></div></div>
+                      <div className="flex gap-3"><span className="bg-orange-500/20 text-orange-400 text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5">2</span><div><p className="text-slate-300 text-sm font-medium">Mastoid Process Volume</p><p className="text-slate-500 text-xs">Locate the mastoid process behind the ear. Measure the maximum length using a digital caliper. Classify as &lt;25mm, 25–30mm, or &gt;30mm.</p></div></div>
+                      <div className="flex gap-3"><span className="bg-orange-500/20 text-orange-400 text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5">3</span><div><p className="text-slate-300 text-sm font-medium">Jaw Angle / Squareness</p><p className="text-slate-500 text-xs">Observe the mandible from below. Determine the shape of the dental arch and gonial angle: U-shaped (female), V-shaped (male), Robust, or Rounded.</p></div></div>
+                      <div className="flex gap-3"><span className="bg-orange-500/20 text-orange-400 text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5">4</span><div><p className="text-slate-300 text-sm font-medium">Cranial Suture Closure</p><p className="text-slate-500 text-xs">Examine the sagittal, coronal, and lambdoid sutures. Assess closure degree: Open (young), Partially Open, Moderate Closure, Mostly Closed, Completely Closed (older).</p></div></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {bonesType === 'Pelvis' && (
+                <div className="space-y-4">
+                  <div className="rounded-lg overflow-hidden border border-slate-700">
+                    <img src="/guides/pelvis_guide.png" alt="Pelvis Measurement Guide" className="w-full object-contain bg-slate-950" />
+                  </div>
+                  <div className="bg-slate-900 p-5 rounded-lg border border-slate-700">
+                    <p className="text-orange-400 text-sm font-semibold mb-3">Step-by-Step Measurement Guide</p>
+                    <div className="space-y-3">
+                      <div className="flex gap-3"><span className="bg-orange-500/20 text-orange-400 text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5">1</span><div><p className="text-slate-300 text-sm font-medium">Subpubic Angle</p><p className="text-slate-500 text-xs">Position the pelvis anteriorly. Locate the inferior pubic rami and measure the angle at the pubic symphysis using a caliper. Wide (&gt;90°) suggests female; Narrow (&lt;90°) suggests male.</p></div></div>
+                      <div className="flex gap-3"><span className="bg-orange-500/20 text-orange-400 text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5">2</span><div><p className="text-slate-300 text-sm font-medium">Greater Sciatic Notch</p><p className="text-slate-500 text-xs">Locate the greater sciatic notch between the posterior inferior iliac spine and the ischial spine. Measure the width using a Vernier caliper at the measurement points shown. Wide = female, Narrow = male.</p></div></div>
+                      <div className="flex gap-3"><span className="bg-orange-500/20 text-orange-400 text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5">3</span><div><p className="text-slate-300 text-sm font-medium">Pubic Symphysis Surface</p><p className="text-slate-500 text-xs">Examine the pubic symphysis face texture. Smooth/Flat = young adult, Moderate/Flat Ridges = middle age, Rough/Granular = older adult, Degenerated/Eroded = elderly.</p></div></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {bonesType !== 'Skull' && bonesType !== 'Pelvis' && (
+                <div className="bg-slate-900 p-4 rounded-lg border border-slate-700 text-slate-500 text-sm leading-relaxed">
+                  {bonesType === 'Lower Limb' && 'Measure femur maximum length and head diameter with calipers. Check growth plate fusion status at the distal and proximal ends of the femur.'}
+                  {bonesType === 'Upper Limb' && 'Measure humerus maximum length with an osteometric board. Assess bone robusticity by examining muscle attachment sites and cortical bone thickness.'}
+                  {bonesType === 'Thorax' && 'Examine rib sternal end morphology for age indicators. Measure sternum length from manubrium to xiphoid process.'}
+                  {bonesType === 'Teeth' && 'Identify teeth as deciduous, permanent, or mixed dentition. Assess dental wear on occlusal surfaces and eruption stage of third molars.'}
+                </div>
+              )}
             </div>
 
             <div className="flex justify-between pt-4">
