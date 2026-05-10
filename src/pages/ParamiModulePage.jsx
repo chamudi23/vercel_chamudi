@@ -202,6 +202,12 @@ const heatmapPoints = useMemo(() => {
     ← Back
   </Link>
   <Link
+  to="/parami/similar-findings"
+  className="bg-purple-600 hover:bg-purple-500 text-white text-sm px-4 py-2 rounded-lg transition-colors"
+>
+  🦴 Similar Findings
+</Link>
+  <Link
     to="/parami/add-site"
     className="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-2 rounded-lg transition-colors"
   >
