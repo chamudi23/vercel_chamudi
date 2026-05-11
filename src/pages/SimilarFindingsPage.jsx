@@ -90,9 +90,9 @@ function SimilarFindingsPage() {
     async function load() {
       try {
         const { data, error: err } = await supabase
-          .from('bone_findings')
-          .select('*')
-          .order('bone_type', { ascending: true })
+  .from('specimens')
+  .select('*')
+  .order('bone_type', { ascending: true })
         if (err) throw err
         setFindings(data || [])
       } catch (e) {
@@ -491,7 +491,7 @@ function SimilarFindingsPage() {
               </thead>
               <tbody>
                 {filtered.map((f, i) => (
-                  <tr key={f.id} className={`border-b border-slate-700 hover:bg-slate-700 transition-colors ${i % 2 !== 0 ? 'bg-slate-800/50' : ''}`}>
+  <tr key={f.specimen_id} className={`border-b border-slate-700 hover:bg-slate-700 transition-colors ${i % 2 !== 0 ? 'bg-slate-800/50' : ''}`}>
                     <td className="px-4 py-3 text-slate-200 font-medium whitespace-nowrap">{f.site_name}</td>
                     <td className="px-4 py-3 text-slate-400">{f.bone_type}</td>
                     <td className="px-4 py-3">
