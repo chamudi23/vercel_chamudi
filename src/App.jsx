@@ -17,6 +17,7 @@ import SpecimenDetailPage from "./pages/SpecimenDetailPage";
 import DataImportPage from "./pages/DataImportPage";
 import DataQualityPage from "./pages/DataQualityPage";
 import SimilarFindingsPage from "./pages/SimilarFindingsPage";
+import AddSpecimenPage from "./pages/AddSpecimenPage";
 
 function App() {
   return (
@@ -69,6 +70,7 @@ function App() {
           <Route path="/parami/site/:siteId" element={<SiteDetailPage />} />
           <Route path="/parami/add-site" element={<AddSitePage />} />
 <Route path="/parami/similar-findings" element={<SimilarFindingsPage />} />
+<Route path="/parami/add-specimen" element={<AddSpecimenPage />} />
 
         </Routes>
 
