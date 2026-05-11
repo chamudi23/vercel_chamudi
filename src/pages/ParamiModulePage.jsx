@@ -12,11 +12,12 @@ const RISK_COLOUR = {
 }
 
 const TIME_PERIODS = [
-  { label: 'All Periods',       min: -50000, max: 2024  },
-  { label: 'Prehistoric',       min: -50000, max: -1000 },
-  { label: 'Early Historic',    min: -1000,  max: 0     },
-  { label: 'Classical Period',  min: 0,      max: 1200  },
-  { label: 'Medieval & Modern', min: 1200,   max: 2024  },
+  { label: 'All Periods',      desc: 'All excavation phases',   values: null },
+  { label: 'Prehistoric',      desc: '50,000 BP – 1,000 BC',    values: ['Mesolithic', 'Prehistoric', 'Upper Paleolithic'] },
+  { label: 'Iron Age',         desc: '1,000 BC – 300 BC',       values: ['Iron Age'] },
+  { label: 'Early Historic',   desc: '300 BC – 1,000 AD',       values: ['Early Historic'] },
+  { label: 'Classical Period', desc: '300 AD – 1,200 AD',       values: ['Classical Period'] },
+  { label: 'Medieval',         desc: '1,200 AD – 1,500 AD',     values: ['Medieval'] },
 ]
 
 function markerOptions(risk_level) {
@@ -127,13 +128,19 @@ function ParamiModulePage() {
   }, [])
 
   // Filter sites by selected time period
-  const filteredSites = useMemo(() => {
+ const filteredSites = useMemo(() => {
     const period = TIME_PERIODS[periodIdx]
-    let result = periodIdx === 0 ? sites : sites.filter(s => {
-      const year = guessPeriodYear(s.time_period)
-      if (year === null) return false
-      return year >= period.min && year <= period.max
-    })
+    let result = sites
+
+    if (period.values !== null) {
+      result = sites.filter(s => {
+        if (!s.time_period) return false
+        return period.values.some(v =>
+          s.time_period.trim().toLowerCase() === v.toLowerCase()
+        )
+      })
+    }
+
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase()
       result = result.filter(s =>
@@ -189,9 +196,7 @@ const heatmapPoints = useMemo(() => {
       {/* Header */}
       <div className="mb-8 flex items-start justify-between">
         <div>
-          <p className="text-blue-400 text-xs font-medium uppercase tracking-widest mb-2">
-            IT22889874 — Parami's Module
-          </p>
+          
           <h2 className="text-2xl font-bold text-slate-100">GIS & Spatial Analysis</h2>
           <p className="text-slate-400 text-sm mt-1">
             Site mapping, temporal layers, and AI spatial pattern detection
@@ -252,29 +257,32 @@ const heatmapPoints = useMemo(() => {
         </div>
 
         {/* Period buttons */}
-        <div className="flex flex-wrap gap-2 mb-4">
+       <div className="flex flex-wrap gap-2">
           {TIME_PERIODS.map((p, i) => (
             <button
               key={i}
               onClick={() => setPeriodIdx(i)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border ${
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border text-left ${
                 periodIdx === i
                   ? 'bg-blue-600 border-blue-500 text-white'
                   : 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'
               }`}
             >
-              {p.label}
+              <div>{p.label}</div>
+              <div className={`text-xs mt-0.5 ${periodIdx === i ? 'text-blue-200' : 'text-slate-500'}`}>
+                {p.desc}
+              </div>
             </button>
           ))}
         </div>
 
         {/* Timeline bar */}
-        <div className="relative h-2 bg-slate-700 rounded-full overflow-hidden">
+        <div className="relative h-2 bg-slate-700 rounded-full overflow-hidden mt-4">
           <div
             className="absolute h-full bg-blue-500 rounded-full transition-all duration-300"
             style={{
-              left:  `${((TIME_PERIODS[periodIdx].min + 50000) / 72024) * 100}%`,
-              width: `${((TIME_PERIODS[periodIdx].max - TIME_PERIODS[periodIdx].min) / 72024) * 100}%`,
+              left: periodIdx === 0 ? '0%' : `${(periodIdx - 1) * 20}%`,
+              width: periodIdx === 0 ? '100%' : '20%',
             }}
           />
         </div>
@@ -369,19 +377,52 @@ const heatmapPoints = useMemo(() => {
           </div>
         )}
 
-        {showClusters && clusters.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {clusters.map((cluster, i) => (
-              <div key={i} className="flex items-center gap-1.5 bg-slate-700 rounded-lg px-3 py-1.5">
-                <span
-                  className="w-3 h-3 rounded-full flex-shrink-0"
-                  style={{ background: CLUSTER_COLOURS[i % CLUSTER_COLOURS.length] }}
-                />
-                <span className="text-slate-300 text-xs">
-                  Cluster {i + 1}: {cluster.length} sites
-                </span>
-              </div>
-            ))}
+       {showClusters && clusters.length > 0 && (
+          <div className="mt-4 space-y-2">
+            <p className="text-slate-400 text-xs mb-2">
+              🔍 {clusters.length} spatial cluster{clusters.length > 1 ? 's' : ''} identified — click a cluster to see its sites on the map
+            </p>
+            {clusters.map((cluster, i) => {
+              const clusterSites = cluster.map(idx => filteredSites[idx])
+              const districts = [...new Set(clusterSites.map(s => s.district).filter(Boolean))]
+              const periods   = [...new Set(clusterSites.map(s => s.time_period).filter(Boolean))]
+              const province  = [...new Set(clusterSites.map(s => s.province).filter(Boolean))]
+              const clusterName = province.length === 1
+                ? `${province[0]} Province Cluster`
+                : districts.length > 0
+                  ? `${districts[0]} Region Cluster`
+                  : `Cluster ${i + 1}`
+              return (
+                <div key={i} className="flex items-start gap-3 bg-slate-700 rounded-lg px-4 py-3">
+                  <span className="w-3 h-3 rounded-full flex-shrink-0 mt-1" style={{ background: CLUSTER_COLOURS[i % CLUSTER_COLOURS.length] }} />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-200 text-sm font-medium">{clusterName}</span>
+                      <span className="text-slate-400 text-xs">{cluster.length} sites</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {districts.slice(0, 3).map(d => (
+                        <span key={d} className="text-xs bg-slate-600 text-slate-300 px-2 py-0.5 rounded-full">{d}</span>
+                      ))}
+                      {periods.slice(0, 2).map(p => (
+                        <span key={p} className="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded-full">{p}</span>
+                      ))}
+                    </div>
+                    <p className="text-slate-500 text-xs mt-1">
+                      Sites: {clusterSites.map(s => s.site_name).slice(0, 3).join(', ')}{clusterSites.length > 3 ? ` +${clusterSites.length - 3} more` : ''}
+                    </p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+        {showClusters && clusters.length === 0 && !loading && (
+          <div className="mt-3 bg-slate-700 rounded-lg p-4">
+            <p className="text-slate-400 text-sm font-medium">No clusters found</p>
+            <p className="text-slate-500 text-xs mt-1">
+              Try increasing ε (search radius) or reducing min points. Current: ε={eps.toFixed(1)}° (~{Math.round(eps * 111)}km), minPts={minPts}
+            </p>
           </div>
         )}
 
