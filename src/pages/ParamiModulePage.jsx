@@ -202,15 +202,21 @@ const heatmapPoints = useMemo(() => {
             Site mapping, temporal layers, and AI spatial pattern detection
           </p>
         </div>
-        <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3">
   <Link to="/" className="text-slate-400 hover:text-slate-200 text-sm transition-colors">
     ← Back
   </Link>
   <Link
-  to="/parami/similar-findings"
-  className="bg-purple-600 hover:bg-purple-500 text-white text-sm px-4 py-2 rounded-lg transition-colors"
+    to="/parami/similar-findings"
+    className="bg-purple-600 hover:bg-purple-500 text-white text-sm px-4 py-2 rounded-lg transition-colors"
+  >
+    🦴 Similar Findings
+  </Link>
+  <Link
+  to="/parami/add-specimen"
+  className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2 rounded-lg transition-colors"
 >
-  🦴 Similar Findings
+  🦷 Add Specimen
 </Link>
   <Link
     to="/parami/add-site"
@@ -219,6 +225,7 @@ const heatmapPoints = useMemo(() => {
     + Add New Site
   </Link>
 </div>
+
       </div>
 
       {error && (
