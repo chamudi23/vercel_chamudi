@@ -1,8 +1,8 @@
 /**
  * supabase.js
  * ============
- * Shared Supabase client for the OAHRIS app — used by supabaseService.js
- * and the non-Skeletal modules. Configured via environment variables
+ * Shared Supabase client for the non-Skeletal OAHRIS modules (bone records,
+ * image search, GIS, etc.). Configured via environment variables
  * (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY, see .env.local).
  *
  * NOTE: The Automated Skeletal Analysis module (IT22299802) uses its own

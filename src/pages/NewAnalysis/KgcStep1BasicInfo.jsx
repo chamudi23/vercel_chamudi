@@ -1,71 +1,32 @@
 /**
  * KgcStep1BasicInfo.jsx
  * =====================
- * Step 1 of 3: Basic Information entry for new skeletal analysis.
- * 
- * Features:
- * - Generate auto-incremented case ID (KGC-YYYYMMDD-XXXX)
- * - Collect investigator info (name, email)
- * - Collect specimen info (bone type, location, dates)
- * - Saves investigator to kgc_investigators table (upsert)
- * - Saves case to kgc_cases table with status='in_progress'
- * - Validates required fields and shows error messages
- * - Uses React Hook Form for form management
+ * Step 1 of 3: Basic Information entry for a new skeletal analysis.
+ *
+ * The analysis is held in AnalysisContext through the wizard and persisted
+ * once, at Step 3, via analysisStore (the `analyses` table). Step 1 only
+ * generates the Case ID and records the basic info in context.
  */
 
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import SkeletalHeader from '../../components/KgcSkeletalHeader';
 import { useAnalysis } from '../../context/AnalysisContext';
-import { upsertInvestigator, saveCase } from '../../services/supabaseService';
 
 export default function Step1BasicInfo() {
   const navigate = useNavigate();
   const { currentCaseId, setBasicInfo, startNewAnalysis } = useAnalysis();
   const { register, handleSubmit, formState: { errors } } = useForm();
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState(null);
 
   // Generate a fresh case ID when starting a new analysis
   useEffect(() => {
     startNewAnalysis();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const onSubmit = async (data) => {
-    setSaving(true);
-    setSaveError(null);
-
-    try {
-      // 1. Upsert investigator (if email provided)
-      let investigatorId = null;
-      if (data.email) {
-        const { data: inv, error: invErr } = await upsertInvestigator(data.userName, data.email);
-        if (invErr) throw new Error(`Investigator save failed: ${invErr.message}`);
-        investigatorId = inv?.id || null;
-      }
-
-      // 2. Save case to kgc_cases
-      const { error: caseErr } = await saveCase({
-        caseId: currentCaseId,
-        investigatorId,
-        boneType: data.bonesType,
-        location: data.location,
-        dateFound: data.dateFound,
-        analysisDate: data.analysisDate,
-      });
-
-      if (caseErr) throw new Error(`Case save failed: ${caseErr.message}`);
-
-      // 3. Save to context & navigate
-      setBasicInfo(data);
-      navigate(`/skeletal/analysis/step2?bonesType=${encodeURIComponent(data.bonesType)}`);
-    } catch (err) {
-      console.error('Step 1 save error:', err);
-      setSaveError(err.message);
-    } finally {
-      setSaving(false);
-    }
+  const onSubmit = (data) => {
+    setBasicInfo(data);
+    navigate(`/skeletal/analysis/step2?bonesType=${encodeURIComponent(data.bonesType)}`);
   };
 
   const steps = ['Basic Information', 'Skeletal Measurements', 'Review & Predict'];
@@ -84,13 +45,6 @@ export default function Step1BasicInfo() {
             </div>
           ))}
         </div>
-
-        {/* Error banner */}
-        {saveError && (
-          <div className="mb-6 bg-red-900/30 border border-red-700/50 text-red-300 px-4 py-3 rounded-lg text-sm">
-            <strong>Error:</strong> {saveError}
-          </div>
-        )}
 
         <div className="bg-slate-800 rounded-xl border border-slate-700 p-8">
           <h3 className="text-slate-100 text-xl font-semibold mb-6">Enter Basic Information</h3>
@@ -112,16 +66,7 @@ export default function Step1BasicInfo() {
               <div className="md:col-span-2"><label className="text-slate-400 text-sm mb-1.5 block">Email</label><input type="email" className={ic(false)} placeholder="chamudi@gmail.com" {...register('email')} /></div>
             </div>
             <div className="flex justify-end pt-4">
-              <button
-                type="submit"
-                disabled={saving}
-                className="bg-orange-500 hover:bg-orange-400 disabled:bg-orange-500/50 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-              >
-                {saving && (
-                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" /><path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" strokeLinecap="round" className="opacity-75" /></svg>
-                )}
-                {saving ? 'Saving…' : 'Next →'}
-              </button>
+              <button type="submit" className="bg-orange-500 hover:bg-orange-400 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors">Next →</button>
             </div>
           </form>
         </div>

@@ -1,30 +1,27 @@
 /**
  * KgcDashboard.jsx
  * ================
- * Main dashboard for the OAHRIS Skeletal Analysis module.
- * Displays key statistics, recent cases, and analysis metrics from Supabase.
- * 
- * - Fetches recent cases from kgc_cases table
- * - Shows dashboard statistics (total cases, analyses, etc.)
- * - Displays trends and case status distribution
- * - Connected to Supabase via supabaseService.js
+ * Overview dashboard for the Automated Skeletal Analysis module.
+ *
+ * All statistics are derived from the module's own `analyses` table
+ * (via analysisStore → skeletalSupabase / jlqnqzlvpljntpnbdaci).
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Users, Activity, Target, UserCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts';
 import SkeletalHeader from '../components/KgcSkeletalHeader';
-import { fetchRecentCases, fetchDashboardStats } from '../services/supabaseService';
+import { getAllAnalyses } from '../lib/analysisStore';
 
-const COLORS = ['#3B82F6', '#9CA3AF'];
+const COLORS = ['#3B82F6', '#EC4899', '#9CA3AF'];
 
-const mockTableColumns = [
-  { key: 'case_id', label: 'Case ID' },
-  { key: 'bone_type', label: 'Bones Type' },
+const columns = [
+  { key: 'caseId', label: 'Case ID' },
+  { key: 'bonesType', label: 'Bones Type' },
   { key: 'location', label: 'Location' },
-  { key: 'status', label: 'Status' },
-  { key: 'date_found', label: 'Found Date' },
+  { key: 'gender', label: 'Gender' },
+  { key: 'foundDate', label: 'Found Date' },
 ];
 
 function StatCardInline({ label, value, color, icon: Icon }) {
@@ -36,7 +33,7 @@ function StatCardInline({ label, value, color, icon: Icon }) {
         </div>
         <div>
           <p className="text-slate-400 text-sm">{label}</p>
-          <p className={`text-2xl font-bold text-slate-100`}>{value}</p>
+          <p className="text-2xl font-bold text-slate-100">{value}</p>
         </div>
       </div>
     </div>
@@ -46,54 +43,94 @@ function StatCardInline({ label, value, color, icon: Icon }) {
 const formatDate = (dateStr) => {
   if (!dateStr) return '—';
   try {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
+    return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   } catch (e) {
     return dateStr;
   }
 };
 
-const statusBadge = (status) => {
-  const styles = {
-    draft: 'bg-slate-700 text-slate-300',
-    in_progress: 'bg-yellow-900/40 text-yellow-400',
-    completed: 'bg-emerald-900/40 text-emerald-400',
-    archived: 'bg-blue-900/40 text-blue-400',
-  };
-  return styles[status] || styles.draft;
-};
+// Bucket an age-range string (e.g. "25 - 35", "55+", "< 6") into a group.
+function ageBucket(range = '') {
+  const r = String(range);
+  if (/</.test(r) || /\b(6|12|18)\b/.test(r)) return '0-18';
+  if (/\b(19|20|25|30)\b/.test(r)) return '19-30';
+  if (/\b(31|35|40)\b/.test(r)) return '31-40';
+  if (/\b(41|45|50)\b/.test(r)) return '41-50';
+  if (/\+/.test(r) || /\b(51|55|60)\b/.test(r)) return '51+';
+  return null;
+}
 
 export default function Dashboard() {
   const [search, setSearch] = useState('');
-  const [cases, setCases] = useState([]);
-  const [stats, setStats] = useState(null);
+  const [analyses, setAnalyses] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadData() {
-      setLoading(true);
-      const [casesResult, statsResult] = await Promise.all([
-        fetchRecentCases(5),
-        fetchDashboardStats(),
-      ]);
-      setCases(casesResult.data || []);
-      setStats(statsResult);
+    let active = true;
+    getAllAnalyses().then((list) => {
+      if (!active) return;
+      setAnalyses(list);
       setLoading(false);
-    }
-    loadData();
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const filteredData = cases.filter(row =>
-    Object.values(row).some(val =>
-      String(val).toLowerCase().includes(search.toLowerCase())
-    )
+  // Rows for the table
+  const rows = useMemo(
+    () =>
+      analyses.map((a) => ({
+        caseId: a.caseId,
+        bonesType: a.measurements?.bonesType || a.basicInfo?.bonesType || '—',
+        location: a.basicInfo?.location || '—',
+        gender: a.predictions?.gender || '—',
+        foundDate: a.basicInfo?.dateFound || '',
+      })),
+    [analyses]
   );
 
-  const ageData = stats?.ageData || [];
-  const genderData = stats?.genderData || [];
+  // Aggregated stats
+  const stats = useMemo(() => {
+    const preds = analyses.map((a) => a.predictions || {});
+    const confidences = preds
+      .map((p) => parseFloat(String(p.confidence).replace('%', '')))
+      .filter((n) => !isNaN(n));
+    const avgConfidence = confidences.length
+      ? (confidences.reduce((s, n) => s + n, 0) / confidences.length).toFixed(1)
+      : '0.0';
+
+    const genderCounts = { Male: 0, Female: 0, Indeterminate: 0 };
+    preds.forEach((p) => {
+      if (genderCounts[p.gender] !== undefined) genderCounts[p.gender]++;
+    });
+
+    const buckets = { '0-18': 0, '19-30': 0, '31-40': 0, '41-50': 0, '51+': 0 };
+    preds.forEach((p) => {
+      const b = ageBucket(p.ageRange);
+      if (b) buckets[b]++;
+    });
+
+    return {
+      totalCases: analyses.length,
+      withHeight: preds.filter((p) => p.height && p.height !== 'Unknown').length,
+      avgConfidence,
+      lastPrediction: preds[0]?.gender || '—',
+      genderData: [
+        { name: 'Male', value: genderCounts.Male },
+        { name: 'Female', value: genderCounts.Female },
+        { name: 'Indeterminate', value: genderCounts.Indeterminate },
+      ].filter((d) => d.value > 0),
+      ageData: Object.entries(buckets).map(([ageGroup, count]) => ({ ageGroup, count })),
+    };
+  }, [analyses]);
+
+  const filteredData = rows.filter((row) =>
+    Object.values(row).some((val) => String(val).toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const ageData = stats.ageData;
+  const genderData = stats.genderData;
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -116,10 +153,10 @@ export default function Dashboard() {
 
         {/* Stat Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCardInline label="Total Cases" value={loading ? '…' : stats?.totalCases || 0} color="text-blue-400" icon={Users} />
-          <StatCardInline label="Completed" value={loading ? '…' : stats?.completedCases || 0} color="text-emerald-400" icon={Activity} />
-          <StatCardInline label="Avg Accuracy" value={loading ? '…' : `${stats?.avgConfidence || 0}%`} color="text-orange-400" icon={Target} />
-          <StatCardInline label="Last Prediction" value={loading ? '…' : stats?.lastPrediction || '—'} color="text-purple-400" icon={UserCheck} />
+          <StatCardInline label="Total Cases" value={loading ? '…' : stats.totalCases} color="text-blue-400" icon={Users} />
+          <StatCardInline label="With Height" value={loading ? '…' : stats.withHeight} color="text-emerald-400" icon={Activity} />
+          <StatCardInline label="Avg Confidence" value={loading ? '…' : `${stats.avgConfidence}%`} color="text-orange-400" icon={Target} />
+          <StatCardInline label="Last Prediction" value={loading ? '…' : stats.lastPrediction} color="text-purple-400" icon={UserCheck} />
         </div>
 
         {/* Charts */}
@@ -127,7 +164,7 @@ export default function Dashboard() {
           <div className="lg:col-span-2 bg-slate-800 p-6 rounded-xl border border-slate-700">
             <h3 className="text-slate-200 font-semibold mb-4">Age Distribution (All Cases)</h3>
             <div className="h-64 w-full">
-              {ageData.some(d => d.count > 0) ? (
+              {ageData.some((d) => d.count > 0) ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={ageData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
@@ -151,7 +188,7 @@ export default function Dashboard() {
           <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
             <h3 className="text-slate-200 font-semibold mb-4">Gender Distribution</h3>
             <div className="h-64 w-full">
-              {genderData.some(d => d.value > 0) ? (
+              {genderData.some((d) => d.value > 0) ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie data={genderData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} dataKey="value" stroke="none">
@@ -162,15 +199,11 @@ export default function Dashboard() {
                     <Tooltip
                       contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #374151', borderRadius: '8px', color: '#F3F4F6' }}
                     />
-                    <Legend
-                      formatter={(value) => <span className="text-slate-300 text-sm">{value}</span>}
-                    />
+                    <Legend formatter={(value) => <span className="text-slate-300 text-sm">{value}</span>} />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-full flex items-center justify-center text-slate-500 text-sm">
-                  No prediction data yet.
-                </div>
+                <div className="h-full flex items-center justify-center text-slate-500 text-sm">No prediction data yet.</div>
               )}
             </div>
           </div>
@@ -200,7 +233,7 @@ export default function Dashboard() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-700">
-                  {mockTableColumns.map((col) => (
+                  {columns.map((col) => (
                     <th key={col.key} className="text-left px-6 py-3 text-slate-400 font-medium">{col.label}</th>
                   ))}
                   <th className="text-left px-6 py-3 text-slate-400 font-medium">Action</th>
@@ -208,24 +241,20 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={mockTableColumns.length + 1} className="px-6 py-8 text-center text-slate-500">Loading cases…</td></tr>
+                  <tr><td colSpan={columns.length + 1} className="px-6 py-8 text-center text-slate-500">Loading cases…</td></tr>
                 ) : filteredData.length === 0 ? (
-                  <tr><td colSpan={mockTableColumns.length + 1} className="px-6 py-8 text-center text-slate-500">
+                  <tr><td colSpan={columns.length + 1} className="px-6 py-8 text-center text-slate-500">
                     {search ? `No cases found matching "${search}"` : 'No cases yet. Start a new analysis!'}
                   </td></tr>
-                ) : filteredData.map((row) => (
-                  <tr key={row.case_id} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors">
-                    <td className="px-6 py-3 text-slate-300 font-mono text-xs">{row.case_id}</td>
-                    <td className="px-6 py-3 text-slate-300">{row.bone_type}</td>
+                ) : filteredData.slice(0, 8).map((row) => (
+                  <tr key={row.caseId} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors">
+                    <td className="px-6 py-3 text-slate-300 font-mono text-xs">{row.caseId}</td>
+                    <td className="px-6 py-3 text-slate-300">{row.bonesType}</td>
                     <td className="px-6 py-3 text-slate-300">{row.location}</td>
+                    <td className="px-6 py-3 text-slate-300">{row.gender}</td>
+                    <td className="px-6 py-3 text-slate-300">{formatDate(row.foundDate)}</td>
                     <td className="px-6 py-3">
-                      <span className={`text-xs px-2 py-1 rounded-full ${statusBadge(row.status)}`}>
-                        {row.status?.replace('_', ' ') || 'draft'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3 text-slate-300">{formatDate(row.date_found)}</td>
-                    <td className="px-6 py-3">
-                      <Link to="/skeletal/report" className="text-blue-400 hover:text-blue-300 text-xs transition-colors">
+                      <Link to={`/skeletal/report/${encodeURIComponent(row.caseId)}`} className="text-blue-400 hover:text-blue-300 text-xs transition-colors">
                         View Report
                       </Link>
                     </td>
