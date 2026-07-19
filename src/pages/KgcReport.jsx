@@ -81,8 +81,10 @@ export default function Report() {
     { ageGroup: '51+', count: 2 },
   ];
 
-  /* ---------------- Download Report (PDF) ---------------- */
-  const handleDownload = () => {
+  /* ---------------- Build the PDF (shared by download + email) --------- */
+  const pdfFileName = () => `Report-${basicInfo.caseId || caseId || 'analysis'}.pdf`;
+
+  const buildPdfDoc = () => {
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
     const left = 48;
     let y = 60;
@@ -147,8 +149,10 @@ export default function Report() {
     line(12);
     doc.text('confirmed by a trained professional.', left, y);
 
-    doc.save(`Report-${basicInfo.caseId || caseId || 'analysis'}.pdf`);
+    return doc;
   };
+
+  const handleDownload = () => buildPdfDoc().save(pdfFileName());
 
   /* ---------------- Send Mail (opens recipient modal) ---------------- */
   const openMail = () => {
@@ -185,6 +189,16 @@ export default function Report() {
     }
     setSending(true);
     setSendResult(null);
+
+    // Generate the PDF as base64 so it can be attached to the email.
+    let pdfBase64 = '';
+    try {
+      const dataUri = buildPdfDoc().output('datauristring');
+      pdfBase64 = dataUri.split('base64,')[1] || '';
+    } catch {
+      pdfBase64 = '';
+    }
+
     const { error } = await sendReportEmail(to, {
       caseId: basicInfo.caseId || caseId || '—',
       investigator: basicInfo.userName || '—',
@@ -195,12 +209,14 @@ export default function Report() {
       height: predictions.height || '—',
       confidence: predictions.confidence || '—',
       message: buildMessage(),
+      pdfBase64,
+      pdfFileName: pdfFileName(),
     });
     setSending(false);
     if (error) {
       setSendResult({ ok: false, msg: error.message });
     } else {
-      setSendResult({ ok: true, msg: `Report sent to ${to} from ${SENDER_EMAIL}.` });
+      setSendResult({ ok: true, msg: `Report sent to ${to} from ${SENDER_EMAIL} (a copy was kept via BCC).` });
     }
   };
 

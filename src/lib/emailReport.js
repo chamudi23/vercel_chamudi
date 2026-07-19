@@ -7,7 +7,8 @@ import { EMAILJS, SENDER_EMAIL, isEmailConfigured } from './emailConfig';
  *
  * @param {string} toEmail  recipient address
  * @param {object} report   { caseId, investigator, location, boneType,
- *                            gender, ageRange, height, confidence, message }
+ *                            gender, ageRange, height, confidence, message,
+ *                            pdfBase64?, pdfFileName? }
  * @returns {Promise<{ error: Error|null }>}
  */
 export async function sendReportEmail(toEmail, report) {
@@ -24,6 +25,9 @@ export async function sendReportEmail(toEmail, report) {
     from_name: 'OAHRIS — Automated Skeletal Analysis',
     sender_email: SENDER_EMAIL,
     reply_to: SENDER_EMAIL,
+    // Keep a copy at the sender's mailbox. Bind the template's Bcc field to
+    // {{cc_email}} in the EmailJS dashboard.
+    cc_email: SENDER_EMAIL,
     subject: `Skeletal Analysis Report — ${report.caseId}`,
     case_id: report.caseId,
     investigator: report.investigator,
@@ -34,6 +38,10 @@ export async function sendReportEmail(toEmail, report) {
     height: report.height,
     confidence: report.confidence,
     message: report.message,
+    // PDF attachment (base64). Add a Variable Attachment in the EmailJS
+    // template with parameter name `report_pdf` (needs a paid EmailJS plan).
+    report_pdf: report.pdfBase64 || '',
+    report_pdf_name: report.pdfFileName || 'Report.pdf',
   };
 
   try {
