@@ -1,14 +1,14 @@
 /**
  * supabase.js
  * ============
- * Initializes the Supabase client for the OAHRIS Skeletal Analysis module.
- * 
- * Uses environment variables (VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY)
- * to connect to the Supabase PostgreSQL database hosted at:
- * https://yiamplfqhyurgxxbpeur.supabase.co
- * 
- * All database queries throughout the app use this singleton client.
- * @see supabaseService.js for all database operations
+ * Shared Supabase client for the OAHRIS app — used by supabaseService.js
+ * and the non-Skeletal modules. Configured via environment variables
+ * (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY, see .env.local).
+ *
+ * NOTE: The Automated Skeletal Analysis module (IT22299802) uses its own
+ * dedicated client — src/lib/skeletalSupabase.js — pointed at its own
+ * Supabase project (jlqnqzlvpljntpnbdaci), where its tables and Google
+ * auth are configured.
  */
 
 import { createClient } from '@supabase/supabase-js'
