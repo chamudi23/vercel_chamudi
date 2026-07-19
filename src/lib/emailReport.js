@@ -7,8 +7,7 @@ import { EMAILJS, SENDER_EMAIL, isEmailConfigured } from './emailConfig';
  *
  * @param {string} toEmail  recipient address
  * @param {object} report   { caseId, investigator, location, boneType,
- *                            gender, ageRange, height, confidence, message,
- *                            pdfBase64?, pdfFileName? }
+ *                            gender, ageRange, height, confidence, message }
  * @returns {Promise<{ error: Error|null }>}
  */
 export async function sendReportEmail(toEmail, report) {
@@ -38,10 +37,6 @@ export async function sendReportEmail(toEmail, report) {
     height: report.height,
     confidence: report.confidence,
     message: report.message,
-    // PDF attachment (base64). Add a Variable Attachment in the EmailJS
-    // template with parameter name `report_pdf` (needs a paid EmailJS plan).
-    report_pdf: report.pdfBase64 || '',
-    report_pdf_name: report.pdfFileName || 'Report.pdf',
   };
 
   try {
