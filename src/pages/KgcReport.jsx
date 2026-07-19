@@ -1,21 +1,10 @@
-/**
- * KgcReport.jsx
- * =============
- * Displays the final skeletal analysis report with predictions.
- * Shows biological profile (age, sex, height) based on measurements.
- * 
- * - Renders collected measurements from the 3-step analysis wizard
- * - Displays predicted biological profile (age range, sex, height)
- * - Shows similar cases for comparison (fetched from Supabase)
- * - Allows downloading/sending report
- * - References: Bass, W.M. (2005) Human Osteology, 5th ed.
- */
-
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { jsPDF } from 'jspdf';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import SkeletalHeader from '../components/KgcSkeletalHeader';
 import { useAnalysis } from '../context/AnalysisContext';
-import { fetchSimilarCases } from '../services/supabaseService';
+import { getAnalysis } from '../lib/analysisStore';
 
 // Helper: get human-readable label for a measurement value
 const labelMap = {
@@ -42,143 +31,39 @@ function formatKey(key) {
   return key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
 }
 
-const formatDate = (dateStr) => {
-  if (!dateStr) return '—';
-  try {
-    return new Date(dateStr).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
-  } catch { return dateStr; }
-};
-
-/**
- * Generate a professional PDF-ready HTML report and trigger browser print/save.
- * Uses zero external dependencies — pure HTML + CSS in a new window.
- */
-function downloadReport({ basicInfo, measurements, predictions, bonesType, measurementFields, similarCases }) {
-  const caseId = basicInfo.caseId || 'UNKNOWN';
-  const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-
-  // Build measurement rows
-  const measurementRows = Object.entries(measurementFields)
-    .map(([key, val]) => `<tr><td>${formatKey(key)}</td><td>${getLabel(val)}</td></tr>`)
-    .join('');
-
-  // Build similar cases rows
-  const similarRows = (similarCases || []).length > 0
-    ? (similarCases || []).map(c =>
-        `<tr><td>${c.case_id}</td><td>${c.bone_type}</td><td>${c.location}</td><td>${formatDate(c.date_found)}</td></tr>`
-      ).join('')
-    : '<tr><td colspan="4" style="text-align:center;color:#999;">No similar cases found</td></tr>';
-
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>OAHRIS Report — ${caseId}</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Inter', -apple-system, sans-serif; color: #1e293b; background: #fff; padding: 40px; max-width: 800px; margin: 0 auto; }
-  .header { border-bottom: 3px solid #f97316; padding-bottom: 16px; margin-bottom: 28px; }
-  .header h1 { font-size: 22px; color: #0f172a; margin-bottom: 2px; }
-  .header .subtitle { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 1.5px; }
-  .header .case-id { font-size: 14px; color: #f97316; font-weight: 600; margin-top: 6px; }
-  .meta { display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; margin-bottom: 24px; }
-  h2 { font-size: 14px; font-weight: 700; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 28px; }
-  .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  table th { background: #f1f5f9; color: #475569; font-weight: 600; text-align: left; padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }
-  table td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; color: #334155; }
-  .pred-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 28px; }
-  .pred-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; text-align: center; }
-  .pred-card .label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
-  .pred-card .value { font-size: 20px; font-weight: 700; color: #0f172a; margin-top: 4px; }
-  .pred-card.confidence .value { color: #059669; }
-  .footer { margin-top: 36px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; text-align: center; }
-  @media print {
-    body { padding: 20px; }
-    .no-print { display: none !important; }
-  }
-</style>
-</head>
-<body>
-
-<div class="header">
-  <div class="subtitle">OAHRIS — Automated Skeletal Analysis</div>
-  <h1>Biological Profile Prediction Report</h1>
-  <div class="case-id">Case ${caseId}</div>
-</div>
-
-<div class="meta">
-  <span>Generated: ${today}</span>
-  <span>Methodology: Bass, W.M. (2005) Human Osteology, 5th Ed.</span>
-</div>
-
-<h2>Prediction Results</h2>
-<div class="pred-grid">
-  <div class="pred-card"><div class="label">Predicted Sex</div><div class="value">${predictions.gender || '—'}</div></div>
-  <div class="pred-card"><div class="label">Age Range</div><div class="value">${predictions.ageRange || '—'}</div></div>
-  <div class="pred-card"><div class="label">Est. Height</div><div class="value">${predictions.height || '—'}</div></div>
-  <div class="pred-card confidence"><div class="label">Confidence</div><div class="value">${predictions.confidence || '—'}</div></div>
-</div>
-
-<div class="grid">
-  <div class="card">
-    <h2>Case Information</h2>
-    <table>
-      <tr><td style="color:#64748b;">Case ID</td><td><strong>${caseId}</strong></td></tr>
-      <tr><td style="color:#64748b;">Investigator</td><td>${basicInfo.userName || '—'}</td></tr>
-      <tr><td style="color:#64748b;">Bone Type</td><td>${bonesType || basicInfo.bonesType || '—'}</td></tr>
-      <tr><td style="color:#64748b;">Location</td><td>${basicInfo.location || '—'}</td></tr>
-      <tr><td style="color:#64748b;">Date Found</td><td>${basicInfo.dateFound || '—'}</td></tr>
-      <tr><td style="color:#64748b;">Analysis Date</td><td>${basicInfo.analysisDate || '—'}</td></tr>
-    </table>
-  </div>
-
-  <div class="card">
-    <h2>Measurements — ${bonesType || basicInfo.bonesType || 'N/A'}</h2>
-    <table>${measurementRows || '<tr><td colspan="2" style="color:#999;">No measurements recorded</td></tr>'}</table>
-  </div>
-</div>
-
-<h2>Similar Cases</h2>
-<table>
-  <thead><tr><th>Case ID</th><th>Bone Type</th><th>Location</th><th>Date Found</th></tr></thead>
-  <tbody>${similarRows}</tbody>
-</table>
-
-<div class="footer">
-  OAHRIS — Osteoarchaeological Human Remains Identification System &nbsp;|&nbsp; Module: Automated Skeletal Analysis (KGC) &nbsp;|&nbsp; IT22299802 — Chamudi
-</div>
-
-<script>window.onload = function() { window.print(); }</script>
-</body>
-</html>`;
-
-  const blob = new Blob([html], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  const win = window.open(url, '_blank');
-  // Clean up after a delay
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
-}
-
 export default function Report() {
-  const { analysisData, currentCaseId } = useAnalysis();
-  const { basicInfo, measurements, predictions } = analysisData;
-  const [similarCases, setSimilarCases] = useState([]);
+  const { caseId } = useParams();
+  const { analysisData } = useAnalysis();
+  const [stored, setStored] = useState(undefined); // undefined = loading, null = not found
 
-  // Extract measurement fields (exclude bonesType)
-  const { bonesType, ...measurementFields } = measurements;
-
-  // Fetch similar cases from Supabase
+  // Load the requested case from Supabase (or use the live analysis if no id).
   useEffect(() => {
-    const bt = bonesType || basicInfo.bonesType;
-    if (bt) {
-      fetchSimilarCases(bt, currentCaseId, 5).then(({ data }) => {
-        setSimilarCases(data || []);
-      });
+    let active = true;
+    if (!caseId) {
+      setStored(null);
+      return;
     }
-  }, [bonesType, basicInfo.bonesType, currentCaseId]);
+    setStored(undefined);
+    getAnalysis(caseId).then((rec) => {
+      if (active) setStored(rec);
+    });
+    return () => {
+      active = false;
+    };
+  }, [caseId]);
+
+  const loading = Boolean(caseId) && stored === undefined;
+  const source = (caseId ? stored : analysisData) || {};
+  const basicInfo = source.basicInfo || {};
+  const measurements = source.measurements || {};
+  const predictions = source.predictions || {};
+  const { bonesType, ...measurementFields } = measurements;
+  const notFound = Boolean(caseId) && stored === null;
+
+  const mockSimilarCasesData = [
+    { caseId: 'C089', name: 'Unknown', bonesType: 'Skull', location: 'Texas', foundDate: '2023-01-15' },
+    { caseId: 'C102', name: 'Unknown', bonesType: 'Skull', location: 'Nevada', foundDate: '2023-04-22' },
+  ];
 
   const mockAgeData = [
     { ageGroup: '0-18', count: 5 },
@@ -188,33 +73,147 @@ export default function Report() {
     { ageGroup: '51+', count: 2 },
   ];
 
+  /* ---------------- Download Report (PDF) ---------------- */
+  const handleDownload = () => {
+    const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+    const left = 48;
+    let y = 60;
+    const line = (h = 18) => (y += h);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.setTextColor(20, 20, 20);
+    doc.text('Skeletal Analysis — Prediction Report', left, y);
+    line(10);
+    doc.setDrawColor(230, 130, 40);
+    doc.setLineWidth(2);
+    doc.line(left, y, 547, y);
+    line(28);
+
+    const section = (title) => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setTextColor(230, 130, 40);
+      doc.text(title, left, y);
+      line(20);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11);
+      doc.setTextColor(40, 40, 40);
+    };
+    const row = (k, v) => {
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(90, 90, 90);
+      doc.text(`${k}:`, left, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(20, 20, 20);
+      doc.text(String(v ?? '—'), left + 160, y);
+      line();
+    };
+
+    section('Basic Information');
+    row('Case ID', basicInfo.caseId || caseId || '—');
+    row('Investigator', basicInfo.userName);
+    row('Location', basicInfo.location);
+    row('Date Found', basicInfo.dateFound);
+    row('Bone Type', bonesType || basicInfo.bonesType);
+    row('Analysis Date', basicInfo.analysisDate);
+    line(10);
+
+    if (Object.keys(measurementFields).length) {
+      section('Measurements');
+      Object.entries(measurementFields).forEach(([k, val]) => row(formatKey(k), getLabel(val)));
+      line(10);
+    }
+
+    section('Prediction Result');
+    row('Gender', predictions.gender);
+    row('Age Range', predictions.ageRange);
+    row('Height', predictions.height);
+    row('Confidence', predictions.confidence);
+    line(24);
+
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(9);
+    doc.setTextColor(130, 130, 130);
+    doc.text('OAHRIS — Automated Skeletal Analysis System. Estimates are supportive and should be', left, y);
+    line(12);
+    doc.text('confirmed by a trained professional.', left, y);
+
+    doc.save(`Report-${basicInfo.caseId || caseId || 'analysis'}.pdf`);
+  };
+
+  /* ---------------- Send Mail (mailto) ---------------- */
+  const handleSendMail = () => {
+    const subject = `Skeletal Analysis Report — ${basicInfo.caseId || caseId || ''}`.trim();
+    const bodyLines = [
+      'Skeletal Analysis — Prediction Report',
+      '',
+      `Case ID: ${basicInfo.caseId || caseId || '—'}`,
+      `Investigator: ${basicInfo.userName || '—'}`,
+      `Location: ${basicInfo.location || '—'}`,
+      `Date Found: ${basicInfo.dateFound || '—'}`,
+      `Bone Type: ${bonesType || basicInfo.bonesType || '—'}`,
+      `Analysis Date: ${basicInfo.analysisDate || '—'}`,
+      '',
+      'Prediction Result',
+      `  Gender: ${predictions.gender || '—'}`,
+      `  Age Range: ${predictions.ageRange || '—'}`,
+      `  Height: ${predictions.height || '—'}`,
+      `  Confidence: ${predictions.confidence || '—'}`,
+      '',
+      'Generated by OAHRIS — Automated Skeletal Analysis System.',
+    ];
+    const to = basicInfo.email || '';
+    const url = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyLines.join('\n'))}`;
+    window.location.href = url;
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-6xl mx-auto">
+        <SkeletalHeader title="Prediction Report" subtitle="Loading case from the database…" />
+        <div className="px-6 py-24 text-center text-slate-500 text-sm">Loading report…</div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-6xl mx-auto">
       <SkeletalHeader
-        title={`Prediction Report ${basicInfo.caseId || '#0001'}`}
+        title={`Prediction Report ${basicInfo.caseId || caseId || '#0001'}`}
         subtitle="Detailed biological profile prediction results"
       />
 
       <div className="px-6 pb-12 space-y-6">
         {/* Action buttons */}
         <div className="flex gap-3">
-          <button className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+          <button
+            onClick={handleSendMail}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+          >
             ✉️ Send Mail
           </button>
           <button
-            onClick={() => downloadReport({ basicInfo, measurements, predictions, bonesType, measurementFields, similarCases })}
+            onClick={handleDownload}
             className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
           >
             ⬇️ Download Report
           </button>
         </div>
 
+        {notFound && (
+          <div className="bg-amber-900/20 border border-amber-700/40 text-amber-300 rounded-lg px-4 py-3 text-sm">
+            Case <span className="font-mono font-semibold">{caseId}</span> was not found in the database. It may not
+            have been saved yet, or the analyses table may not exist. See setup notes if this persists.
+          </div>
+        )}
+
         {/* Info + Result cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-slate-800 border border-slate-700 rounded-xl p-6">
             <h3 className="text-slate-200 font-semibold text-lg border-b border-slate-700 pb-2 mb-4">Basic Information & Features</h3>
             <div className="grid grid-cols-2 gap-y-4 text-sm">
-              <div className="text-slate-400">Case ID:</div><div className="text-slate-100 font-medium">{basicInfo.caseId || '—'}</div>
+              <div className="text-slate-400">Case ID:</div><div className="text-slate-100 font-medium">{basicInfo.caseId || caseId || '—'}</div>
               <div className="text-slate-400">Investigator:</div><div className="text-slate-100 font-medium">{basicInfo.userName || '—'}</div>
               <div className="text-slate-400">Location:</div><div className="text-slate-100 font-medium">{basicInfo.location || '—'}</div>
               <div className="text-slate-400">Date Found:</div><div className="text-slate-100 font-medium">{basicInfo.dateFound || '—'}</div>
@@ -272,14 +271,12 @@ export default function Report() {
                   </tr>
                 </thead>
                 <tbody>
-                  {similarCases.length === 0 ? (
-                    <tr><td colSpan={4} className="px-6 py-6 text-center text-slate-500">No similar cases found</td></tr>
-                  ) : similarCases.map((row) => (
-                    <tr key={row.case_id} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors">
-                      <td className="px-6 py-3 text-slate-300">{row.case_id}</td>
-                      <td className="px-6 py-3 text-slate-300">{row.bone_type}</td>
+                  {mockSimilarCasesData.map((row, i) => (
+                    <tr key={i} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors">
+                      <td className="px-6 py-3 text-slate-300">{row.caseId}</td>
+                      <td className="px-6 py-3 text-slate-300">{row.bonesType}</td>
                       <td className="px-6 py-3 text-slate-300">{row.location}</td>
-                      <td className="px-6 py-3 text-slate-300">{formatDate(row.date_found)}</td>
+                      <td className="px-6 py-3 text-slate-300">{row.foundDate}</td>
                     </tr>
                   ))}
                 </tbody>
