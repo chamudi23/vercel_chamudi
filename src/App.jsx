@@ -18,10 +18,16 @@ import SkeletalStep2 from './pages/NewAnalysis/KgcStep2Measurements';
 import SkeletalStep3 from './pages/NewAnalysis/KgcStep3Review';
 import SkeletalReport from './pages/KgcReport';
 import SkeletalPastAnalysis from './pages/KgcPastAnalysis';
+import SkeletalKnowledgeBase from './pages/Knowledge/KgcKnowledgeBase';
+import SkeletalNewAnalysisTutorial from './pages/Knowledge/KgcNewAnalysisTutorial';
+import SkeletalBoneFeatureGuide from './pages/Knowledge/KgcBoneFeatureGuide';
+import SkeletalCourse from './pages/Knowledge/KgcCourse';
 import { AnalysisProvider } from './context/AnalysisContext';
+import { AuthProvider } from './context/AuthContext';
 
 function App() {
   return (
+    <AuthProvider>
     <AnalysisProvider>
     <BrowserRouter>
       <div className="min-h-screen bg-slate-900 text-slate-100">
@@ -73,12 +79,18 @@ function App() {
           <Route path="/skeletal/analysis/step2" element={<SkeletalStep2 />} />
           <Route path="/skeletal/analysis/step3" element={<SkeletalStep3 />} />
           <Route path="/skeletal/report" element={<SkeletalReport />} />
+          <Route path="/skeletal/report/:caseId" element={<SkeletalReport />} />
           <Route path="/skeletal/cases" element={<SkeletalPastAnalysis />} />
+          <Route path="/skeletal/knowledge" element={<SkeletalKnowledgeBase />} />
+          <Route path="/skeletal/knowledge/tutorial" element={<SkeletalNewAnalysisTutorial />} />
+          <Route path="/skeletal/knowledge/guide" element={<SkeletalBoneFeatureGuide />} />
+          <Route path="/skeletal/knowledge/course" element={<SkeletalCourse />} />
         </Routes>
 
       </div>
     </BrowserRouter>
     </AnalysisProvider>
+    </AuthProvider>
   )
 }
 
