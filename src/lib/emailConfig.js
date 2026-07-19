@@ -12,8 +12,11 @@
 export const SENDER_EMAIL = 'it22299802@my.sliit.lk';
 
 export const EMAILJS = {
-  serviceId: import.meta.env.VITE_EMAILJS_SERVICE_ID || 'YOUR_SERVICE_ID',
+  serviceId: import.meta.env.VITE_EMAILJS_SERVICE_ID || 'service_3hfz0w3',
+  // From EmailJS → Email Templates (after saving the template built from
+  // email_template.html):
   templateId: import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'YOUR_TEMPLATE_ID',
+  // From EmailJS → Account → General → Public Key:
   publicKey: import.meta.env.VITE_EMAILJS_PUBLIC_KEY || 'YOUR_PUBLIC_KEY',
 };
 
