@@ -1,3 +1,93 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ============================================================
+   Knowledge Base — animation primitives
+   ============================================================ */
+
+@keyframes kb-fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes kb-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes kb-scale-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes kb-slide-in {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes kb-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+@keyframes kb-pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.55); }
+  70%  { box-shadow: 0 0 0 14px rgba(249, 115, 22, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); }
+}
+@keyframes kb-ken-burns {
+  0%   { transform: scale(1) translate(0, 0); }
+  100% { transform: scale(1.12) translate(-1.5%, -1.5%); }
+}
+@keyframes kb-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes kb-progress {
+  from { width: 0%; }
+  to   { width: 100%; }
+}
+@keyframes kb-glow {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 0.7; }
+}
+
+/* Reveal-on-scroll: hidden until .is-visible is added by IntersectionObserver */
+.kb-reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+.kb-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.kb-anim-fade-up  { animation: kb-fade-up 0.6s cubic-bezier(0.22,1,0.36,1) both; }
+.kb-anim-fade-in  { animation: kb-fade-in 0.6s ease both; }
+.kb-anim-scale-in { animation: kb-scale-in 0.5s cubic-bezier(0.22,1,0.36,1) both; }
+.kb-anim-slide-in { animation: kb-slide-in 0.5s cubic-bezier(0.22,1,0.36,1) both; }
+.kb-float         { animation: kb-float 5s ease-in-out infinite; }
+.kb-pulse-ring    { animation: kb-pulse-ring 2s ease-out infinite; }
+.kb-glow          { animation: kb-glow 4s ease-in-out infinite; }
+
+/* Slow cinematic zoom on the active feature image */
+.kb-ken-burns { animation: kb-ken-burns 12s ease-out forwards; }
+
+/* Skeleton shimmer while an image loads */
+.kb-shimmer {
+  background: linear-gradient(90deg,
+    rgba(255,255,255,0.04) 25%,
+    rgba(255,255,255,0.10) 37%,
+    rgba(255,255,255,0.04) 63%);
+  background-size: 200% 100%;
+  animation: kb-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Auto-play progress bar */
+.kb-progress-fill { animation: kb-progress linear forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .kb-reveal { opacity: 1; transform: none; transition: none; }
+  .kb-anim-fade-up, .kb-anim-fade-in, .kb-anim-scale-in, .kb-anim-slide-in,
+  .kb-float, .kb-pulse-ring, .kb-glow, .kb-ken-burns, .kb-shimmer,
+  .kb-progress-fill { animation: none !important; }
+}
