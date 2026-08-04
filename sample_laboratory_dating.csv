@@ -1,0 +1,21 @@
+lab_id,specimen_id,dating_method,date_result,date_range_min,date_range_max,lab_name,result_notes
+LAB-201,SPEC-201,Radiocarbon (C14),3500 BP,3400,3600,National Lab,Sample sent for calibration
+LAB-202,SPEC-202,AMS Radiocarbon,4200 BP,4100,4300,Heritage Lab,High collagen yield
+LAB-203,SPEC-203,Thermoluminescence,1800 CE,1750,1850,Archaeolab,Quartz extracted successfully
+LAB-204,SPEC-204,Optically Stimulated Luminescence,2100 BP,2050,2150,GeoLab,Sediment sample only
+LAB-205,SPEC-205,Dendrochronology,Upper limit 500 BCE,,,Tree ring dated wood,Wood sample from burial
+LAB-206,SPEC-206,Stratigraphy,Context dated late 1st mill,,,Temple archives,Context match confirmed
+LAB-207,SPEC-207,Typology,Medieval pottery,1200,1400,Coastal Lab,Typology supports date
+LAB-208,SPEC-208,Other,Indeterminate,,,Regional Lab,Requires further testing
+LAB-209,SPEC-209,Radiocarbon (C14),3700 BP,3600,3800,National Lab,Good sample quality
+LAB-210,SPEC-210,AMS Radiocarbon,4500 BP,4400,4600,Heritage Lab,Excellent preservation
+LAB-211,SPEC-211,Thermoluminescence,1900 CE,1850,1950,Archaeolab,Calibrated dose analysis
+LAB-212,SPEC-212,Optically Stimulated Luminescence,2300 BP,2250,2350,GeoLab,Excellent sediment quality
+LAB-213,SPEC-213,Dendrochronology,Late 1st C CE,,,Tree lab,Wood sample dated successfully
+LAB-214,SPEC-214,Typology,Medieval tomb,1100,1300,Coastal Lab,Artifact match confirmed
+LAB-215,SPEC-215,Radiocarbon (C14),3300 BP,3200,3400,National Lab,Stable collagen content
+LAB-216,SPEC-216,AMS Radiocarbon,4100 BP,4000,4200,Heritage Lab,Very good signal detection
+LAB-217,SPEC-217,Thermoluminescence,1750 CE,1700,1800,Archaeolab,High precision measurement
+LAB-218,SPEC-218,Optically Stimulated Luminescence,2200 BP,2150,2250,GeoLab,Moderate quality sample
+LAB-219,SPEC-219,Dendrochronology,Early 1st C CE,,,Tree lab,Wood from grave context
+LAB-220,SPEC-220,Typology,Early Historic,1000,1200,Coastal Lab,Artifact style matches period

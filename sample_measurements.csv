@@ -1,0 +1,21 @@
+measurement_id,specimen_id,bone_type,measurement_type,value,unit,notes
+M-201,SPEC-201,Femur,Maximum Length,430,mm,Complete diaphysis
+M-202,SPEC-202,Skull,Maximum Width,145,mm,Frontal bone intact
+M-203,SPEC-203,Tibia,Minimum Width,56,mm,Medial surface worn
+M-204,SPEC-204,Ulna,Maximum Length,280,mm,Distal end missing
+M-205,SPEC-205,Humerus,Maximum Diameter,36,mm,Well preserved cortex
+M-206,SPEC-206,Radius,Circumference,76,mm,Radial head intact
+M-207,SPEC-207,Molar,Maximum Width,12,mm,Tooth enamel intact
+M-208,SPEC-208,Vertebra,Height,28,mm,Body partially broken
+M-209,SPEC-209,Pelvis,Minimum Width,110,mm,Left ilium present
+M-210,SPEC-210,Rib,Minimum Diameter,8,mm,Thin cortical bone
+M-211,SPEC-211,Mandible,Maximum Length,125,mm,Only right side
+M-212,SPEC-212,Femur,Maximum Width,78,mm,Complete shaft
+M-213,SPEC-213,Clavicle,Thickness,9,mm,S-shaped curve
+M-214,SPEC-214,Vertebra,Depth,24,mm,Spinous process broken
+M-215,SPEC-215,Radius,Maximum Diameter,22,mm,Distal end complete
+M-216,SPEC-216,Pelvis,Maximum Diameter,148,mm,Strong acetabulum
+M-217,SPEC-217,Rib,Maximum Length,210,mm,Soot adhered
+M-218,SPEC-218,Humerus,Minimum Width,32,mm,Humeral head split
+M-219,SPEC-219,Skull,Minimum Width,137,mm,Occipital intact
+M-220,SPEC-220,Ulna,Circumference,74,mm,Proximal end preserved
