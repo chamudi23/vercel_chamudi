@@ -3,12 +3,22 @@ import BonePage from './pages/BonePage'
 import HomePage from './pages/HomePage'
 import BoneDetailPage from './pages/BoneDetailPage'
 import ImageSearchPage from './pages/ImageSearchPage'
+import ImageUploadPage from './pages/ImageUploadPage'
+import ImageDetailPage from './pages/ImageDetailPage'
+import AIAssistantPage from './pages/AIAssistantPage'
 import SkeletonViewerPage from './pages/SkeletonViewerPage'
 import IlshanModulePage from './pages/IlshanModulePage'
 import MinuriModulePage from "./pages/MinuriModulePage";
 import SpecimenFormPage from "./pages/SpecimenFormPage";
 import ParamiModulePage from "./pages/ParamiModulePage";
 import SpecimenListPage from "./pages/SpecimenListPage";
+import SpecimenDetailPage from "./pages/SpecimenDetailPage";
+import DataImportPage from "./pages/DataImportPage";
+import DataQualityPage from "./pages/DataQualityPage";
+import SiteDetailPage from "./pages/SiteDetailPage";
+import AddSitePage from "./pages/AddSitePage";
+import SimilarFindingsPage from "./pages/SimilarFindingsPage";
+import AddSpecimenPage from "./pages/AddSpecimenPage";
 
 // Skeletal Module imports
 import SkeletalModulePage from './pages/KgcSkeletalModulePage';
@@ -64,13 +74,26 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/bones" element={<BonePage />} />
           <Route path="/bones/:boneId" element={<BoneDetailPage />} />
+          <Route path="/upload" element={<ImageUploadPage />} />
+          <Route path="/gallery" element={<ImageSearchPage />} />
+          <Route path="/image/:imageId" element={<ImageDetailPage />} />
           <Route path="/search" element={<ImageSearchPage />} />
           <Route path="/skeleton" element={<SkeletonViewerPage />} />
+          <Route path="/ai-assistant" element={<AIAssistantPage />} />
+          <Route path="/analysis" element={<AIAssistantPage />} />
           <Route path="/module" element={<IlshanModulePage />} />
+          <Route path="/image-documentation" element={<IlshanModulePage />} />
           <Route path="/minuri" element={<MinuriModulePage />} />
           <Route path="/specimens/add" element={<SpecimenFormPage />} />
+          <Route path="/specimens/import" element={<DataImportPage />} />
           <Route path="/specimens" element={<SpecimenListPage />} />
+          <Route path="/specimens/:id" element={<SpecimenDetailPage />} />
+          <Route path="/data-quality" element={<DataQualityPage />} />
           <Route path="/parami" element={<ParamiModulePage />} />
+          <Route path="/parami/site/:siteId" element={<SiteDetailPage />} />
+          <Route path="/parami/add-site" element={<AddSitePage />} />
+          <Route path="/parami/similar-findings" element={<SimilarFindingsPage />} />
+          <Route path="/parami/add-specimen" element={<AddSpecimenPage />} />
 
           {/* Skeletal Module Routes — all flat, no sidebar */}
           <Route path="/skeletal" element={<SkeletalModulePage />} />
