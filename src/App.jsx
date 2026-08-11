@@ -84,12 +84,14 @@ function App() {
           <Route path="/module" element={<IlshanModulePage />} />
           <Route path="/image-documentation" element={<IlshanModulePage />} />
           <Route path="/minuri" element={<MinuriModulePage />} />
+          <Route path="/data-management" element={<MinuriModulePage />} />
           <Route path="/specimens/add" element={<SpecimenFormPage />} />
           <Route path="/specimens/import" element={<DataImportPage />} />
           <Route path="/specimens" element={<SpecimenListPage />} />
           <Route path="/specimens/:id" element={<SpecimenDetailPage />} />
           <Route path="/data-quality" element={<DataQualityPage />} />
           <Route path="/parami" element={<ParamiModulePage />} />
+          <Route path="/spatial-analysis" element={<ParamiModulePage />} />
           <Route path="/parami/site/:siteId" element={<SiteDetailPage />} />
           <Route path="/parami/add-site" element={<AddSitePage />} />
           <Route path="/parami/similar-findings" element={<SimilarFindingsPage />} />
