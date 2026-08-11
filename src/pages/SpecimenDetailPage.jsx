@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../supabase";
 import { analyseBone } from "../api";
+import BoneImageList from "../components/BoneImageList";
 
 const TIME_PERIODS = ["Mesolithic","Neolithic","Bronze Age","Iron Age","Protohistoric","Early Historic","Medieval","Unknown"];
 const PRESERVATION_STATES = ["Excellent","Good","Fair","Poor","Fragmentary"];
@@ -54,6 +55,11 @@ function newMeasurementRow() {
 export default function SpecimenDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const attachmentSectionRef = useRef(null);
+  const attachmentSectionRequested = searchParams.get("section") === "attachments";
+  const attachmentEditImageId = attachmentSectionRequested ? (searchParams.get("editImage") || "") : "";
+  const fromGallery = searchParams.get("from") === "gallery";
 
   const [specimen, setSpecimen] = useState(null);
   const [measurements, setMeasurements] = useState([]);
@@ -65,6 +71,7 @@ export default function SpecimenDetailPage() {
 
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
+  const [measurementDrafts, setMeasurementDrafts] = useState({});
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -77,9 +84,7 @@ export default function SpecimenDetailPage() {
   const [measurementSuccess, setMeasurementSuccess] = useState(false);
   const [latestAnalysis, setLatestAnalysis] = useState(null);
 
-  useEffect(() => { fetchAll(); }, [id]);
-
-  async function fetchAll() {
+  const fetchAll = useCallback(async () => {
     setLoading(true);
 
     const { data: specData, error } = await supabase
@@ -102,6 +107,13 @@ export default function SpecimenDetailPage() {
       .select("*")
       .eq("specimen_id", specData.specimen_id);
     setMeasurements(measData || []);
+    setMeasurementDrafts(Object.fromEntries((measData || []).map((measurement) => [measurement.measurement_id, {
+      bone_type: measurement.bone_type || "",
+      measurement_type: measurement.measurement_type || "",
+      value: measurement.value ?? "",
+      unit: measurement.unit || "mm",
+      notes: measurement.notes || "",
+    }])));
 
     const { data: excData } = await supabase
       .from("excavation_records")
@@ -125,23 +137,70 @@ export default function SpecimenDetailPage() {
     setQualityLogs(logData || []);
 
     setLoading(false);
-  }
+  }, [id]);
 
   function handleEditChange(e) {
     const { name, value } = e.target;
     setEditForm((prev) => ({ ...prev, [name]: value }));
   }
 
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  useEffect(() => {
+    if (!loading && attachmentSectionRequested) {
+      const timer = setTimeout(() => attachmentSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [attachmentSectionRequested, loading]);
+
+  function finishAttachmentEdit() {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("editImage");
+    setSearchParams(nextParams, { replace: true });
+  }
+
+  function startEditing() {
+    setEditForm(specimen);
+    setMeasurementDrafts(Object.fromEntries(measurements.map((measurement) => [measurement.measurement_id, {
+      bone_type: measurement.bone_type || "",
+      measurement_type: measurement.measurement_type || "",
+      value: measurement.value ?? "",
+      unit: measurement.unit || "mm",
+      notes: measurement.notes || "",
+    }])));
+    setEditing(true);
+  }
+
+  function cancelEditing() {
+    setEditForm(specimen);
+    setEditing(false);
+  }
+
+  function handleMeasurementEdit(measurementId, field, value) {
+    setMeasurementDrafts((current) => ({
+      ...current,
+      [measurementId]: { ...current[measurementId], [field]: value },
+    }));
+  }
+
   async function handleSave() {
+    const invalidMeasurement = measurements.find((measurement) => {
+      const draft = measurementDrafts[measurement.measurement_id];
+      return !draft?.bone_type || draft.value === "" || Number.isNaN(Number(draft.value));
+    });
+    if (invalidMeasurement) {
+      alert("Each measurement must have a bone type and numeric value.");
+      return;
+    }
+
     setSaving(true);
     const { error } = await supabase
       .from("specimens")
       .update({
-        skeleton_code: editForm.skeleton_code,
         site_name: editForm.site_name,
         district: editForm.district,
         province: editForm.province,
-        excavation_year: editForm.excavation_year ? parseInt(editForm.excavation_year) : null,
         time_period: editForm.time_period,
         preservation_state: editForm.preservation_state,
         location_stored: editForm.location_stored,
@@ -150,14 +209,37 @@ export default function SpecimenDetailPage() {
       })
       .eq("specimen_id", id);
 
-    setSaving(false);
+    let measurementError = null;
     if (!error) {
-      setSpecimen({ ...specimen, ...editForm });
+      const results = await Promise.all(measurements.map((measurement) => {
+        const draft = measurementDrafts[measurement.measurement_id];
+        return supabase
+          .from("measurements")
+          .update({
+            bone_type: draft.bone_type,
+            measurement_type: draft.measurement_type || null,
+            value: Number(draft.value),
+            unit: draft.unit || null,
+            notes: draft.notes.trim() || null,
+          })
+          .eq("measurement_id", measurement.measurement_id);
+      }));
+      measurementError = results.find((result) => result.error)?.error || null;
+    }
+
+    setSaving(false);
+    if (!error && !measurementError) {
+      setSpecimen({ ...specimen, ...editForm, specimen_id: specimen.specimen_id, skeleton_code: specimen.skeleton_code });
+      setMeasurements((current) => current.map((measurement) => ({
+        ...measurement,
+        ...measurementDrafts[measurement.measurement_id],
+        value: Number(measurementDrafts[measurement.measurement_id].value),
+      })));
       setSaveSuccess(true);
       setEditing(false);
       setTimeout(() => setSaveSuccess(false), 3000);
     } else {
-      alert("Error saving: " + error.message);
+      alert("Error saving: " + (error || measurementError).message);
     }
   }
 
@@ -319,18 +401,21 @@ export default function SpecimenDetailPage() {
 
       {/* Top bar */}
       <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between">
-        <button onClick={() => navigate("/specimens")} className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          Back to List
-        </button>
+        <div className="flex items-center gap-4">
+          <button onClick={() => navigate("/specimens")} className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back to List
+          </button>
+          {fromGallery && <button onClick={() => navigate("/gallery")} className="text-sm font-medium text-violet-300 transition-colors hover:text-violet-200">Back to Gallery</button>}
+        </div>
         <div className="flex items-center gap-3">
           {!editing ? (
             <>
-              <button onClick={() => setEditing(true)} className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm text-white/60 hover:text-white transition-colors">
+              <button onClick={startEditing} className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm text-white/60 hover:text-white transition-colors">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                Edit
+                Edit Record
               </button>
               <button onClick={() => setShowDeleteConfirm(true)} className="flex items-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl text-sm text-red-400 hover:text-red-300 transition-colors">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -339,7 +424,7 @@ export default function SpecimenDetailPage() {
             </>
           ) : (
             <>
-              <button onClick={() => { setEditing(false); setEditForm(specimen); }} className="px-4 py-2 text-sm text-white/40 hover:text-white border border-white/10 rounded-xl transition-colors">Cancel</button>
+              <button onClick={cancelEditing} className="px-4 py-2 text-sm text-white/40 hover:text-white border border-white/10 rounded-xl transition-colors">Cancel</button>
               <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm text-white font-medium transition-colors">
                 {saving ? "Saving..." : "Save Changes"}
               </button>
@@ -367,7 +452,7 @@ export default function SpecimenDetailPage() {
               </span>
             </div>
             <h1 className="text-3xl font-bold text-white font-mono">{specimen.specimen_id}</h1>
-            <p className="text-white/40 text-sm mt-1">Skeleton Code: <span className="text-white/60">{specimen.skeleton_code || "—"}</span></p>
+            <p className="text-white/40 text-sm mt-1">Skeleton ID: <span className="text-white/60">{specimen.skeleton_code || "Skeleton ID not assigned"}</span></p>
           </div>
           {specimen.preservation_state && !editing && (
             <span className={`text-xs uppercase tracking-wider font-semibold px-3 py-1.5 rounded-full border ${badgeColor(specimen.preservation_state)}`}>
@@ -383,7 +468,8 @@ export default function SpecimenDetailPage() {
           </p>
           {editing ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div><label className={labelClass}>Skeleton Code</label><input name="skeleton_code" value={editForm.skeleton_code || ""} onChange={handleEditChange} className={inputClass} /></div>
+              <div><label className={labelClass}>Specimen ID</label><input value={specimen.specimen_id || ""} readOnly disabled className={`${inputClass} cursor-not-allowed border-white/5 bg-white/5 text-white/35`} /></div>
+              <div><label className={labelClass}>Skeleton ID</label><input value={specimen.skeleton_code || ""} readOnly disabled className={`${inputClass} cursor-not-allowed border-white/5 bg-white/5 text-white/35`} /></div>
               <div><label className={labelClass}>Site Name</label><input name="site_name" value={editForm.site_name || ""} onChange={handleEditChange} className={inputClass} /></div>
               <div>
                 <label className={labelClass}>District</label>
@@ -399,7 +485,6 @@ export default function SpecimenDetailPage() {
                   {PROVINCES.map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
-              <div><label className={labelClass}>Excavation Year</label><input name="excavation_year" type="number" min="1" max={new Date().getFullYear()} value={editForm.excavation_year || ""} onChange={handleEditChange} className={inputClass} /></div>
               <div>
                 <label className={labelClass}>Time Period</label>
                 <select name="time_period" value={editForm.time_period || ""} onChange={handleEditChange} className={selectClass}>
@@ -424,7 +509,6 @@ export default function SpecimenDetailPage() {
                 { label: "Site Name", value: specimen.site_name },
                 { label: "District", value: specimen.district },
                 { label: "Province", value: specimen.province },
-                { label: "Excavation Year", value: specimen.excavation_year },
                 { label: "Time Period", value: specimen.time_period },
                 { label: "Storage Location", value: specimen.location_stored },
               ].map((item) => (
@@ -445,6 +529,18 @@ export default function SpecimenDetailPage() {
               )}
             </div>
           )}
+        </div>
+
+        {/* Attached Images */}
+        <div ref={attachmentSectionRef} className="scroll-mt-24 rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-widest text-white/30">Attached Images</p>
+              <p className="mt-1 text-[10px] text-white/20">{attachmentEditImageId ? "Only the selected attachment is editable. Specimen data and measurements remain read-only." : "Images linked through the shared bone_images records."}</p>
+            </div>
+            {!editing && !attachmentEditImageId && <p className="text-[10px] text-white/25">Choose Edit to manage files and metadata here.</p>}
+          </div>
+          <BoneImageList specimenId={specimen.specimen_id} editing={editing} editImageId={attachmentEditImageId} onFinishSelectedEdit={finishAttachmentEdit} />
         </div>
 
         {/* Measurements */}
@@ -597,7 +693,7 @@ export default function SpecimenDetailPage() {
 
           {/* Measurements Table */}
           {measurements.length === 0 ? (
-            <p className="text-white/25 text-sm">No measurements recorded. Click "Add Measurement" to add one!</p>
+            <p className="text-white/25 text-sm">No measurements recorded. Click &quot;Add Measurement&quot; to add one!</p>
           ) : (
             <div className="border border-white/10 rounded-xl overflow-hidden">
               <table className="w-full text-sm">
@@ -612,20 +708,33 @@ export default function SpecimenDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {measurements.map((m, i) => (
-                    <tr key={m.measurement_id || i} className={`border-b border-white/5 ${i % 2 === 0 ? "" : "bg-white/[0.01]"}`}>
-                      <td className="px-4 py-3 text-white/70">{m.bone_type || "—"}</td>
-                      <td className="px-4 py-3 text-white/70">{m.measurement_type || "—"}</td>
-                      <td className="px-4 py-3 text-emerald-400 font-mono">{m.value ?? "—"}</td>
-                      <td className="px-4 py-3 text-white/50">{m.unit || "—"}</td>
-                      <td className="px-4 py-3 text-white/40">{m.notes || "—"}</td>
-                      <td className="px-4 py-3">
-                        <button onClick={() => handleDeleteMeasurement(m.measurement_id)} className="p-1 text-white/20 hover:text-red-400 transition-colors">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {measurements.map((m, i) => {
+                    const draft = measurementDrafts[m.measurement_id] || m;
+                    return (
+                      <tr key={m.measurement_id || i} className={`border-b border-white/5 ${i % 2 === 0 ? "" : "bg-white/[0.01]"}`}>
+                        <td className="px-3 py-3 text-white/70">
+                          {editing ? <select value={draft.bone_type || ""} onChange={(event) => handleMeasurementEdit(m.measurement_id, "bone_type", event.target.value)} className={plainSelect}><option value="">Select bone</option>{BONE_TYPES.map((bone) => <option key={bone}>{bone}</option>)}</select> : (m.bone_type || "—")}
+                        </td>
+                        <td className="px-3 py-3 text-white/70">
+                          {editing ? <select value={draft.measurement_type || ""} onChange={(event) => handleMeasurementEdit(m.measurement_id, "measurement_type", event.target.value)} className={plainSelect}><option value="">Select type</option>{MEASUREMENT_TYPES.map((type) => <option key={type}>{type}</option>)}</select> : (m.measurement_type || "—")}
+                        </td>
+                        <td className="px-3 py-3 text-emerald-400 font-mono">
+                          {editing ? <input type="number" min="0" step="any" value={draft.value ?? ""} onChange={(event) => handleMeasurementEdit(m.measurement_id, "value", event.target.value)} className={plainInput} /> : (m.value ?? "—")}
+                        </td>
+                        <td className="px-3 py-3 text-white/50">
+                          {editing ? <select value={draft.unit || ""} onChange={(event) => handleMeasurementEdit(m.measurement_id, "unit", event.target.value)} className={plainSelect}>{UNITS.map((unit) => <option key={unit}>{unit}</option>)}</select> : (m.unit || "—")}
+                        </td>
+                        <td className="px-3 py-3 text-white/40">
+                          {editing ? <input value={draft.notes || ""} onChange={(event) => handleMeasurementEdit(m.measurement_id, "notes", event.target.value)} className={plainInput} /> : (m.notes || "—")}
+                        </td>
+                        <td className="px-4 py-3">
+                          {editing && <button onClick={() => handleDeleteMeasurement(m.measurement_id)} className="p-1 text-white/20 hover:text-red-400 transition-colors">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                          </button>}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

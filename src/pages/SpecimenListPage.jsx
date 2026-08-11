@@ -208,8 +208,8 @@ export default function SpecimenListPage() {
               <tbody>
                 {filtered.map((s, i) => (
                   <tr
-                    key={s.id}
-                    onClick={() => navigate(`/specimens/${s.id}`)}
+                    key={s.specimen_id}
+                    onClick={() => navigate(`/specimens/${s.specimen_id}`)}
                     className={`border-b border-white/5 hover:bg-white/[0.04] cursor-pointer transition-colors ${i % 2 === 0 ? "" : "bg-white/[0.01]"}`}
                   >
                     <td className="px-5 py-3.5">

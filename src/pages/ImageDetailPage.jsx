@@ -1,21 +1,13 @@
 /* eslint-disable react/prop-types */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Pencil, Save, X } from 'lucide-react'
+import { Pencil } from 'lucide-react'
 import { supabase } from '../supabase'
-import { CONDITION_OPTIONS, IMAGE_TYPE_OPTIONS, IMAGE_VIEW_OPTIONS, PP1_BONE_LABELS, REGION_OPTIONS, SIDE_OPTIONS, imageNotes } from '../utils/pp1ImageModule'
+import { imageNotes } from '../utils/pp1ImageModule'
 
-const editableDefaults = {
-  skeleton_code: '',
-  bone_name: '',
-  side: '',
-  condition: '',
-  skeleton_region: '',
-  image_view: '',
-  image_type: '',
-  notes: '',
-  tags: '',
-  annotation_text: '',
+function skeletonIdFor(image) {
+  if (!image?.specimen_id) return 'Unlinked image'
+  return image.specimen?.skeleton_code?.trim() || 'Skeleton ID not assigned'
 }
 
 function InfoRow({ label, value }) {
@@ -41,18 +33,9 @@ function RelatedImage({ image, onOpen }) {
       </div>
       <div className="p-2">
         <p className="truncate text-xs font-medium text-white/80">{image.bone_name || '-'}</p>
-        <p className="truncate text-[11px] text-white/35">{image.skeleton_code || '-'}</p>
+        <p className="truncate text-[11px] text-white/35">{skeletonIdFor(image)}</p>
       </div>
     </button>
-  )
-}
-
-function Field({ label, children }) {
-  return (
-    <label className="block border-b border-white/10 py-2 last:border-b-0">
-      <span className="mb-1.5 block text-[10px] uppercase tracking-[0.14em] text-white/30">{label}</span>
-      {children}
-    </label>
   )
 }
 
@@ -63,12 +46,7 @@ export default function ImageDetailPage() {
   const [annotations, setAnnotations] = useState([])
   const [tags, setTags] = useState([])
   const [related, setRelated] = useState([])
-  const [annotationText, setAnnotationText] = useState('')
-  const [editForm, setEditForm] = useState(editableDefaults)
-  const [isEditing, setIsEditing] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [savingAnnotation, setSavingAnnotation] = useState(false)
-  const [savingDetails, setSavingDetails] = useState(false)
   const [message, setMessage] = useState(null)
 
   const loadDetail = useCallback(async () => {
@@ -77,7 +55,7 @@ export default function ImageDetailPage() {
 
     const { data: imageData, error: imageError } = await supabase
       .from('bone_images')
-      .select('*')
+      .select('*, specimen:specimens!bone_images_specimen_id_fkey(specimen_id, skeleton_code)')
       .eq('image_id', imageId)
       .maybeSingle()
 
@@ -90,19 +68,6 @@ export default function ImageDetailPage() {
 
     setImage(imageData)
     setTags(String(imageData.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean))
-    setEditForm({
-      skeleton_code: imageData.skeleton_code || '',
-      bone_name: imageData.bone_name || '',
-      side: imageData.side || '',
-      condition: imageData.condition || '',
-      skeleton_region: imageData.skeleton_region || '',
-      image_view: imageData.image_view || imageData.view_angle || '',
-      image_type: imageData.image_type || '',
-      notes: imageData.notes || imageData.image_notes || '',
-      tags: imageData.tags || '',
-      annotation_text: imageData.annotation_text || '',
-    })
-
     const [annotationRes, sameSkeletonRes, sameBoneRes] = await Promise.all([
       supabase
         .from('image_annotations')
@@ -111,13 +76,13 @@ export default function ImageDetailPage() {
         .order('annotated_at', { ascending: true }),
       supabase
         .from('bone_images')
-        .select('image_id, skeleton_code, image_url, file_url, bone_name, side')
-        .eq('skeleton_code', imageData.skeleton_code || '')
+        .select('image_id, specimen_id, image_url, file_url, bone_name, side, specimen:specimens!bone_images_specimen_id_fkey(specimen_id, skeleton_code)')
+        .eq('specimen_id', imageData.specimen_id || '')
         .neq('image_id', imageId)
         .limit(6),
       supabase
         .from('bone_images')
-        .select('image_id, skeleton_code, image_url, file_url, bone_name, side')
+        .select('image_id, specimen_id, image_url, file_url, bone_name, side, specimen:specimens!bone_images_specimen_id_fkey(specimen_id, skeleton_code)')
         .ilike('bone_name', `%${imageData.bone_name || ''}%`)
         .neq('image_id', imageId)
         .limit(6),
@@ -137,7 +102,8 @@ export default function ImageDetailPage() {
 
   const metadataRows = useMemo(() => ([
     ['Image ID', image?.image_id],
-    ['Skeleton Code', image?.skeleton_code],
+    ['Skeleton ID', skeletonIdFor(image)],
+    ['Specimen ID', image?.specimen_id],
     ['Bone Name', image?.bone_name],
     ['Side', image?.side],
     ['Condition Visible', image?.condition],
@@ -150,96 +116,7 @@ export default function ImageDetailPage() {
     ['Uploaded At', image?.uploaded_at],
   ]), [image])
 
-  const setEditField = (field, value) => {
-    setEditForm((current) => ({ ...current, [field]: value }))
-  }
-
-  const handleCancelEdit = () => {
-    setEditForm({
-      skeleton_code: image?.skeleton_code || '',
-      bone_name: image?.bone_name || '',
-      side: image?.side || '',
-      condition: image?.condition || '',
-      skeleton_region: image?.skeleton_region || '',
-      image_view: image?.image_view || image?.view_angle || '',
-      image_type: image?.image_type || '',
-      notes: imageNotes(image),
-      tags: image?.tags || '',
-      annotation_text: image?.annotation_text || '',
-    })
-    setIsEditing(false)
-    setMessage(null)
-  }
-
-  const handleSaveDetails = async () => {
-    setSavingDetails(true)
-    setMessage(null)
-
-    const payload = {
-      skeleton_code: editForm.skeleton_code.trim(),
-      bone_name: editForm.bone_name.trim(),
-      side: editForm.side || null,
-      condition: editForm.condition || null,
-      skeleton_region: editForm.skeleton_region || null,
-      image_view: editForm.image_view || null,
-      image_type: editForm.image_type || null,
-      notes: editForm.notes.trim() || null,
-      tags: editForm.tags.trim() || null,
-      annotation_text: editForm.annotation_text.trim() || null,
-    }
-
-    const { data, error } = await supabase
-      .from('bone_images')
-      .update(payload)
-      .eq('image_id', imageId)
-      .select('*')
-      .maybeSingle()
-
-    if (error) {
-      setMessage({ type: 'error', text: error.message })
-    } else {
-      setImage(data)
-      setTags(String(data?.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean))
-      setIsEditing(false)
-      setMessage({ type: 'success', text: 'Image details updated.' })
-      await loadDetail()
-    }
-
-    setSavingDetails(false)
-  }
-
-  const handleAddAnnotation = async () => {
-    if (!annotationText.trim()) return
-    setSavingAnnotation(true)
-    setMessage(null)
-
-    // PP1 fallback: this stores a simple note without drawing coordinates.
-    const { error } = await supabase.from('image_annotations').insert({
-      annotation_id: `ANN-${Date.now()}`,
-      image_id: imageId,
-      annotation_type: 'Text Note',
-      annotation_description: annotationText.trim(),
-      x_coordinate: null,
-      y_coordinate: null,
-      width: null,
-      height: null,
-      annotated_at: new Date().toISOString(),
-    })
-
-    if (error) {
-      setMessage({ type: 'error', text: error.message })
-    } else {
-      setAnnotationText('')
-      setMessage({ type: 'success', text: 'Annotation saved.' })
-      await loadDetail()
-    }
-
-    setSavingAnnotation(false)
-  }
-
   const imageSrc = image?.image_url || image?.file_url
-  const inputClass = 'w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white placeholder-white/25 outline-none transition focus:border-violet-500'
-  const selectClass = `${inputClass} cursor-pointer`
 
   if (loading) {
     return (
@@ -270,12 +147,24 @@ export default function ImageDetailPage() {
             <Link to="/gallery" className="text-sm text-violet-300 hover:underline">Back to gallery</Link>
             <h1 className="mt-2 text-3xl font-bold">{image.bone_name || 'Skeletal Image Detail'}</h1>
             <p className="mt-1 text-sm text-white/40">
-              {image.skeleton_code || 'No skeleton code'} - {image.image_id}
+              {skeletonIdFor(image)} - {image.image_id}
             </p>
           </div>
-          <Link to="/upload" className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white/70 transition hover:bg-white/10">
-            Upload another image
-          </Link>
+          {image.specimen_id && image.specimen?.specimen_id ? (
+            <button
+              type="button"
+              onClick={() => navigate(`/specimens/${encodeURIComponent(image.specimen_id)}?section=attachments&editImage=${encodeURIComponent(image.image_id)}&from=gallery`)}
+              className="inline-flex items-center gap-2 rounded-xl border border-violet-400/30 bg-violet-500/10 px-4 py-2.5 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/20"
+              aria-label={`Edit image ${image.image_id} in specimen workspace`}
+            >
+              <Pencil className="h-4 w-4" aria-hidden="true" />
+              Edit Image
+            </button>
+          ) : (
+            <p className="max-w-sm rounded-xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
+              This image must be linked to a specimen before it can be edited.
+            </p>
+          )}
         </div>
 
         {message && (
@@ -319,118 +208,16 @@ export default function ImageDetailPage() {
                 )}
               </div>
 
-              <div className="mt-5">
-                <textarea
-                  value={annotationText}
-                  onChange={(event) => setAnnotationText(event.target.value)}
-                  rows={3}
-                  placeholder="Add a simple PP1 text annotation"
-                  className="w-full rounded-xl border border-white/10 bg-slate-900 px-3 py-2.5 text-sm text-white placeholder-white/25 outline-none transition focus:border-violet-500"
-                />
-                <button
-                  onClick={handleAddAnnotation}
-                  disabled={savingAnnotation || !annotationText.trim()}
-                  className="mt-3 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-violet-600/40"
-                >
-                  {savingAnnotation ? 'Saving...' : 'Save Annotation'}
-                </button>
-              </div>
             </div>
           </section>
 
           <aside className="space-y-5">
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-lg font-semibold">Image Metadata</h2>
-                {isEditing ? (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleSaveDetails}
-                      disabled={savingDetails}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-300/25 bg-emerald-400/10 text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-50"
-                      aria-label="Save image details"
-                    >
-                      <Save className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCancelEdit}
-                      disabled={savingDetails}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/65 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-                      aria-label="Cancel editing"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setIsEditing(true)}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white/70 transition hover:border-violet-400/35 hover:bg-violet-400/10"
-                    aria-label="Edit image details"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                )}
+              <h2 className="text-lg font-semibold">Image Metadata</h2>
+              <p className="mt-1 text-xs text-white/35">This is a read-only viewer. Use Edit Image to update this attachment in its specimen workspace.</p>
+              <div className="mt-3">
+                {metadataRows.map(([label, value]) => <InfoRow key={label} label={label} value={value} />)}
               </div>
-
-              {isEditing ? (
-                <div className="mt-3">
-                  <Field label="Skeleton Code">
-                    <input value={editForm.skeleton_code} onChange={(event) => setEditField('skeleton_code', event.target.value)} className={inputClass} />
-                  </Field>
-                  <Field label="Bone Name">
-                    <select value={editForm.bone_name} onChange={(event) => setEditField('bone_name', event.target.value)} className={selectClass}>
-                      <option value="">Select bone...</option>
-                      {PP1_BONE_LABELS.map((option) => <option key={option}>{option}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Side">
-                    <select value={editForm.side} onChange={(event) => setEditField('side', event.target.value)} className={selectClass}>
-                      <option value="">Select side...</option>
-                      {SIDE_OPTIONS.map((option) => <option key={option}>{option}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Condition Visible">
-                    <select value={editForm.condition} onChange={(event) => setEditField('condition', event.target.value)} className={selectClass}>
-                      <option value="">Select condition...</option>
-                      {CONDITION_OPTIONS.map((option) => <option key={option}>{option}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Skeleton Region">
-                    <select value={editForm.skeleton_region} onChange={(event) => setEditField('skeleton_region', event.target.value)} className={selectClass}>
-                      <option value="">Select region...</option>
-                      {REGION_OPTIONS.map((option) => <option key={option}>{option}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Image View">
-                    <select value={editForm.image_view} onChange={(event) => setEditField('image_view', event.target.value)} className={selectClass}>
-                      <option value="">Select view...</option>
-                      {IMAGE_VIEW_OPTIONS.map((option) => <option key={option}>{option}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Image Type">
-                    <select value={editForm.image_type} onChange={(event) => setEditField('image_type', event.target.value)} className={selectClass}>
-                      <option value="">Select type...</option>
-                      {IMAGE_TYPE_OPTIONS.map((option) => <option key={option}>{option}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Notes">
-                    <textarea value={editForm.notes} onChange={(event) => setEditField('notes', event.target.value)} rows={3} className={inputClass} />
-                  </Field>
-                  <Field label="Tags">
-                    <input value={editForm.tags} onChange={(event) => setEditField('tags', event.target.value)} className={inputClass} placeholder="skull, SK1, lab" />
-                  </Field>
-                  <Field label="Annotation Text">
-                    <textarea value={editForm.annotation_text} onChange={(event) => setEditField('annotation_text', event.target.value)} rows={3} className={inputClass} />
-                  </Field>
-                </div>
-              ) : (
-                <div className="mt-3">
-                  {metadataRows.map(([label, value]) => <InfoRow key={label} label={label} value={value} />)}
-                </div>
-              )}
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
@@ -450,7 +237,7 @@ export default function ImageDetailPage() {
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
               <h2 className="text-lg font-semibold">Related Images</h2>
-              <p className="mt-1 text-xs text-white/35">Same skeleton code or same bone name.</p>
+              <p className="mt-1 text-xs text-white/35">Same specimen or same bone name.</p>
               {related.length === 0 ? (
                 <p className="mt-3 text-sm text-white/35">No related images found.</p>
               ) : (
