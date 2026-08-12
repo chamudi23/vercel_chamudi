@@ -142,12 +142,9 @@ function AddSpecimenPage() {
           </p>
         </div>
         <div className="flex gap-3">
-          <Link to="/parami/similar-findings" className="text-slate-400 hover:text-slate-200 text-sm transition-colors">
-            🦴 Similar Findings
-          </Link>
-          <Link to="/parami" className="text-slate-400 hover:text-slate-200 text-sm transition-colors">
-            ← Back to GIS Map
-          </Link>
+          <Link to="/parami/home" className="text-slate-400 hover:text-slate-200 text-sm transition-colors">
+  ← Back to GIS Home
+</Link>
         </div>
       </div>
 

@@ -19,6 +19,7 @@ import SiteDetailPage from "./pages/SiteDetailPage";
 import AddSitePage from "./pages/AddSitePage";
 import SimilarFindingsPage from "./pages/SimilarFindingsPage";
 import AddSpecimenPage from "./pages/AddSpecimenPage";
+import GISHome from "./pages/GISHome";
 
 // Skeletal Module imports
 import SkeletalModulePage from './pages/KgcSkeletalModulePage';
@@ -96,6 +97,7 @@ function App() {
           <Route path="/parami/add-site" element={<AddSitePage />} />
           <Route path="/parami/similar-findings" element={<SimilarFindingsPage />} />
           <Route path="/parami/add-specimen" element={<AddSpecimenPage />} />
+          <Route path="/parami/home" element={<GISHome />} />
 
           {/* Skeletal Module Routes — all flat, no sidebar */}
           <Route path="/skeletal" element={<SkeletalModulePage />} />
