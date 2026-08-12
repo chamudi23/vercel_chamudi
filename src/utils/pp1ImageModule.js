@@ -5,34 +5,34 @@ export function normalize(value) {
 export const CONTROLLED_SIDE_VALUES = ['Left', 'Right', 'Midline', 'Unknown']
 
 export const CONTROLLED_BONE_CATEGORIES = [
-  { code: 'CRANIUM', label: 'Cranium', laterality: 'midline' },
-  { code: 'MANDIBLE', label: 'Mandible', laterality: 'midline' },
-  { code: 'HYOID', label: 'Hyoid', laterality: 'midline' },
-  { code: 'CERVICAL_VERTEBRA', label: 'Cervical Vertebra', laterality: 'midline' },
-  { code: 'THORACIC_VERTEBRA', label: 'Thoracic Vertebra', laterality: 'midline' },
-  { code: 'LUMBAR_VERTEBRA', label: 'Lumbar Vertebra', laterality: 'midline' },
-  { code: 'SACRUM', label: 'Sacrum', laterality: 'midline' },
-  { code: 'COCCYX', label: 'Coccyx', laterality: 'midline' },
-  { code: 'STERNUM', label: 'Sternum', laterality: 'midline' },
-  { code: 'RIB', label: 'Rib', laterality: 'paired' },
-  { code: 'CLAVICLE', label: 'Clavicle', laterality: 'paired' },
-  { code: 'SCAPULA', label: 'Scapula', laterality: 'paired' },
-  { code: 'HUMERUS', label: 'Humerus', laterality: 'paired' },
-  { code: 'RADIUS', label: 'Radius', laterality: 'paired' },
-  { code: 'ULNA', label: 'Ulna', laterality: 'paired' },
-  { code: 'CARPAL', label: 'Carpal', laterality: 'paired' },
-  { code: 'METACARPAL', label: 'Metacarpal', laterality: 'paired' },
-  { code: 'HAND_PHALANX', label: 'Hand Phalanx', laterality: 'paired' },
-  { code: 'OS_COXA', label: 'Os Coxa', laterality: 'paired' },
-  { code: 'FEMUR', label: 'Femur', laterality: 'paired' },
-  { code: 'PATELLA', label: 'Patella', laterality: 'paired' },
-  { code: 'TIBIA', label: 'Tibia', laterality: 'paired' },
-  { code: 'FIBULA', label: 'Fibula', laterality: 'paired' },
-  { code: 'TALUS', label: 'Talus', laterality: 'paired' },
-  { code: 'CALCANEUS', label: 'Calcaneus', laterality: 'paired' },
-  { code: 'OTHER_TARSAL', label: 'Other Tarsal', laterality: 'paired' },
-  { code: 'METATARSAL', label: 'Metatarsal', laterality: 'paired' },
-  { code: 'FOOT_PHALANX', label: 'Foot Phalanx', laterality: 'paired' },
+  { code: 'CRANIUM', label: 'Cranium', laterality: 'midline', region: 'Cranial' },
+  { code: 'MANDIBLE', label: 'Mandible', laterality: 'midline', region: 'Cranial' },
+  { code: 'HYOID', label: 'Hyoid', laterality: 'midline', region: 'Cranial' },
+  { code: 'CERVICAL_VERTEBRA', label: 'Cervical Vertebra', laterality: 'midline', region: 'Thorax' },
+  { code: 'THORACIC_VERTEBRA', label: 'Thoracic Vertebra', laterality: 'midline', region: 'Thorax' },
+  { code: 'LUMBAR_VERTEBRA', label: 'Lumbar Vertebra', laterality: 'midline', region: 'Thorax' },
+  { code: 'SACRUM', label: 'Sacrum', laterality: 'midline', region: 'Pelvis' },
+  { code: 'COCCYX', label: 'Coccyx', laterality: 'midline', region: 'Pelvis' },
+  { code: 'STERNUM', label: 'Sternum', laterality: 'midline', region: 'Thorax' },
+  { code: 'RIB', label: 'Rib', laterality: 'paired', region: 'Thorax' },
+  { code: 'CLAVICLE', label: 'Clavicle', laterality: 'paired', region: 'Upper Limb', uniquePerSide: true },
+  { code: 'SCAPULA', label: 'Scapula', laterality: 'paired', region: 'Upper Limb', uniquePerSide: true },
+  { code: 'HUMERUS', label: 'Humerus', laterality: 'paired', region: 'Upper Limb', uniquePerSide: true },
+  { code: 'RADIUS', label: 'Radius', laterality: 'paired', region: 'Upper Limb', uniquePerSide: true },
+  { code: 'ULNA', label: 'Ulna', laterality: 'paired', region: 'Upper Limb', uniquePerSide: true },
+  { code: 'CARPAL', label: 'Carpal', laterality: 'paired', region: 'Upper Limb' },
+  { code: 'METACARPAL', label: 'Metacarpal', laterality: 'paired', region: 'Upper Limb' },
+  { code: 'HAND_PHALANX', label: 'Hand Phalanx', laterality: 'paired', region: 'Upper Limb' },
+  { code: 'OS_COXA', label: 'Os Coxa', laterality: 'paired', region: 'Pelvis', uniquePerSide: true },
+  { code: 'FEMUR', label: 'Femur', laterality: 'paired', region: 'Lower Limb', uniquePerSide: true },
+  { code: 'PATELLA', label: 'Patella', laterality: 'paired', region: 'Lower Limb', uniquePerSide: true },
+  { code: 'TIBIA', label: 'Tibia', laterality: 'paired', region: 'Lower Limb', uniquePerSide: true },
+  { code: 'FIBULA', label: 'Fibula', laterality: 'paired', region: 'Lower Limb', uniquePerSide: true },
+  { code: 'TALUS', label: 'Talus', laterality: 'paired', region: 'Foot', uniquePerSide: true },
+  { code: 'CALCANEUS', label: 'Calcaneus', laterality: 'paired', region: 'Foot', uniquePerSide: true },
+  { code: 'OTHER_TARSAL', label: 'Other Tarsal', laterality: 'paired', region: 'Foot' },
+  { code: 'METATARSAL', label: 'Metatarsal', laterality: 'paired', region: 'Foot' },
+  { code: 'FOOT_PHALANX', label: 'Foot Phalanx', laterality: 'paired', region: 'Foot' },
 ]
 
 export const PP1_BONE_LABELS = CONTROLLED_BONE_CATEGORIES.map((category) => category.label)
@@ -165,10 +165,7 @@ export function categorySideKey(categoryOrCode, side) {
   const category = getCategoryByCode(categoryOrCode) || normalizeBoneCategory(categoryOrCode)
   if (!category) return ''
   const normalizedSide = normalizeSide(side)
-  const controlledSide = category.laterality === 'midline'
-    ? 'Midline'
-    : normalizedSide === 'Midline' ? 'Unknown' : normalizedSide
-  return `${category.code}_${controlledSide.toUpperCase()}`
+  return `${category.code}_${normalizedSide.toUpperCase()}`
 }
 
 export function parseCategorySideKey(key) {
@@ -179,8 +176,52 @@ export function parseCategorySideKey(key) {
 }
 
 export function categorySides(category, includeUnknown = true) {
-  const sides = category.laterality === 'midline' ? ['Midline'] : ['Left', 'Right']
-  return includeUnknown ? [...sides, 'Unknown'] : sides
+  if (category.laterality === 'midline') return ['Midline']
+  return includeUnknown ? ['Left', 'Right', 'Unknown'] : ['Left', 'Right']
+}
+
+export function regionForBoneCategory(value) {
+  return normalizeBoneCategory(value)?.region || 'Unknown'
+}
+
+export function allowedSidesForCategory(value) {
+  const category = normalizeBoneCategory(value)
+  return category ? categorySides(category, true) : []
+}
+
+export function validateCategorySide(categoryValue, sideValue) {
+  const category = normalizeBoneCategory(categoryValue)
+  if (!category) return 'Select a valid bone category.'
+  const side = normalizeSide(sideValue)
+  const allowedSides = categorySides(category, true)
+  if (allowedSides.includes(side)) return ''
+  return category.laterality === 'midline'
+    ? `${category.label} must use Midline.`
+    : `${category.label} must use Left, Right, or Unknown.`
+}
+
+export function specimenCategoryValues(record) {
+  if (String(record?.bone_type || '').trim()) return [record.bone_type]
+  return (record?.measurements || [])
+    .map((measurement) => measurement.bone_type)
+    .filter((value) => String(value || '').trim())
+}
+
+export function findDuplicateSpecimen(records, { skeletonCode, boneCategory, side, excludeSpecimenId = '' }) {
+  const skeletonKey = normalize(skeletonCode)
+  const requestedCategory = normalizeBoneCategory(boneCategory)
+  const requestedKey = categorySideKey(boneCategory, side)
+  if (!skeletonKey || !requestedCategory?.uniquePerSide || !requestedKey) return null
+
+  return (records || []).find((record) => {
+    if (record.specimen_id === excludeSpecimenId || normalize(record.skeleton_code) !== skeletonKey) return false
+    return specimenCategoryValues(record).some((value) => {
+      const category = normalizeBoneCategory(value)
+      const rawSide = String(record.side || '').trim()
+      const resolvedSide = rawSide ? normalizeSide(rawSide) : legacySideFromBoneName(value)
+      return category && categorySideKey(category.code, resolvedSide) === requestedKey
+    })
+  }) || null
 }
 
 export const EXPECTED_CATEGORY_SIDE_KEYS = CONTROLLED_BONE_CATEGORIES.flatMap((category) => (

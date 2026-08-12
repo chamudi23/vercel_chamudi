@@ -3,35 +3,21 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 import {
   PP1_BONE_LABELS,
-  SIDE_OPTIONS,
-  categorySideKey,
-  legacySideFromBoneName,
+  allowedSidesForCategory,
+  findDuplicateSpecimen,
   normalize,
   normalizeBoneCategory,
-  normalizeSide,
+  validateCategorySide,
 } from "../utils/pp1ImageModule";
-
-const TIME_PERIODS = [
-  "Mesolithic", "Neolithic", "Bronze Age", "Iron Age",
-  "Protohistoric", "Early Historic", "Medieval", "Unknown",
-];
-
-const PRESERVATION_STATES = [
-  "Excellent", "Good", "Fair", "Poor", "Fragmentary",
-];
-
-const DISTRICTS = [
-  "Colombo", "Gampaha", "Kalutara", "Kandy", "Matale", "Nuwara Eliya",
-  "Galle", "Matara", "Hambantota", "Jaffna", "Kilinochchi", "Mannar",
-  "Vavuniya", "Mullaitivu", "Batticaloa", "Ampara", "Trincomalee",
-  "Kurunegala", "Puttalam", "Anuradhapura", "Polonnaruwa", "Badulla",
-  "Monaragala", "Ratnapura", "Kegalle",
-];
-
-const PROVINCES = [
-  "Western", "Central", "Southern", "Northern", "Eastern",
-  "North Western", "North Central", "Uva", "Sabaragamuwa",
-];
+import {
+  DATING_METHODS,
+  DISTRICTS,
+  optionalNumber,
+  PRESERVATION_STATES,
+  PROVINCES,
+  TIME_PERIODS,
+  validateExcavationAndDating,
+} from "../utils/specimenMetadata";
 
 const MEASUREMENT_TYPES = [
   "Maximum Length", "Minimum Length", "Maximum Width",
@@ -40,12 +26,6 @@ const MEASUREMENT_TYPES = [
 ];
 
 const UNITS = ["mm", "cm", "m"];
-
-const DATING_METHODS = [
-  "Radiocarbon (C14)", "AMS Radiocarbon", "Thermoluminescence",
-  "Optically Stimulated Luminescence", "Dendrochronology",
-  "Stratigraphy", "Typology", "Other",
-];
 
 const SITE_FIELDS = ["site_name", "district", "province", "time_period"];
 
@@ -65,6 +45,7 @@ function generateId(prefix) {
 export default function SpecimenFormPage() {
   const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
+  const [saveDestination, setSaveDestination] = useState("");
   const [errors, setErrors] = useState({});
   const [success, setSuccess] = useState(false);
   const [skeletonMode, setSkeletonMode] = useState("new");
@@ -152,6 +133,8 @@ export default function SpecimenFormPage() {
   const selectedMeasurementTypes = useMemo(() => new Set(
     measurements.map((measurement) => normalize(measurement.measurement_type)).filter(Boolean)
   ), [measurements]);
+  const allowedSides = useMemo(() => allowedSidesForCategory(form.bone_type), [form.bone_type]);
+  const sideIsLocked = allowedSides.length === 1 && allowedSides[0] === "Midline";
 
   function resetBoneMeasurements(message = "") {
     setMeasurements([emptyMeasurement()]);
@@ -216,9 +199,17 @@ export default function SpecimenFormPage() {
       resetBoneMeasurements(hasMeasurementData
         ? "Bone Category changed. Existing unsaved measurement entries were cleared."
         : "");
+      const nextSides = allowedSidesForCategory(value);
+      setForm((prev) => ({ ...prev, bone_type: value, side: nextSides.includes(prev.side) ? prev.side : (nextSides[0] || "Unknown") }));
+      setErrors((prev) => ({ ...prev, bone_type: "", side: "", duplicateBone: "", duplicateSpecimenId: "" }));
+      return;
     }
     setForm((prev) => ({ ...prev, [name]: value }));
-    setErrors((prev) => ({ ...prev, [name]: "" }));
+    setErrors((prev) => ({
+      ...prev,
+      [name]: "",
+      ...(name === "side" ? { duplicateBone: "", duplicateSpecimenId: "" } : {}),
+    }));
   }
 
   function handleExcavationChange(e) {
@@ -255,6 +246,10 @@ export default function SpecimenFormPage() {
     if (!form.specimen_id.trim()) e.specimen_id = "Specimen ID is required.";
     if (!form.skeleton_code.trim()) e.skeleton_code = "Skeleton Code is required.";
     if (!form.bone_type) e.bone_type = "Bone Category is required.";
+    if (form.bone_type) {
+      const sideError = validateCategorySide(form.bone_type, form.side);
+      if (sideError) e.side = sideError;
+    }
     if (skeletonMode === "existing" && siteConflicts.length > 0) {
       e.siteConflict = "This skeleton has conflicting Site Information. Registration is blocked until the conflict is reviewed.";
     }
@@ -272,18 +267,20 @@ export default function SpecimenFormPage() {
     if ([...measurementTypeCounts.values()].some((count) => count > 1)) {
       e.measurements = "This measurement type has already been added for this specimen.";
     }
+    Object.assign(e, validateExcavationAndDating(excavation, labDating));
     return e;
   }
 
-  async function saveSpecimen() {
+  async function saveSpecimen(attachImage = false) {
     if (saving || success) return;
     const e = validate();
     if (Object.keys(e).length > 0) {
-      setErrors(e);
+      setErrors({ ...e, validation: "Please correct the highlighted metadata fields." });
       return;
     }
 
     setSaving(true);
+    setSaveDestination(attachImage ? "attachment" : "record");
     setErrors({});
     const specimenId = form.specimen_id.trim();
     const skeletonCode = form.skeleton_code.trim();
@@ -323,21 +320,18 @@ export default function SpecimenFormPage() {
       return;
     }
 
-    const requestedGroup = categorySideKey(form.bone_type, form.side);
-    const duplicateBone = matchingSkeletonRows.some((record) => {
-      const sourceValues = record.bone_type
-        ? [record.bone_type]
-        : (record.measurements || []).map((measurement) => measurement.bone_type);
-      return sourceValues.some((value) => {
-        const category = normalizeBoneCategory(value);
-        const savedSide = normalizeSide(record.side);
-        const side = savedSide === "Unknown" ? legacySideFromBoneName(value) : savedSide;
-        return category && categorySideKey(category.code, side) === requestedGroup;
-      });
+    const duplicateBone = findDuplicateSpecimen(matchingSkeletonRows, {
+      skeletonCode,
+      boneCategory: form.bone_type,
+      side: form.side,
     });
 
     if (duplicateBone) {
-      setErrors({ duplicateBone: "This bone category and side are already registered for the selected skeleton." });
+      const category = normalizeBoneCategory(form.bone_type);
+      setErrors({
+        duplicateBone: `A ${form.side} ${category.label} is already registered for skeleton ${skeletonCode}.`,
+        duplicateSpecimenId: duplicateBone.specimen_id,
+      });
       setSaving(false);
       return;
     }
@@ -383,7 +377,7 @@ export default function SpecimenFormPage() {
         specimen_id: specimenId,
         excavation_date: excavation.excavation_date || null,
         excavation_phase: excavation.excavation_phase,
-        depth_found: excavation.depth_found ? parseFloat(excavation.depth_found) : null,
+        depth_found: optionalNumber(excavation.depth_found),
         excavator_name: excavation.excavator_name,
         excavation_notes: excavation.excavation_notes,
       };
@@ -402,8 +396,8 @@ export default function SpecimenFormPage() {
         specimen_id: specimenId,
         dating_method: labDating.dating_method,
         date_result: labDating.date_result,
-        date_range_min: labDating.date_range_min ? parseFloat(labDating.date_range_min) : null,
-        date_range_max: labDating.date_range_max ? parseFloat(labDating.date_range_max) : null,
+        date_range_min: optionalNumber(labDating.date_range_min),
+        date_range_max: optionalNumber(labDating.date_range_max),
         lab_name: labDating.lab_name,
         result_notes: labDating.result_notes,
       };
@@ -417,7 +411,10 @@ export default function SpecimenFormPage() {
 
     setSaving(false);
     setSuccess(true);
-    setTimeout(() => navigate(`/upload?specimen_id=${encodeURIComponent(specimenId)}`), 1000);
+    const destination = attachImage
+      ? `/specimens/${encodeURIComponent(specimenId)}?section=attachments&addImage=true`
+      : `/specimens/${encodeURIComponent(specimenId)}`;
+    setTimeout(() => navigate(destination), 1000);
   }
 
   const inputClass = (field) =>
@@ -473,13 +470,20 @@ export default function SpecimenFormPage() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5 shrink-0">
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
-            All data saved successfully! Opening image upload...
+            {saveDestination === "attachment"
+              ? "All specimen data saved. Opening the linked attachment form..."
+              : "All specimen data saved. Opening the Specimen Record..."}
           </div>
         )}
 
         {errors.submit && (
           <div className="mb-6 bg-red-500/20 border border-red-500/40 rounded-xl px-5 py-4 text-red-300 text-sm">
             {errors.submit}
+          </div>
+        )}
+        {errors.validation && (
+          <div className="mb-6 bg-red-500/20 border border-red-500/40 rounded-xl px-5 py-4 text-red-300 text-sm">
+            {errors.validation}
           </div>
         )}
 
@@ -556,13 +560,21 @@ export default function SpecimenFormPage() {
                   {PP1_BONE_LABELS.map((bone) => <option key={bone} value={bone}>{bone}</option>)}
                 </select>
                 {errors.bone_type && <p className="text-red-400 text-xs mt-1">{errors.bone_type}</p>}
-                {errors.duplicateBone && <p className="text-red-400 text-xs mt-1">{errors.duplicateBone}</p>}
+                {errors.duplicateBone && (
+                  <p className="text-red-400 text-xs mt-1">
+                    {errors.duplicateBone}{" "}
+                    {errors.duplicateSpecimenId && <button type="button" onClick={() => navigate(`/specimens/${encodeURIComponent(errors.duplicateSpecimenId)}`)} className="underline hover:text-red-300">Open existing record</button>}
+                  </p>
+                )}
               </div>
               <div>
                 <label className={labelClass}>Side</label>
-                <select name="side" value={form.side} onChange={handleChange} className={selectClass("side")}>
-                  {SIDE_OPTIONS.map((side) => <option key={side} value={side}>{side}</option>)}
+                <select name="side" value={form.side} onChange={handleChange} disabled={!form.bone_type || sideIsLocked} className={selectClass("side") + (!form.bone_type || sideIsLocked ? " cursor-not-allowed opacity-65" : "")}>
+                  {!form.bone_type && <option value="Unknown">Select a bone category first</option>}
+                  {allowedSides.map((side) => <option key={side} value={side}>{side}</option>)}
                 </select>
+                {sideIsLocked && <p className="text-white/35 text-xs mt-1">Midline is automatic because left/right is not anatomically applicable.</p>}
+                {errors.side && <p className="text-red-400 text-xs mt-1">{errors.side}</p>}
               </div>
             </div>
           </div>
@@ -729,7 +741,8 @@ export default function SpecimenFormPage() {
               </div>
               <div>
                 <label className={labelClass}>Depth Found (m)</label>
-                <input name="depth_found" type="number" min="0" step="0.01" value={excavation.depth_found} onChange={handleExcavationChange} placeholder="e.g. 1.5" className={plainInput} />
+                <input name="depth_found" type="number" min="0" step="0.01" value={excavation.depth_found} onChange={handleExcavationChange} placeholder="e.g. 1.5" className={plainInput + (errors.depth_found ? " border-red-500" : "")} />
+                {errors.depth_found && <p className="text-red-400 text-xs mt-1">{errors.depth_found}</p>}
               </div>
               <div>
                 <label className={labelClass}>Excavator Name</label>
@@ -759,11 +772,13 @@ export default function SpecimenFormPage() {
               </div>
               <div>
                 <label className={labelClass}>Date Range Min (BP)</label>
-                <input name="date_range_min" type="number" min="0" value={labDating.date_range_min} onChange={handleLabChange} placeholder="e.g. 3450" className={plainInput} />
+                <input name="date_range_min" type="number" min="0" value={labDating.date_range_min} onChange={handleLabChange} placeholder="e.g. 3450" className={plainInput + (errors.date_range_min || errors.date_range ? " border-red-500" : "")} />
+                {(errors.date_range_min || errors.date_range) && <p className="text-red-400 text-xs mt-1">{errors.date_range_min || errors.date_range}</p>}
               </div>
               <div>
                 <label className={labelClass}>Date Range Max (BP)</label>
-                <input name="date_range_max" type="number" min="0" value={labDating.date_range_max} onChange={handleLabChange} placeholder="e.g. 3550" className={plainInput} />
+                <input name="date_range_max" type="number" min="0" value={labDating.date_range_max} onChange={handleLabChange} placeholder="e.g. 3550" className={plainInput + (errors.date_range_max || errors.date_range ? " border-red-500" : "")} />
+                {(errors.date_range_max || errors.date_range) && <p className="text-red-400 text-xs mt-1">{errors.date_range_max || errors.date_range}</p>}
               </div>
               <div>
                 <label className={labelClass}>Lab Name</label>
@@ -786,22 +801,32 @@ export default function SpecimenFormPage() {
             >
               Cancel
             </button>
-            <button
-              type="button"
-              onClick={saveSpecimen}
-              disabled={saving || success}
-              className="px-8 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-900 disabled:text-emerald-600 text-white text-sm font-medium rounded-xl transition-colors flex items-center gap-2"
-            >
-              {saving ? (
-                <>
-                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                  </svg>
-                  Saving…
-                </>
-              ) : "Save & Attach Image"}
-            </button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => saveSpecimen(false)}
+                disabled={saving || success}
+                className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-6 py-2.5 text-sm font-medium text-emerald-200 transition-colors hover:bg-emerald-500/20 disabled:opacity-40"
+              >
+                {saving && saveDestination === "record" ? "Saving…" : "Save Specimen Only"}
+              </button>
+              <button
+                type="button"
+                onClick={() => saveSpecimen(true)}
+                disabled={saving || success}
+                className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-8 py-2.5 text-sm font-medium text-white transition-colors hover:bg-emerald-500 disabled:bg-emerald-900 disabled:text-emerald-600"
+              >
+                {saving && saveDestination === "attachment" ? (
+                  <>
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    Saving…
+                  </>
+                ) : "Save & Attach Image"}
+              </button>
+            </div>
           </div>
 
         </div>
