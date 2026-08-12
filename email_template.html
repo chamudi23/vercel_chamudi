@@ -1,0 +1,140 @@
+<!--
+  MGimv-h7hdlE4fvLl · EmailJS HTML template
+  ============================================================
+  HOW TO USE:
+  1. EmailJS dashboard → Email Templates → Create New Template.
+  2. In the template's "Settings" tab set:
+       To Email   : {{to_email}}
+       From Name  : {{from_name}}
+       Reply To   : {{reply_to}}
+       Subject    : {{subject}}
+     (Sender address is the account connected to service_3hfz0w3 —
+      make sure that service is it22299802@my.sliit.lk.)
+  3. Switch the content editor to "Code"/HTML mode and paste EVERYTHING
+     below this comment block.
+  4. Save, then copy the Template ID + your Public Key into
+     src/lib/emailConfig.js.
+
+  Variables used: from_name, sender_email, case_id, investigator,
+  location, bone_type, gender, age_range, height, confidence.
+-->
+<div style="margin:0;padding:0;background-color:#f4f5f7;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f5f7;padding:24px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background-color:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
+
+          <!-- Header -->
+          <tr>
+            <td style="background-color:#0f1219;padding:24px 32px;">
+              <div style="color:#f97316;font-size:22px;font-weight:bold;letter-spacing:0.5px;">OAHRIS</div>
+              <div style="color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:2px;margin-top:2px;">
+                Automated Skeletal Analysis
+              </div>
+            </td>
+          </tr>
+
+          <!-- Title -->
+          <tr>
+            <td style="padding:28px 32px 8px 32px;">
+              <div style="color:#0f172a;font-size:20px;font-weight:bold;">Biological Profile Prediction Report</div>
+              <div style="display:inline-block;margin-top:8px;background-color:#fff7ed;border:1px solid #fed7aa;color:#f97316;font-size:13px;font-weight:bold;padding:4px 12px;border-radius:999px;">
+                Case {{case_id}}
+              </div>
+            </td>
+          </tr>
+
+          <!-- Prediction cards -->
+          <tr>
+            <td style="padding:20px 32px 8px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td width="50%" style="padding:6px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+                      <tr><td style="padding:14px;text-align:center;">
+                        <div style="color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Predicted Sex</div>
+                        <div style="color:#0f172a;font-size:20px;font-weight:bold;margin-top:4px;">{{gender}}</div>
+                      </td></tr>
+                    </table>
+                  </td>
+                  <td width="50%" style="padding:6px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+                      <tr><td style="padding:14px;text-align:center;">
+                        <div style="color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Age Range</div>
+                        <div style="color:#0f172a;font-size:20px;font-weight:bold;margin-top:4px;">{{age_range}}</div>
+                      </td></tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr>
+                  <td width="50%" style="padding:6px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+                      <tr><td style="padding:14px;text-align:center;">
+                        <div style="color:#64748b;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Est. Height</div>
+                        <div style="color:#0f172a;font-size:20px;font-weight:bold;margin-top:4px;">{{height}}</div>
+                      </td></tr>
+                    </table>
+                  </td>
+                  <td width="50%" style="padding:6px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#ecfdf5;border:1px solid #a7f3d0;border-radius:8px;">
+                      <tr><td style="padding:14px;text-align:center;">
+                        <div style="color:#059669;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;">Confidence</div>
+                        <div style="color:#059669;font-size:20px;font-weight:bold;margin-top:4px;">{{confidence}}</div>
+                      </td></tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Case information -->
+          <tr>
+            <td style="padding:16px 32px 8px 32px;">
+              <div style="color:#0f172a;font-size:13px;font-weight:bold;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #e2e8f0;padding-bottom:8px;margin-bottom:8px;">
+                Case Information
+              </div>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;">
+                <tr>
+                  <td style="padding:7px 0;color:#64748b;width:40%;">Investigator</td>
+                  <td style="padding:7px 0;color:#0f172a;font-weight:bold;">{{investigator}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:7px 0;color:#64748b;border-top:1px solid #f1f5f9;">Bone Type</td>
+                  <td style="padding:7px 0;color:#0f172a;font-weight:bold;border-top:1px solid #f1f5f9;">{{bone_type}}</td>
+                </tr>
+                <tr>
+                  <td style="padding:7px 0;color:#64748b;border-top:1px solid #f1f5f9;">Location</td>
+                  <td style="padding:7px 0;color:#0f172a;font-weight:bold;border-top:1px solid #f1f5f9;">{{location}}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Disclaimer -->
+          <tr>
+            <td style="padding:16px 32px 8px 32px;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#fffbeb;border:1px solid #fde68a;border-radius:8px;">
+                <tr><td style="padding:12px 14px;color:#92400e;font-size:12px;line-height:1.5;">
+                  <strong>Note:</strong> These are supportive estimates generated by the OAHRIS system and should
+                  always be confirmed by a trained professional.
+                </td></tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:16px 32px 28px 32px;border-top:1px solid #e5e7eb;">
+              <div style="color:#94a3b8;font-size:11px;line-height:1.6;">
+                Sent from <span style="color:#475569;font-weight:bold;">{{sender_email}}</span><br/>
+                {{from_name}} · Methodology: Bass, W.M. (2005) Human Osteology, 5th Ed.
+              </div>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</div>

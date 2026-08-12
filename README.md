@@ -1,49 +1,131 @@
-# OAHRIS — Osteoarchaeological Research Information System
+<div align="center">
 
-> R26-ISE-006 | B.Sc. (Hons) Information Technology — Information System Engineering  
-> Sri Lanka Institute of Information Technology (SLIIT)
+# 🦴 OAHRIS
+### Osteoarchaeological Research Information System
+
+*A centralized digital platform for managing osteoarchaeological research data across 50,000 years of Sri Lankan prehistory.*
+
+<br/>
+
+![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)
+![Vite](https://img.shields.io/badge/Vite-5-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-38BDF8?style=for-the-badge&logo=tailwindcss&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-Auth%20%26%20DB-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
+![React Router](https://img.shields.io/badge/React_Router-7-CA4245?style=for-the-badge&logo=reactrouter&logoColor=white)
+
+<br/>
+
+`R26-ISE-006` · B.Sc. (Hons) Information Technology — Information System Engineering
+**Sri Lanka Institute of Information Technology (SLIIT)**
+In collaboration with the **Postgraduate Institute of Archaeology (PGIAR)**
+
+</div>
 
 ---
 
-## 📌 Project Overview
+## 📖 Overview
 
-OAHRIS is a centralized digital platform for managing osteoarchaeological research data in Sri Lanka. It is developed in collaboration with the **Postgraduate Institute of Archaeology (PGIAR)** and supports researchers in storing, visualizing, and analyzing excavation data, skeletal records, and burial site information spanning over 50,000 years of Sri Lankan prehistory.
+OAHRIS helps researchers **store, visualize, and analyze** excavation data, skeletal records, and burial‑site information. It brings together spatial mapping, machine‑assisted skeletal analysis, image management, and research analytics into one modern web application — filling the long‑standing gap of a centralized digital system for osteoarchaeology in Sri Lanka.
 
 ---
 
-## 👥 Team Members & Modules
+## 👥 Team & Modules
 
 | Student ID | Name | Module |
 |---|---|---|
-| IT22159908 | Ilshan | Data Integration Module |
-| **IT22889874** | **Parami K K J** | **GIS Spatial Analysis Module** |
-| IT21824210 | — | Image Management Module |
-| IT22299802 | Minuri | Research Analytics Module |
+| IT22159908 | Ilshan | Data Integration |
+| IT22889874 | Parami K K J | 🗺️ GIS Spatial Analysis |
+| IT21824210 | — | Image Management |
+| **IT22299802** | **Chamudi Gayeshika** | **🧬 Skeletal Analysis System** |
+| IT22299802 | Minuri | Research Analytics |
 
 ---
 
-## 🗺️ Module 3.2 — GIS Spatial Analysis (IT22889874)
+## 🧬 Skeletal Analysis System · `IT22299802 — Chamudi`
 
-This module provides geographic and temporal visualization of osteoarchaeological data across Sri Lanka.
+> AI‑assisted **biological‑profile estimation** (sex, age & height) from skeletal remains — plus a full learning ecosystem to train new analysts.
 
-### Features
+<div align="center">
 
-- **Interactive GIS Map** — Leaflet-based map showing all archaeological excavation sites across Sri Lanka with color-coded risk level markers (High / Medium / Low)
-- **Temporal Layer Filter** — Filter map markers by excavation time period across 5 historical phases:
-  - All Periods (50,000 BP – Present)
-  - Prehistoric (50,000 – 1,000 BC)
-  - Early Historic (1,000 – 0 BC)
-  - Classical Period (0 – 1200 AD)
-  - Medieval & Modern (1200 – Present)
-- **AI Spatial Pattern Detection** — DBSCAN (Density-Based Spatial Clustering of Applications with Noise) algorithm that automatically detects clusters of burial sites. Adjustable parameters:
-  - Search radius (ε) — controls how far apart sites can be to belong to the same cluster
-  - Minimum points — minimum number of sites to form a cluster
-- **Site Statistics Dashboard** — Total sites, sites shown, clusters found, high risk count, protected sites
-- **District & Type Breakdown** — Visual summary of sites grouped by district and site type
-- **Mapped Sites Table** — Full list of sites with coordinates, risk level, and cluster assignment
+`http://localhost:5173/skeletal`
 
-### Route
-Access this module at: `http://localhost:5173/parami`
+</div>
+
+### ✨ Highlights
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+#### 🔬 Analysis Engine
+- **3‑step guided workflow** — basic info → measurements → prediction
+- **Bone‑aware forms** — Skull, Pelvis, Upper/Lower Limb, Thorax, Teeth
+- **Rule‑based predictions** using osteology standards & **Bass (2005)** stature formulae
+- **Sex · Age range · Height · Confidence** with per‑case reasoning
+
+</td>
+<td width="50%" valign="top">
+
+#### 📊 Reports & Records
+- **Past Analysis** — searchable, filterable case repository
+- **Prediction Report** per case (loads by Case ID)
+- **⬇️ Download PDF** report (jsPDF)
+- **✉️ Send Mail** — pre‑filled report e‑mail
+- Every case **persisted in Supabase** — shared across devices
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+#### 📚 Knowledge Base
+- **Interactive, animated Bone Feature Guide** — auto‑playing tour of every feature with **real specimen images**, categories & what each predicts
+- **Complete New‑Analysis Tutorial** — step‑by‑step visual walkthrough
+- Reference tiles: methodology, glossary, FAQ
+
+</td>
+<td width="50%" valign="top">
+
+#### 🎓 Learning Path *(Coursera‑style)*
+- **Gated course** — pass each **checkpoint quiz** to unlock the next module
+- **🔐 Google Login** (Supabase Auth)
+- **Per‑learner progress tracking** stored in Supabase — follows you across devices
+- **Certificate** on completion
+
+</td>
+</tr>
+</table>
+
+### 🗺️ Skeletal Module Routes
+
+| Route | Page |
+|---|---|
+| `/skeletal` | Module overview |
+| `/skeletal/dashboard` | Dashboard & statistics |
+| `/skeletal/analysis/new` → `step2` → `step3` | New Analysis wizard |
+| `/skeletal/report/:caseId` | Prediction report (PDF / mail) |
+| `/skeletal/cases` | Past Analysis repository |
+| `/skeletal/knowledge` | Knowledge Base hub |
+| `/skeletal/knowledge/course` | 🎓 Learning Path (Google login) |
+| `/skeletal/knowledge/guide` | 🦴 Animated Bone Feature Guide |
+| `/skeletal/knowledge/tutorial` | 📘 New‑Analysis Tutorial |
+
+---
+
+## 🗺️ GIS Spatial Analysis · `IT22889874 — Parami`
+
+Geographic & temporal visualization of excavation sites across Sri Lanka.
+
+- **Interactive Leaflet map** with risk‑level markers (High / Medium / Low)
+- **Temporal filter** across 5 historical phases (50,000 BP → present)
+- **AI clustering (DBSCAN)** to auto‑detect burial‑site clusters — adjustable ε & min‑points
+- **Statistics dashboard** + district/type breakdowns
+
+<div align="center">
+
+`http://localhost:5173/parami`
+
+</div>
 
 ---
 
@@ -51,38 +133,63 @@ Access this module at: `http://localhost:5173/parami`
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 18, Vite, Tailwind CSS |
-| Routing | React Router DOM |
-| GIS Mapping | Leaflet, React-Leaflet |
-| AI Clustering | DBSCAN (density-clustering) |
-| Database | Supabase (PostgreSQL) |
-| Language | JavaScript |
+| Frontend | React 18 · Vite 5 · Tailwind CSS 3 |
+| Routing | React Router DOM 7 |
+| Auth & Database | **Supabase** (Google OAuth + PostgreSQL) |
+| Charts | Recharts |
+| GIS / Mapping | Leaflet · React‑Leaflet |
+| AI Clustering | DBSCAN (`density-clustering`) |
+| PDF | jsPDF |
+| Icons | Lucide React |
 
 ---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js v18 or above
-- Git
+- **Node.js** v18+
+- A **Supabase** project (free tier is fine)
 
-### Installation
+### 1 · Install & run
 
 ```bash
-# Clone the repository
-git clone https://github.com/it21824210/oahris-research-project.git
-
-# Navigate into the project
-cd oahris-research-project
-
-# Install dependencies
+git clone https://github.com/chamudi23/vercel_chamudi.git
+cd vercel_chamudi
 npm install
-
-# Start the development server
 npm run dev
 ```
 
-Open your browser and go to `http://localhost:5173`
+Open **http://localhost:5173** 🎉
+
+### 2 · Connect Supabase
+
+The client reads its config from `src/supabase.js`, overridable via a `.env`:
+
+```bash
+# .env  (optional — falls back to values in src/supabase.js)
+VITE_SUPABASE_URL=https://<your-project>.supabase.co
+VITE_SUPABASE_ANON_KEY=<your-anon-or-publishable-key>
+```
+
+> The **anon** key is safe in the client — every table is protected by Row‑Level Security.
+
+### 3 · Create the database tables
+
+In the Supabase dashboard → **SQL Editor**, run [`kgc_supabase_setup.sql`](./kgc_supabase_setup.sql). It creates:
+
+- **`analyses`** — saved skeletal analyses / reports (with demo seed data)
+- **`course_progress`** — per‑learner Learning Path progress (RLS: each learner sees only their own row)
+
+### 4 · Enable Google login *(for the Learning Path)*
+
+1. **Google Cloud Console** → create an **OAuth 2.0 Web client**
+   Authorized redirect URI → `https://<your-project>.supabase.co/auth/v1/callback`
+2. **Supabase** → Authentication → **Providers → Google** → paste Client ID + Secret → enable
+3. **Supabase** → Authentication → **URL Configuration**
+   - Site URL: `http://localhost:5173`
+   - Redirect URLs: `http://localhost:5173/**`
+
+> 🔒 Keep your Google **client secret** private — it lives only in Supabase's provider settings, never in the frontend.
 
 ---
 
@@ -90,72 +197,99 @@ Open your browser and go to `http://localhost:5173`
 
 ```
 src/
-  pages/
-    ParamiModulePage.jsx     ← GIS Spatial Analysis (IT22889874)
-    IlshanModulePage.jsx     ← Data Integration
-    MinuriModulePage.jsx     ← Research Analytics
-    HomePage.jsx
-    BonePage.jsx
-    BoneDetailPage.jsx
-    ImageSearchPage.jsx
-    SkeletonViewerPage.jsx
-  supabase.js                ← Supabase client config
-  App.jsx                    ← Routes & navigation
-  main.jsx
+├─ pages/
+│  ├─ KgcSkeletalModulePage.jsx      # Skeletal module overview
+│  ├─ KgcDashboard.jsx               # Dashboard & stats
+│  ├─ KgcReport.jsx                  # Report (PDF + Send Mail)
+│  ├─ KgcPastAnalysis.jsx            # Case repository (Supabase)
+│  ├─ NewAnalysis/                   # 3-step analysis wizard
+│  └─ Knowledge/
+│     ├─ KgcKnowledgeBase.jsx        # Knowledge hub
+│     ├─ KgcNewAnalysisTutorial.jsx  # Visual tutorial
+│     ├─ KgcBoneFeatureGuide.jsx     # Animated, image-based guide
+│     ├─ KgcCourse.jsx               # Gated Learning Path + Google login
+│     ├─ kbGuideData.js              # Bone feature content
+│     └─ kgcCourseData.js            # Course modules + quizzes
+├─ context/
+│  ├─ AnalysisContext.jsx            # New-analysis state
+│  └─ AuthContext.jsx                # Supabase Google auth
+├─ hooks/
+│  ├─ useCourseProgress.js           # Per-learner progress (Supabase)
+│  └─ useReveal.js                   # Scroll-reveal animations
+├─ lib/
+│  └─ analysisStore.js               # Supabase CRUD for analyses
+├─ supabase.js                       # Supabase client
+└─ App.jsx                           # Routes & providers
+
+public/kb/                           # Specimen images for the guide
+kgc_supabase_setup.sql               # DB tables + RLS + seed data
 ```
 
 ---
 
-## 🗄️ Database Schema (sites table)
+## 🗄️ Data Model
+
+<details>
+<summary><b>analyses</b> — saved skeletal cases</summary>
 
 | Column | Type | Description |
 |---|---|---|
-| id | uuid | Primary key |
-| site_name | varchar | Name of the archaeological site |
-| district | varchar | District in Sri Lanka |
-| province | varchar | Province |
-| latitude | numeric | GPS latitude |
-| longitude | numeric | GPS longitude |
-| time_period | varchar | Historical period of the site |
-| site_type | varchar | Type (Cave Site, Burial Ground, etc.) |
-| risk_level | varchar | High / Medium / Low |
-| protected_status | boolean | Whether the site is legally protected |
+| `case_id` | text (PK) | e.g. `KGC-20260210-1042` |
+| `basic_info` | jsonb | investigator, location, dates, bone type |
+| `measurements` | jsonb | recorded skeletal measurements |
+| `predictions` | jsonb | gender, age range, height, confidence |
+| `created_at` | timestamptz | saved time |
 
----
+</details>
 
-## 🔬 Research Background
+<details>
+<summary><b>course_progress</b> — per-learner Learning Path progress</summary>
 
-Osteoarchaeological research in Sri Lanka, conducted by institutions such as PGIAR, involves the study of human evolution and burial practices spanning 50,000 years. This GIS module addresses the key research gap of lacking a centralized digital system that integrates:
+| Column | Type | Description |
+|---|---|---|
+| `user_id` | uuid (PK) | references `auth.users` |
+| `completed` | jsonb | list of completed step IDs |
+| `updated_at` | timestamptz | last update |
 
-- Detailed spatial mapping of burial sites
-- Dynamic temporal layers across excavation phases  
-- Intelligent AI pattern recognition using clustering algorithms
+*Row‑Level Security ensures each learner can read/write only their own row.*
 
----
+</details>
 
-## 📡 Backend GIS API Endpoints
+<details>
+<summary><b>sites</b> — GIS excavation sites</summary>
 
-Run `node server.js` in the `/backend` folder to enable:
+| Column | Type | Description |
+|---|---|---|
+| `id` | uuid | Primary key |
+| `site_name` | varchar | Site name |
+| `district` / `province` | varchar | Location |
+| `latitude` / `longitude` | numeric | Coordinates |
+| `time_period` | varchar | Historical period |
+| `site_type` | varchar | Cave site, burial ground, … |
+| `risk_level` | varchar | High / Medium / Low |
+| `protected_status` | boolean | Legally protected? |
 
-```
-GET /api/gis/sites/map
-GET /api/gis/sites/temporal
-GET /api/gis/sites/cluster-data
-GET /api/gis/sites/by-district
-GET /api/gis/sites/excavation-phases
-GET /api/gis/spatial-stats
-```
+</details>
 
 ---
 
 ## 📚 References
 
-- Conolly, J. & Lake, M. (2006). *Geographical Information Systems in Archaeology*. Cambridge University Press.
-- Menéndez-Marsh et al. (2023). Geographic Information Systems in Archaeology: A Systematic Review. *Journal of Computer Applications in Archaeology*, 6(1).
-- Wheatley, D. & Gillings, M. (2002). *Spatial Technology and Archaeology*. Taylor & Francis.
+- Bass, W. M. (2005). *Human Osteology: A Laboratory and Field Manual* (5th ed.). Missouri Archaeological Society.
+- White, T. D., Black, M. T., & Folkens, P. A. (2012). *Human Osteology* (3rd ed.). Academic Press.
+- Buikstra, J. E., & Ubelaker, D. H. (1994). *Standards for Data Collection from Human Skeletal Remains.*
+- Conolly, J. & Lake, M. (2006). *Geographical Information Systems in Archaeology.* Cambridge University Press.
 
 ---
 
 ## 📄 License
 
-This project is developed for academic research purposes at SLIIT under the supervision of Mrs. Buddhima Attanayake.
+Developed for academic research at **SLIIT** under the supervision of **Mrs. Buddhima Attanayake**.
+
+> ⚠️ Predictions are **supportive estimates** and should always be confirmed by a trained professional.
+
+<div align="center">
+
+*Made with 🦴 for Sri Lankan osteoarchaeology*
+
+</div>

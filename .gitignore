@@ -23,5 +23,11 @@ dist-ssr
 *.sln
 *.sw?
 .env
-.env.local
 backend/.env
+
+# Raw knowledge-base authoring source (PDF + original images).
+# The processed images the app actually serves live in public/kb/.
+knowledgebase/
+
+# Google OAuth client secret (should never be committed)
+client_secret_*.json

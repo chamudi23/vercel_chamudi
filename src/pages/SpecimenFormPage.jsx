@@ -1,6 +1,15 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
+import {
+  PP1_BONE_LABELS,
+  SIDE_OPTIONS,
+  categorySideKey,
+  legacySideFromBoneName,
+  normalize,
+  normalizeBoneCategory,
+  normalizeSide,
+} from "../utils/pp1ImageModule";
 
 const TIME_PERIODS = [
   "Mesolithic", "Neolithic", "Bronze Age", "Iron Age",
@@ -24,42 +33,6 @@ const PROVINCES = [
   "North Western", "North Central", "Uva", "Sabaragamuwa",
 ];
 
-const BONE_TYPES = [
-  // Skull & Jaw
-  "Skull", "Mandible (Left)", "Mandible (Right)",
-  "Maxilla (Left)", "Maxilla (Right)", "Maxilla (Upper)",
-
-  // Teeth
-  "Incisor (Upper)", "Incisor (Lower)",
-  "Canine (Upper)", "Canine (Lower)",
-  "Premolar 1st (Upper)", "Premolar 1st (Lower)",
-  "Premolar 2nd (Upper)", "Premolar 2nd (Lower)",
-  "Molar 1st (Upper)", "Molar 1st (Lower)",
-  "Molar 2nd (Upper)", "Molar 2nd (Lower)",
-  "Molar 3rd (Upper)", "Molar 3rd (Lower)",
-
-  // Upper Limb
-  "Humerus", "Humerus (Distal End)",
-  "Radius", "Ulna",
-  "Metacarpal", "Metacarpal 1st", "Metacarpal 2nd",
-  "Metacarpal 3rd", "Metacarpal 4th", "Metacarpal 5th",
-
-  // Lower Limb
-  "Femur", "Tibia", "Fibula", "Patella",
-  "Calcaneum (Left)", "Calcaneum (Right)",
-  "Astragalus (Left)", "Astragalus (Right)",
-  "Metatarsal", "Metatarsal 1st", "Metatarsal 2nd",
-  "Metatarsal 3rd", "Metatarsal 4th", "Metatarsal 5th",
-
-  // Other Bones
-  "Clavicle", "Scapula", "Pelvis",
-  "Vertebra", "Rib", "Sternum",
-  "Phalanx (Hand)", "Phalanx (Foot)",
-  "Phalanx Proximal (Foot)", "Phalanx Proximal (Hand)",
-
-  "Other",
-];
-
 const MEASUREMENT_TYPES = [
   "Maximum Length", "Minimum Length", "Maximum Width",
   "Minimum Width", "Maximum Diameter", "Minimum Diameter",
@@ -74,6 +47,12 @@ const DATING_METHODS = [
   "Stratigraphy", "Typology", "Other",
 ];
 
+const SITE_FIELDS = ["site_name", "district", "province", "time_period"];
+
+function emptyMeasurement() {
+  return { id: generateId("M"), measurement_type: "", value: "", unit: "mm", notes: "" };
+}
+
 function generateSpecimenId() {
   const num = Math.floor(Math.random() * 900) + 100;
   return `SPEC-${num}`;
@@ -85,18 +64,25 @@ function generateId(prefix) {
 
 export default function SpecimenFormPage() {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
   const [success, setSuccess] = useState(false);
+  const [skeletonMode, setSkeletonMode] = useState("new");
+  const [skeletonSearch, setSkeletonSearch] = useState("");
+  const [skeletonRecords, setSkeletonRecords] = useState([]);
+  const [loadingSkeletons, setLoadingSkeletons] = useState(true);
+  const [siteConflicts, setSiteConflicts] = useState([]);
+  const [measurementNotice, setMeasurementNotice] = useState("");
 
   // Section 1 - Specimen
   const [form, setForm] = useState({
     specimen_id: generateSpecimenId(),
     skeleton_code: "",
+    bone_type: "",
+    side: "Unknown",
     site_name: "",
     district: "",
     province: "",
-    excavation_year: "",
     time_period: "",
     preservation_state: "",
     location_stored: "",
@@ -106,7 +92,7 @@ export default function SpecimenFormPage() {
 
   // Section 2 - Measurements (dynamic rows)
   const [measurements, setMeasurements] = useState([
-    { id: generateId("M"), bone_type: "", measurement_type: "", value: "", unit: "mm", notes: "" },
+    emptyMeasurement(),
   ]);
 
   // Section 3 - Excavation Record
@@ -128,8 +114,109 @@ export default function SpecimenFormPage() {
     result_notes: "",
   });
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadSkeletonRecords() {
+      setLoadingSkeletons(true);
+      const { data, error } = await supabase
+        .from("specimens")
+        .select("specimen_id, skeleton_code, bone_type, side, site_name, district, province, time_period, measurements(bone_type)")
+        .order("skeleton_code", { ascending: true });
+
+      if (!active) return;
+      setSkeletonRecords(data || []);
+      setErrors((prev) => ({ ...prev, loadSkeletons: error?.message || "" }));
+      setLoadingSkeletons(false);
+    }
+
+    loadSkeletonRecords();
+    return () => { active = false; };
+  }, []);
+
+  const skeletonCodes = useMemo(() => {
+    const values = new Map();
+    skeletonRecords.forEach((record) => {
+      const code = record.skeleton_code?.trim();
+      const key = normalize(code);
+      if (code && !values.has(key)) values.set(key, code);
+    });
+    return [...values.values()].sort((a, b) => a.localeCompare(b));
+  }, [skeletonRecords]);
+
+  const filteredSkeletonCodes = useMemo(() => {
+    const search = normalize(skeletonSearch);
+    return skeletonCodes.filter((code) => !search || normalize(code).includes(search));
+  }, [skeletonCodes, skeletonSearch]);
+
+  const selectedMeasurementTypes = useMemo(() => new Set(
+    measurements.map((measurement) => normalize(measurement.measurement_type)).filter(Boolean)
+  ), [measurements]);
+
+  function resetBoneMeasurements(message = "") {
+    setMeasurements([emptyMeasurement()]);
+    setMeasurementNotice(message);
+  }
+
+  function setMode(mode) {
+    setSkeletonMode(mode);
+    setSkeletonSearch("");
+    setSiteConflicts([]);
+    setErrors({});
+    setSuccess(false);
+    setForm((prev) => ({
+      ...prev,
+      specimen_id: generateSpecimenId(),
+      skeleton_code: "",
+      bone_type: "",
+      side: "Unknown",
+      site_name: "",
+      district: "",
+      province: "",
+      time_period: "",
+    }));
+    resetBoneMeasurements();
+  }
+
+  function selectExistingSkeleton(code) {
+    const matching = skeletonRecords.filter((record) => normalize(record.skeleton_code) === normalize(code));
+    const sharedSite = {};
+    const conflicts = [];
+
+    SITE_FIELDS.forEach((field) => {
+      const distinctValues = new Map();
+      matching.forEach((record) => {
+        const value = String(record[field] || "").trim();
+        if (value && !distinctValues.has(normalize(value))) distinctValues.set(normalize(value), value);
+      });
+      const values = [...distinctValues.values()];
+      if (values.length > 1) conflicts.push(`${field.replace("_", " ")}: ${values.join(" / ")}`);
+      sharedSite[field] = values.length === 1 ? values[0] : "";
+    });
+
+    setSiteConflicts(conflicts);
+    setErrors((prev) => ({ ...prev, skeleton_code: "", duplicateBone: "", siteConflict: "" }));
+    setForm((prev) => ({
+      ...prev,
+      ...sharedSite,
+      specimen_id: generateSpecimenId(),
+      skeleton_code: code,
+      bone_type: "",
+      side: "Unknown",
+    }));
+    resetBoneMeasurements();
+  }
+
   function handleChange(e) {
     const { name, value } = e.target;
+    if (name === "bone_type" && value !== form.bone_type) {
+      const hasMeasurementData = measurements.some((measurement) => (
+        measurement.measurement_type || measurement.value || measurement.notes
+      ));
+      resetBoneMeasurements(hasMeasurementData
+        ? "Bone Category changed. Existing unsaved measurement entries were cleared."
+        : "");
+    }
     setForm((prev) => ({ ...prev, [name]: value }));
     setErrors((prev) => ({ ...prev, [name]: "" }));
   }
@@ -145,9 +232,10 @@ export default function SpecimenFormPage() {
   }
 
   function addMeasurement() {
+    if (!form.bone_type) return;
     setMeasurements((prev) => [
       ...prev,
-      { id: generateId("M"), bone_type: "", measurement_type: "", value: "", unit: "mm", notes: "" },
+      emptyMeasurement(),
     ]);
   }
 
@@ -159,79 +247,140 @@ export default function SpecimenFormPage() {
     setMeasurements((prev) =>
       prev.map((m) => (m.id === id ? { ...m, [field]: value } : m))
     );
+    setErrors((prev) => ({ ...prev, measurements: "" }));
   }
 
   function validate() {
     const e = {};
     if (!form.specimen_id.trim()) e.specimen_id = "Specimen ID is required.";
     if (!form.skeleton_code.trim()) e.skeleton_code = "Skeleton Code is required.";
-    if (
-      form.excavation_year &&
-      (isNaN(form.excavation_year) ||
-        parseInt(form.excavation_year) < 1 ||
-        parseInt(form.excavation_year) > new Date().getFullYear())
-    ) {
-      e.excavation_year = `Year must be between 1 and ${new Date().getFullYear()}.`;
+    if (!form.bone_type) e.bone_type = "Bone Category is required.";
+    if (skeletonMode === "existing" && siteConflicts.length > 0) {
+      e.siteConflict = "This skeleton has conflicting Site Information. Registration is blocked until the conflict is reviewed.";
+    }
+
+    const measurementTypeCounts = new Map();
+    measurements.forEach((measurement) => {
+      const type = normalize(measurement.measurement_type);
+      if (type) measurementTypeCounts.set(type, (measurementTypeCounts.get(type) || 0) + 1);
+      const hasPartialValue = measurement.measurement_type || measurement.value;
+      const numericValue = Number(measurement.value);
+      if (hasPartialValue && (!measurement.measurement_type || measurement.value === "" || !Number.isFinite(numericValue) || numericValue < 0)) {
+        e.measurements = "Each measurement needs a Measurement Type and a valid numeric Value.";
+      }
+    });
+    if ([...measurementTypeCounts.values()].some((count) => count > 1)) {
+      e.measurements = "This measurement type has already been added for this specimen.";
     }
     return e;
   }
 
-  async function handleSubmit() {
+  async function saveSpecimen() {
+    if (saving || success) return;
     const e = validate();
     if (Object.keys(e).length > 0) {
       setErrors(e);
       return;
     }
 
-    setLoading(true);
+    setSaving(true);
+    setErrors({});
+    const specimenId = form.specimen_id.trim();
+    const skeletonCode = form.skeleton_code.trim();
 
-    // Check duplicate
-    const { data: existing } = await supabase
+    const { data: existingId, error: idCheckError } = await supabase
       .from("specimens")
       .select("specimen_id")
-      .eq("specimen_id", form.specimen_id)
-      .single();
+      .eq("specimen_id", specimenId)
+      .maybeSingle();
 
-    if (existing) {
+    if (idCheckError) {
+      setErrors({ submit: `Could not check the Specimen ID: ${idCheckError.message}` });
+      setSaving(false);
+      return;
+    }
+    if (existingId) {
       setErrors({ specimen_id: "This Specimen ID already exists." });
-      setLoading(false);
+      setSaving(false);
+      return;
+    }
+
+    const { data: currentSkeletonRows, error: skeletonCheckError } = await supabase
+      .from("specimens")
+      .select("specimen_id, skeleton_code, bone_type, side, measurements(bone_type)");
+
+    if (skeletonCheckError) {
+      setErrors({ submit: `Could not check existing skeleton records: ${skeletonCheckError.message}` });
+      setSaving(false);
+      return;
+    }
+
+    const normalizedCode = normalize(skeletonCode);
+    const matchingSkeletonRows = (currentSkeletonRows || []).filter((record) => normalize(record.skeleton_code) === normalizedCode);
+    if (skeletonMode === "new" && matchingSkeletonRows.length > 0) {
+      setErrors({ skeleton_code: "This Skeleton Code already exists. Choose Existing Skeleton or enter a new code." });
+      setSaving(false);
+      return;
+    }
+
+    const requestedGroup = categorySideKey(form.bone_type, form.side);
+    const duplicateBone = matchingSkeletonRows.some((record) => {
+      const sourceValues = record.bone_type
+        ? [record.bone_type]
+        : (record.measurements || []).map((measurement) => measurement.bone_type);
+      return sourceValues.some((value) => {
+        const category = normalizeBoneCategory(value);
+        const savedSide = normalizeSide(record.side);
+        const side = savedSide === "Unknown" ? legacySideFromBoneName(value) : savedSide;
+        return category && categorySideKey(category.code, side) === requestedGroup;
+      });
+    });
+
+    if (duplicateBone) {
+      setErrors({ duplicateBone: "This bone category and side are already registered for the selected skeleton." });
+      setSaving(false);
       return;
     }
 
     // 1. Save specimen
-    const specimenPayload = {
-      ...form,
-      excavation_year: form.excavation_year ? parseInt(form.excavation_year) : null,
-    };
+    const specimenPayload = { ...form, specimen_id: specimenId, skeleton_code: skeletonCode };
 
     const { error: specimenError } = await supabase.from("specimens").insert([specimenPayload]);
     if (specimenError) {
       setErrors({ submit: specimenError.message });
-      setLoading(false);
+      setSaving(false);
       return;
     }
 
     // 2. Save measurements
-    const validMeasurements = measurements.filter((m) => m.bone_type && m.value);
+    const validMeasurements = measurements.filter((measurement) => (
+      measurement.measurement_type
+      && measurement.value !== ""
+      && Number.isFinite(Number(measurement.value))
+    ));
     if (validMeasurements.length > 0) {
       const measurementPayload = validMeasurements.map((m) => ({
         measurement_id: m.id,
-        specimen_id: form.specimen_id,
-        bone_type: m.bone_type,
+        specimen_id: specimenId,
+        bone_type: form.bone_type,
         measurement_type: m.measurement_type,
         value: parseFloat(m.value),
         unit: m.unit,
         notes: m.notes,
       }));
       const { error: measError } = await supabase.from("measurements").insert(measurementPayload);
-      if (measError) console.error("Measurement error:", measError.message);
+      if (measError) {
+        setErrors({ submit: `Measurement error: ${measError.message}` });
+        setSaving(false);
+        return;
+      }
     }
 
     // 3. Save excavation record
     if (excavation.excavation_date || excavation.excavation_phase) {
       const excavationPayload = {
         excavation_id: generateId("EX"),
-        specimen_id: form.specimen_id,
+        specimen_id: specimenId,
         excavation_date: excavation.excavation_date || null,
         excavation_phase: excavation.excavation_phase,
         depth_found: excavation.depth_found ? parseFloat(excavation.depth_found) : null,
@@ -239,14 +388,18 @@ export default function SpecimenFormPage() {
         excavation_notes: excavation.excavation_notes,
       };
       const { error: excError } = await supabase.from("excavation_records").insert([excavationPayload]);
-      if (excError) console.error("Excavation error:", excError.message);
+      if (excError) {
+        setErrors({ submit: `Excavation error: ${excError.message}` });
+        setSaving(false);
+        return;
+      }
     }
 
     // 4. Save lab dating
     if (labDating.dating_method) {
       const labPayload = {
         lab_id: generateId("LAB"),
-        specimen_id: form.specimen_id,
+        specimen_id: specimenId,
         dating_method: labDating.dating_method,
         date_result: labDating.date_result,
         date_range_min: labDating.date_range_min ? parseFloat(labDating.date_range_min) : null,
@@ -255,12 +408,16 @@ export default function SpecimenFormPage() {
         result_notes: labDating.result_notes,
       };
       const { error: labError } = await supabase.from("laboratory_dating_results").insert([labPayload]);
-      if (labError) console.error("Lab error:", labError.message);
+      if (labError) {
+        setErrors({ submit: `Lab dating error: ${labError.message}` });
+        setSaving(false);
+        return;
+      }
     }
 
-    setLoading(false);
+    setSaving(false);
     setSuccess(true);
-    setTimeout(() => navigate("/specimens"), 1500);
+    setTimeout(() => navigate(`/upload?specimen_id=${encodeURIComponent(specimenId)}`), 1000);
   }
 
   const inputClass = (field) =>
@@ -316,7 +473,7 @@ export default function SpecimenFormPage() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5 shrink-0">
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
-            All data saved successfully! Redirecting…
+            All data saved successfully! Opening image upload...
           </div>
         )}
 
@@ -326,11 +483,35 @@ export default function SpecimenFormPage() {
           </div>
         )}
 
+        {errors.loadSkeletons && (
+          <div className="mb-6 bg-amber-500/15 border border-amber-500/30 rounded-xl px-5 py-4 text-amber-200 text-sm">
+            Existing Skeleton Codes could not be loaded: {errors.loadSkeletons}
+          </div>
+        )}
+
         <div className="space-y-6">
 
           {/* Section 1 — Identity */}
           <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6">
             <p className="text-xs text-white/30 uppercase tracking-widest mb-5">1 — Identity</p>
+            <div className="mb-5 inline-flex rounded-xl border border-white/10 bg-[#0f1a14] p-1" aria-label="Skeleton registration mode">
+              <button
+                type="button"
+                onClick={() => setMode("existing")}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${skeletonMode === "existing" ? "bg-emerald-500 text-slate-950" : "text-white/50 hover:text-white"}`}
+                aria-pressed={skeletonMode === "existing"}
+              >
+                Existing Skeleton
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("new")}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${skeletonMode === "new" ? "bg-emerald-500 text-slate-950" : "text-white/50 hover:text-white"}`}
+                aria-pressed={skeletonMode === "new"}
+              >
+                New Skeleton
+              </button>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Specimen ID *</label>
@@ -342,8 +523,46 @@ export default function SpecimenFormPage() {
               </div>
               <div>
                 <label className={labelClass}>Skeleton Code *</label>
-                <input name="skeleton_code" value={form.skeleton_code} onChange={handleChange} placeholder="SK1" className={inputClass("skeleton_code")} />
+                {skeletonMode === "existing" ? (
+                  <div className="space-y-2">
+                    <input
+                      type="search"
+                      value={skeletonSearch}
+                      onChange={(event) => setSkeletonSearch(event.target.value)}
+                      placeholder="Search existing codes"
+                      className={inputClass("skeleton_code")}
+                      disabled={loadingSkeletons}
+                    />
+                    <select
+                      value={form.skeleton_code}
+                      onChange={(event) => selectExistingSkeleton(event.target.value)}
+                      className={selectClass("skeleton_code")}
+                      disabled={loadingSkeletons || skeletonCodes.length === 0}
+                    >
+                      <option value="">{loadingSkeletons ? "Loading Skeleton Codes..." : "Select an existing Skeleton Code"}</option>
+                      {filteredSkeletonCodes.map((code) => <option key={code} value={code}>{code}</option>)}
+                    </select>
+                    {!loadingSkeletons && skeletonCodes.length === 0 && <p className="text-xs text-white/35">No existing Skeleton Codes were found.</p>}
+                  </div>
+                ) : (
+                  <input name="skeleton_code" value={form.skeleton_code} onChange={handleChange} placeholder="SK1" className={inputClass("skeleton_code")} />
+                )}
                 {errors.skeleton_code && <p className="text-red-400 text-xs mt-1">{errors.skeleton_code}</p>}
+              </div>
+              <div>
+                <label className={labelClass}>Bone Category</label>
+                <select name="bone_type" value={form.bone_type} onChange={handleChange} className={selectClass("bone_type")}>
+                  <option value="">Select category</option>
+                  {PP1_BONE_LABELS.map((bone) => <option key={bone} value={bone}>{bone}</option>)}
+                </select>
+                {errors.bone_type && <p className="text-red-400 text-xs mt-1">{errors.bone_type}</p>}
+                {errors.duplicateBone && <p className="text-red-400 text-xs mt-1">{errors.duplicateBone}</p>}
+              </div>
+              <div>
+                <label className={labelClass}>Side</label>
+                <select name="side" value={form.side} onChange={handleChange} className={selectClass("side")}>
+                  {SIDE_OPTIONS.map((side) => <option key={side} value={side}>{side}</option>)}
+                </select>
               </div>
             </div>
           </div>
@@ -351,42 +570,40 @@ export default function SpecimenFormPage() {
           {/* Section 2 — Site Info */}
           <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6">
             <p className="text-xs text-white/30 uppercase tracking-widest mb-5">2 — Site Information</p>
+            {skeletonMode === "existing" && form.skeleton_code && siteConflicts.length === 0 && (
+              <p className="mb-4 rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-xs leading-5 text-emerald-200">
+                Site Information was loaded from the selected skeleton and is read-only to prevent contradictory records.
+              </p>
+            )}
+            {siteConflicts.length > 0 && (
+              <div className="mb-4 rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-100">
+                <p className="font-semibold">Conflicting Site Information was found. No value was guessed.</p>
+                {siteConflicts.map((conflict) => <p key={conflict} className="mt-1 text-xs text-red-100/70">{conflict}</p>)}
+              </div>
+            )}
+            {errors.siteConflict && <p className="mb-4 text-xs text-red-400">{errors.siteConflict}</p>}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
                 <label className={labelClass}>Site Name</label>
-                <input name="site_name" value={form.site_name} onChange={handleChange} placeholder="e.g. Sigiriya Potana Cave" className={inputClass("site_name")} />
+                <input name="site_name" value={form.site_name} onChange={handleChange} readOnly={skeletonMode === "existing"} placeholder="e.g. Sigiriya Potana Cave" className={inputClass("site_name") + (skeletonMode === "existing" ? " cursor-not-allowed opacity-65" : "")} />
               </div>
               <div>
                 <label className={labelClass}>District</label>
-                <select name="district" value={form.district} onChange={handleChange} className={selectClass("district")}>
+                <select name="district" value={form.district} onChange={handleChange} disabled={skeletonMode === "existing"} className={selectClass("district") + (skeletonMode === "existing" ? " cursor-not-allowed opacity-65" : "")}>
                   <option value="">Select district</option>
                   {DISTRICTS.map((d) => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
               <div>
                 <label className={labelClass}>Province</label>
-                <select name="province" value={form.province} onChange={handleChange} className={selectClass("province")}>
+                <select name="province" value={form.province} onChange={handleChange} disabled={skeletonMode === "existing"} className={selectClass("province") + (skeletonMode === "existing" ? " cursor-not-allowed opacity-65" : "")}>
                   <option value="">Select province</option>
                   {PROVINCES.map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
               <div>
-                <label className={labelClass}>Excavation Year</label>
-                <input
-                  name="excavation_year"
-                  type="number"
-                  min="1"
-                  max={new Date().getFullYear()}
-                  value={form.excavation_year}
-                  onChange={(e) => { const val = e.target.value; if (val === "" || parseInt(val) >= 1) handleChange(e); }}
-                  placeholder={`e.g. ${new Date().getFullYear()}`}
-                  className={inputClass("excavation_year")}
-                />
-                {errors.excavation_year && <p className="text-red-400 text-xs mt-1">{errors.excavation_year}</p>}
-              </div>
-              <div>
                 <label className={labelClass}>Time Period</label>
-                <select name="time_period" value={form.time_period} onChange={handleChange} className={selectClass("time_period")}>
+                <select name="time_period" value={form.time_period} onChange={handleChange} disabled={skeletonMode === "existing"} className={selectClass("time_period") + (skeletonMode === "existing" ? " cursor-not-allowed opacity-65" : "")}>
                   <option value="">Select period</option>
                   {TIME_PERIODS.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
@@ -425,8 +642,10 @@ export default function SpecimenFormPage() {
             <div className="flex items-center justify-between mb-5">
               <p className="text-xs text-white/30 uppercase tracking-widest">4 — Bone Measurements</p>
               <button
+                type="button"
                 onClick={addMeasurement}
-                className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 rounded-xl text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                disabled={!form.bone_type}
+                className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 disabled:bg-white/[0.03] disabled:border-white/10 disabled:text-white/20 border border-emerald-500/30 rounded-xl text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -434,6 +653,12 @@ export default function SpecimenFormPage() {
                 Add Row
               </button>
             </div>
+
+            {!form.bone_type && (
+              <p className="mb-4 rounded-xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">Select a Bone Category first.</p>
+            )}
+            {measurementNotice && <p className="mb-4 text-xs text-amber-300">{measurementNotice}</p>}
+            {errors.measurements && <p className="mb-4 text-xs text-red-400">{errors.measurements}</p>}
 
             <div className="space-y-3">
               <div className="grid grid-cols-12 gap-2 px-1">
@@ -448,27 +673,34 @@ export default function SpecimenFormPage() {
               {measurements.map((m) => (
                 <div key={m.id} className="grid grid-cols-12 gap-2 items-center">
                   <div className="col-span-3">
-                    <select value={m.bone_type} onChange={(e) => handleMeasurementChange(m.id, "bone_type", e.target.value)} className={plainSelect}>
-                      <option value="">Select bone</option>
-                      {BONE_TYPES.map((b) => <option key={b} value={b}>{b}</option>)}
-                    </select>
+                    <div className="min-h-[42px] rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm text-white/60">
+                      {form.bone_type || "No category selected"}
+                    </div>
                   </div>
                   <div className="col-span-3">
-                    <select value={m.measurement_type} onChange={(e) => handleMeasurementChange(m.id, "measurement_type", e.target.value)} className={plainSelect}>
+                    <select value={m.measurement_type} onChange={(e) => handleMeasurementChange(m.id, "measurement_type", e.target.value)} disabled={!form.bone_type} className={plainSelect}>
                       <option value="">Select type</option>
-                      {MEASUREMENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                      {MEASUREMENT_TYPES.map((t) => (
+                        <option
+                          key={t}
+                          value={t}
+                          disabled={selectedMeasurementTypes.has(normalize(t)) && normalize(m.measurement_type) !== normalize(t)}
+                        >
+                          {t}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div className="col-span-2">
-                    <input type="number" min="0" value={m.value} onChange={(e) => handleMeasurementChange(m.id, "value", e.target.value)} placeholder="0.00" className={plainInput} />
+                    <input type="number" min="0" value={m.value} onChange={(e) => handleMeasurementChange(m.id, "value", e.target.value)} disabled={!form.bone_type} placeholder="0.00" className={plainInput} />
                   </div>
                   <div className="col-span-1">
-                    <select value={m.unit} onChange={(e) => handleMeasurementChange(m.id, "unit", e.target.value)} className={plainSelect}>
+                    <select value={m.unit} onChange={(e) => handleMeasurementChange(m.id, "unit", e.target.value)} disabled={!form.bone_type} className={plainSelect}>
                       {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
                     </select>
                   </div>
                   <div className="col-span-2">
-                    <input type="text" value={m.notes} onChange={(e) => handleMeasurementChange(m.id, "notes", e.target.value)} placeholder="Optional" className={plainInput} />
+                    <input type="text" value={m.notes} onChange={(e) => handleMeasurementChange(m.id, "notes", e.target.value)} disabled={!form.bone_type} placeholder="Optional" className={plainInput} />
                   </div>
                   <div className="col-span-1 flex justify-center">
                     <button onClick={() => removeMeasurement(m.id)} disabled={measurements.length === 1} className="p-1.5 text-white/20 hover:text-red-400 disabled:opacity-20 transition-colors">
@@ -480,7 +712,7 @@ export default function SpecimenFormPage() {
                 </div>
               ))}
             </div>
-            <p className="text-[10px] text-white/20 mt-4">Only rows with a bone type and value will be saved.</p>
+            <p className="text-[10px] text-white/20 mt-4">Only rows with a Measurement Type and valid numeric Value will be saved.</p>
           </div>
 
           {/* Section 5 — Excavation */}
@@ -545,16 +777,22 @@ export default function SpecimenFormPage() {
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-between pt-2">
-            <button onClick={() => navigate("/specimens")} className="px-5 py-2.5 text-sm text-white/40 hover:text-white border border-white/10 hover:border-white/20 rounded-xl transition-colors">
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
+            <button
+              type="button"
+              onClick={() => navigate("/specimens")}
+              disabled={saving}
+              className="px-5 py-2.5 text-sm text-white/40 hover:text-white disabled:text-white/20 border border-white/10 hover:border-white/20 rounded-xl transition-colors"
+            >
               Cancel
             </button>
             <button
-              onClick={handleSubmit}
-              disabled={loading || success}
+              type="button"
+              onClick={saveSpecimen}
+              disabled={saving || success}
               className="px-8 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-900 disabled:text-emerald-600 text-white text-sm font-medium rounded-xl transition-colors flex items-center gap-2"
             >
-              {loading ? (
+              {saving ? (
                 <>
                   <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
@@ -562,7 +800,7 @@ export default function SpecimenFormPage() {
                   </svg>
                   Saving…
                 </>
-              ) : "Save All Data"}
+              ) : "Save & Attach Image"}
             </button>
           </div>
 
