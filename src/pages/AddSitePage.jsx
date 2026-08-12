@@ -138,8 +138,8 @@ function AddSitePage() {
             Enter new excavation site data for the OAHRIS system
           </p>
         </div>
-        <Link to="/parami" className="text-slate-400 hover:text-slate-200 text-sm transition-colors">
-          ← Back to GIS Map
+        <Link to="/parami/home" className="text-slate-400 hover:text-slate-200 text-sm transition-colors">
+          ← Back to GIS Home
         </Link>
       </div>
 
@@ -376,7 +376,7 @@ function AddSitePage() {
         {/* Submit */}
         <div className="flex items-center justify-between">
           <Link
-            to="/parami"
+            to="/parami/home"
             className="text-slate-400 hover:text-slate-200 text-sm transition-colors"
           >
             ← Cancel

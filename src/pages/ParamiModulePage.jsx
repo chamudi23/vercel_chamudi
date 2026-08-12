@@ -91,6 +91,7 @@ function ParamiModulePage() {
   const [eps,          setEps]          = useState(0.8)
   const [minPts,       setMinPts]       = useState(2)
   const [searchTerm,   setSearchTerm]   = useState('')
+  const [activePanel,  setActivePanel]  = useState('temporal')
 
   useEffect(() => {
     async function load() {
@@ -203,26 +204,26 @@ const heatmapPoints = useMemo(() => {
           </p>
         </div>
     <div className="flex items-center gap-3">
-  <Link to="/" className="text-slate-400 hover:text-slate-200 text-sm transition-colors">
-    ← Back
-  </Link>
+  <Link to="/parami/home" className="text-slate-400 hover:text-slate-200 text-sm transition-colors">
+  ← Back to GIS Home
+</Link>
   <Link
     to="/parami/similar-findings"
     className="bg-purple-600 hover:bg-purple-500 text-white text-sm px-4 py-2 rounded-lg transition-colors"
   >
-    🦴 Similar Findings
+    🔍 Similar Findings
   </Link>
   <Link
   to="/parami/add-specimen"
   className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2 rounded-lg transition-colors"
 >
-  🦷 Add Specimen
+  🦴 Add Specimen
 </Link>
   <Link
     to="/parami/add-site"
     className="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-2 rounded-lg transition-colors"
   >
-    + Add New Site
+    📍 Add New Site
   </Link>
 </div>
 
@@ -251,193 +252,209 @@ const heatmapPoints = useMemo(() => {
         </div>
       )}
 
-      {/* ── TEMPORAL SLIDER ── */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-slate-200 font-semibold">Temporal Layer Filter</h3>
-            <p className="text-slate-500 text-xs mt-0.5">Filter map markers by excavation time period</p>
-          </div>
-          <span className="text-blue-400 text-sm font-medium bg-blue-900/40 px-3 py-1 rounded-full">
-            {filteredSites.length} / {sites.length} sites
-          </span>
-        </div>
-
-        {/* Period buttons */}
-       <div className="flex flex-wrap gap-2">
-          {TIME_PERIODS.map((p, i) => (
+      {/* ── MAP CONTROLS (tabbed) ── */}
+      <div className="bg-slate-800 rounded-xl border border-slate-700 mb-6 overflow-hidden">
+        <div className="flex border-b border-slate-700">
+          {[
+            { key: 'temporal', label: 'Time Period', on: periodIdx !== 0 },
+            { key: 'heatmap',  label: 'Heatmap',      on: showHeatmap },
+            { key: 'clusters', label: 'AI Clusters',  on: showClusters },
+          ].map(tab => (
             <button
-              key={i}
-              onClick={() => setPeriodIdx(i)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border text-left ${
-                periodIdx === i
-                  ? 'bg-blue-600 border-blue-500 text-white'
-                  : 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'
+              key={tab.key}
+              onClick={() => setActivePanel(tab.key)}
+              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 border-b-2 ${
+                activePanel === tab.key
+                  ? 'bg-slate-900/40 text-slate-100 border-blue-500'
+                  : 'text-slate-400 border-transparent hover:text-slate-200 hover:bg-slate-700/50'
               }`}
             >
-              <div>{p.label}</div>
-              <div className={`text-xs mt-0.5 ${periodIdx === i ? 'text-blue-200' : 'text-slate-500'}`}>
-                {p.desc}
-              </div>
+              {tab.label}
+              {tab.on && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="Active" />}
             </button>
           ))}
         </div>
 
-        {/* Timeline bar */}
-        <div className="relative h-2 bg-slate-700 rounded-full overflow-hidden mt-4">
-          <div
-            className="absolute h-full bg-blue-500 rounded-full transition-all duration-300"
-            style={{
-              left: periodIdx === 0 ? '0%' : `${(periodIdx - 1) * 20}%`,
-              width: periodIdx === 0 ? '100%' : '20%',
-            }}
-          />
-        </div>
-        <div className="flex justify-between text-xs text-slate-500 mt-1">
-          <span>50,000 BP</span>
-          <span>Present</span>
-        </div>
-      </div>
-
-{/* ── HEATMAP TOGGLE ── */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 mb-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-slate-200 font-semibold">Site Density Heatmap</h3>
-            <p className="text-slate-500 text-xs mt-0.5">
-              Visualize concentration of archaeological sites on the map
-            </p>
-          </div>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <span className="text-slate-400 text-sm">Show heatmap</span>
-            <div
-              onClick={() => setShowHeatmap(v => !v)}
-              className={`w-10 h-5 rounded-full transition-colors relative cursor-pointer ${
-                showHeatmap ? 'bg-orange-500' : 'bg-slate-600'
-              }`}
-            >
-              <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                showHeatmap ? 'translate-x-5' : 'translate-x-0.5'
-              }`} />
-            </div>
-          </label>
-        </div>
-        {showHeatmap && (
-          <div className="mt-3 flex items-center gap-6 text-xs text-slate-400">
-            <span>🔴 High risk sites = more intense</span>
-            <span>🟡 Medium risk = moderate</span>
-            <span>🟢 Low risk = light</span>
-          </div>
-        )}
-      </div>
-
-      {/* ── DBSCAN CLUSTERING CONTROLS ── */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-slate-200 font-semibold">AI Spatial Pattern Detection</h3>
-            <p className="text-slate-500 text-xs mt-0.5">
-              DBSCAN algorithm — detects burial site clusters automatically
-            </p>
-          </div>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <span className="text-slate-400 text-sm">Show clusters</span>
-            <div
-              onClick={() => setShowClusters(v => !v)}
-              className={`w-10 h-5 rounded-full transition-colors relative cursor-pointer ${
-                showClusters ? 'bg-purple-600' : 'bg-slate-600'
-              }`}
-            >
-              <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                showClusters ? 'translate-x-5' : 'translate-x-0.5'
-              }`} />
-            </div>
-          </label>
-        </div>
-
-        {showClusters && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="p-6">
+          {/* Time Period tab */}
+          {activePanel === 'temporal' && (
             <div>
-              <div className="flex justify-between mb-1">
-                <label className="text-slate-400 text-sm">Search radius (ε): {eps.toFixed(1)}°</label>
-                <span className="text-slate-500 text-xs">~{Math.round(eps * 111)} km</span>
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-slate-400 text-sm">Filter map markers by excavation time period</p>
+                <span className="text-blue-400 text-sm font-medium bg-blue-900/40 px-3 py-1 rounded-full">
+                  {filteredSites.length} / {sites.length} sites
+                </span>
               </div>
-              <input
-                type="range" min="0.1" max="3" step="0.1" value={eps}
-                onChange={e => setEps(parseFloat(e.target.value))}
-                className="w-full accent-purple-500"
-              />
-              <p className="text-slate-600 text-xs mt-1">How far apart sites can be to be in the same cluster</p>
-            </div>
-            <div>
-              <div className="flex justify-between mb-1">
-                <label className="text-slate-400 text-sm">Min points: {minPts}</label>
-                <span className="text-slate-500 text-xs">per cluster</span>
-              </div>
-              <input
-                type="range" min="2" max="6" step="1" value={minPts}
-                onChange={e => setMinPts(parseInt(e.target.value))}
-                className="w-full accent-purple-500"
-              />
-              <p className="text-slate-600 text-xs mt-1">Minimum sites needed to form a cluster</p>
-            </div>
-          </div>
-        )}
 
-       {showClusters && clusters.length > 0 && (
-          <div className="mt-4 space-y-2">
-            <p className="text-slate-400 text-xs mb-2">
-              🔍 {clusters.length} spatial cluster{clusters.length > 1 ? 's' : ''} identified — click a cluster to see its sites on the map
-            </p>
-            {clusters.map((cluster, i) => {
-              const clusterSites = cluster.map(idx => filteredSites[idx])
-              const districts = [...new Set(clusterSites.map(s => s.district).filter(Boolean))]
-              const periods   = [...new Set(clusterSites.map(s => s.time_period).filter(Boolean))]
-              const province  = [...new Set(clusterSites.map(s => s.province).filter(Boolean))]
-              const clusterName = province.length === 1
-                ? `${province[0]} Province Cluster`
-                : districts.length > 0
-                  ? `${districts[0]} Region Cluster`
-                  : `Cluster ${i + 1}`
-              return (
-                <div key={i} className="flex items-start gap-3 bg-slate-700 rounded-lg px-4 py-3">
-                  <span className="w-3 h-3 rounded-full flex-shrink-0 mt-1" style={{ background: CLUSTER_COLOURS[i % CLUSTER_COLOURS.length] }} />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-200 text-sm font-medium">{clusterName}</span>
-                      <span className="text-slate-400 text-xs">{cluster.length} sites</span>
+              <div className="flex flex-wrap gap-2">
+                {TIME_PERIODS.map((p, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setPeriodIdx(i)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border text-left ${
+                      periodIdx === i
+                        ? 'bg-blue-600 border-blue-500 text-white'
+                        : 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'
+                    }`}
+                  >
+                    <div>{p.label}</div>
+                    <div className={`text-xs mt-0.5 ${periodIdx === i ? 'text-blue-200' : 'text-slate-500'}`}>
+                      {p.desc}
                     </div>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      {districts.slice(0, 3).map(d => (
-                        <span key={d} className="text-xs bg-slate-600 text-slate-300 px-2 py-0.5 rounded-full">{d}</span>
-                      ))}
-                      {periods.slice(0, 2).map(p => (
-                        <span key={p} className="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded-full">{p}</span>
-                      ))}
-                    </div>
-                    <p className="text-slate-500 text-xs mt-1">
-                      Sites: {clusterSites.map(s => s.site_name).slice(0, 3).join(', ')}{clusterSites.length > 3 ? ` +${clusterSites.length - 3} more` : ''}
-                    </p>
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative h-2 bg-slate-700 rounded-full overflow-hidden mt-4">
+                <div
+                  className="absolute h-full bg-blue-500 rounded-full transition-all duration-300"
+                  style={{
+                    left: periodIdx === 0 ? '0%' : `${(periodIdx - 1) * 20}%`,
+                    width: periodIdx === 0 ? '100%' : '20%',
+                  }}
+                />
+              </div>
+              <div className="flex justify-between text-xs text-slate-500 mt-1">
+                <span>50,000 BP</span>
+                <span>Present</span>
+              </div>
+            </div>
+          )}
+
+          {/* Heatmap tab */}
+          {activePanel === 'heatmap' && (
+            <div>
+              <div className="flex items-center justify-between">
+                <p className="text-slate-400 text-sm">
+                  Visualize concentration of archaeological sites on the map
+                </p>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <span className="text-slate-400 text-sm">Show heatmap</span>
+                  <div
+                    onClick={() => setShowHeatmap(v => !v)}
+                    className={`w-10 h-5 rounded-full transition-colors relative cursor-pointer ${
+                      showHeatmap ? 'bg-orange-500' : 'bg-slate-600'
+                    }`}
+                  >
+                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                      showHeatmap ? 'translate-x-5' : 'translate-x-0.5'
+                    }`} />
                   </div>
+                </label>
+              </div>
+              {showHeatmap && (
+                <div className="mt-3 flex items-center gap-6 text-xs text-slate-400">
+                  <span>🔴 High risk sites = more intense</span>
+                  <span>🟡 Medium risk = moderate</span>
+                  <span>🟢 Low risk = light</span>
                 </div>
-              )
-            })}
-          </div>
-        )}
-        {showClusters && clusters.length === 0 && !loading && (
-          <div className="mt-3 bg-slate-700 rounded-lg p-4">
-            <p className="text-slate-400 text-sm font-medium">No clusters found</p>
-            <p className="text-slate-500 text-xs mt-1">
-              Try increasing ε (search radius) or reducing min points. Current: ε={eps.toFixed(1)}° (~{Math.round(eps * 111)}km), minPts={minPts}
-            </p>
-          </div>
-        )}
+              )}
+            </div>
+          )}
 
-        {showClusters && clusters.length === 0 && !loading && (
-          <p className="text-slate-500 text-sm mt-3">
-            No clusters found with current settings. Try increasing ε or reducing min points.
-          </p>
-        )}
+          {/* AI Clusters tab */}
+          {activePanel === 'clusters' && (
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <p className="text-slate-400 text-sm">
+                  DBSCAN algorithm — automatically detects groups of nearby burial sites
+                </p>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <span className="text-slate-400 text-sm">Show clusters</span>
+                  <div
+                    onClick={() => setShowClusters(v => !v)}
+                    className={`w-10 h-5 rounded-full transition-colors relative cursor-pointer ${
+                      showClusters ? 'bg-purple-600' : 'bg-slate-600'
+                    }`}
+                  >
+                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                      showClusters ? 'translate-x-5' : 'translate-x-0.5'
+                    }`} />
+                  </div>
+                </label>
+              </div>
+
+              {showClusters && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <div className="flex justify-between mb-1">
+                        <label className="text-slate-400 text-sm">Search radius (ε): {eps.toFixed(1)}°</label>
+                        <span className="text-slate-500 text-xs">~{Math.round(eps * 111)} km</span>
+                      </div>
+                      <input
+                        type="range" min="0.1" max="3" step="0.1" value={eps}
+                        onChange={e => setEps(parseFloat(e.target.value))}
+                        className="w-full accent-purple-500"
+                      />
+                      <p className="text-slate-600 text-xs mt-1">How far apart sites can be to be in the same cluster</p>
+                    </div>
+                    <div>
+                      <div className="flex justify-between mb-1">
+                        <label className="text-slate-400 text-sm">Min points: {minPts}</label>
+                        <span className="text-slate-500 text-xs">per cluster</span>
+                      </div>
+                      <input
+                        type="range" min="2" max="6" step="1" value={minPts}
+                        onChange={e => setMinPts(parseInt(e.target.value))}
+                        className="w-full accent-purple-500"
+                      />
+                      <p className="text-slate-600 text-xs mt-1">Minimum sites needed to form a cluster</p>
+                    </div>
+                  </div>
+
+                  {clusters.length > 0 ? (
+                    <div className="mt-4 space-y-2">
+                      <p className="text-slate-400 text-xs mb-2">
+                        🔍 {clusters.length} spatial cluster{clusters.length > 1 ? 's' : ''} identified — click a cluster to see its sites on the map
+                      </p>
+                      {clusters.map((cluster, i) => {
+                        const clusterSites = cluster.map(idx => filteredSites[idx])
+                        const districts = [...new Set(clusterSites.map(s => s.district).filter(Boolean))]
+                        const periods   = [...new Set(clusterSites.map(s => s.time_period).filter(Boolean))]
+                        const province  = [...new Set(clusterSites.map(s => s.province).filter(Boolean))]
+                        const clusterName = province.length === 1
+                          ? `${province[0]} Province Cluster`
+                          : districts.length > 0
+                            ? `${districts[0]} Region Cluster`
+                            : `Cluster ${i + 1}`
+                        return (
+                          <div key={i} className="flex items-start gap-3 bg-slate-700 rounded-lg px-4 py-3">
+                            <span className="w-3 h-3 rounded-full flex-shrink-0 mt-1" style={{ background: CLUSTER_COLOURS[i % CLUSTER_COLOURS.length] }} />
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-slate-200 text-sm font-medium">{clusterName}</span>
+                                <span className="text-slate-400 text-xs">{cluster.length} sites</span>
+                              </div>
+                              <div className="flex flex-wrap gap-2 mt-1">
+                                {districts.slice(0, 3).map(d => (
+                                  <span key={d} className="text-xs bg-slate-600 text-slate-300 px-2 py-0.5 rounded-full">{d}</span>
+                                ))}
+                                {periods.slice(0, 2).map(p => (
+                                  <span key={p} className="text-xs bg-blue-900/50 text-blue-300 px-2 py-0.5 rounded-full">{p}</span>
+                                ))}
+                              </div>
+                              <p className="text-slate-500 text-xs mt-1">
+                                Sites: {clusterSites.map(s => s.site_name).slice(0, 3).join(', ')}{clusterSites.length > 3 ? ` +${clusterSites.length - 3} more` : ''}
+                              </p>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : !loading && (
+                    <div className="mt-3 bg-slate-700 rounded-lg p-4">
+                      <p className="text-slate-400 text-sm font-medium">No clusters found</p>
+                      <p className="text-slate-500 text-xs mt-1">
+                        Try increasing ε (search radius) or reducing min points. Current: ε={eps.toFixed(1)}° (~{Math.round(eps * 111)}km), minPts={minPts}
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── MAP ── */}

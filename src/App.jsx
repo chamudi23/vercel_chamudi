@@ -18,6 +18,7 @@ import DataImportPage from "./pages/DataImportPage";
 import DataQualityPage from "./pages/DataQualityPage";
 import SimilarFindingsPage from "./pages/SimilarFindingsPage";
 import AddSpecimenPage from "./pages/AddSpecimenPage";
+import GISHome from "./pages/GISHome";
 
 function App() {
   return (
@@ -71,6 +72,8 @@ function App() {
           <Route path="/parami/add-site" element={<AddSitePage />} />
 <Route path="/parami/similar-findings" element={<SimilarFindingsPage />} />
 <Route path="/parami/add-specimen" element={<AddSpecimenPage />} />
+<Route path="/parami/home" element={<GISHome />} />
+
 
         </Routes>
 

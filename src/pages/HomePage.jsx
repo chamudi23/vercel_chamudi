@@ -75,7 +75,7 @@ function HomePage() {
           </Link>
 
           {/* Module 2 — GIS (Parami) */}
-          <Link to="/parami" className="bg-slate-800 rounded-2xl p-6 border border-slate-700 hover:border-blue-500 transition-all group block">
+          <Link to="/parami/home" className="bg-slate-800 rounded-2xl p-6 border border-slate-700 hover:border-blue-500 transition-all group block">
             <div className="flex items-start justify-between mb-4">
               <div className="bg-blue-900 p-3 rounded-xl">
                 <span className="text-2xl">🗺️</span>
