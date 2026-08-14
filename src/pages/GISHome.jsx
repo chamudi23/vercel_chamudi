@@ -1,157 +1,186 @@
+/* eslint-disable react/prop-types */
 import { Link } from 'react-router-dom'
+import { ArrowLeft, ArrowRight, MapPin, Search } from 'lucide-react'
+
+const imageUrls = {
+  hero:
+    'https://images.pexels.com/photos/12584869/pexels-photo-12584869.jpeg?auto=compress&cs=tinysrgb&w=2400',
+  siteMapping:
+    'https://images.unsplash.com/photo-1759661966728-4a02e3c6ed91?auto=format&fit=crop&q=80&w=1600',
+  similarFindings:
+    'https://images.pexels.com/photos/18416951/pexels-photo-18416951.jpeg?auto=compress&cs=tinysrgb&w=1600',
+}
+
+const subModules = [
+  {
+    icon: MapPin,
+    title: 'Site Mapping & Analysis',
+    description:
+      'Interactive GIS map of Sri Lanka archaeological sites with temporal layer filtering, excavation phase timeline, and DBSCAN AI spatial pattern detection.',
+    tags: ['Site Mapping', 'Temporal Layers', 'DBSCAN AI', 'Cluster Detection'],
+    link: '/parami',
+    image: imageUrls.siteMapping,
+    iconClass: 'bg-purple-500/20 text-purple-200 border-purple-500/30',
+    linkClass: 'text-purple-300 hover:text-purple-200',
+  },
+  {
+    icon: Search,
+    title: 'Similar Findings',
+    description:
+      'Discover archaeologically similar bone findings based on skeletal measurements, burial type, and time period using Rule-Based, K-Means, and KNN machine learning.',
+    tags: ['Site Comparison', 'Pattern Match', 'KNN Machine Learning', 'Proximity Search'],
+    link: '/parami/similar-findings',
+    image: imageUrls.similarFindings,
+    iconClass: 'bg-fuchsia-500/20 text-fuchsia-200 border-fuchsia-500/30',
+    linkClass: 'text-fuchsia-300 hover:text-fuchsia-200',
+  },
+]
+
+const moduleStats = [
+  { value: '23', title: 'Sites', label: 'Mapped Locations' },
+  { value: 'DBSCAN', title: 'AI Algorithm', label: 'Spatial Clustering' },
+  { value: '5', title: 'Phases', label: 'Excavation Timeline' },
+  { value: '50K BP', title: 'Coverage', label: 'Time Depth' },
+]
+
+function SubModuleCard({ module }) {
+  const Icon = module.icon
+
+  return (
+    <Link
+      to={module.link}
+      className="group relative min-h-[360px] cursor-pointer overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-6 transition-all duration-300 hover:scale-[1.02] hover:border-purple-500/40 hover:shadow-xl hover:shadow-purple-500/10"
+    >
+      <img
+        src={module.image}
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover opacity-45 transition duration-500 group-hover:scale-105 group-hover:opacity-55"
+        loading="lazy"
+        aria-hidden="true"
+      />
+      <div className="absolute inset-0 bg-gradient-to-b from-[#0a0f1a]/60 via-[#0a0f1a]/90 to-[#0a0f1a]" />
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-purple-300/60 to-transparent opacity-0 transition group-hover:opacity-100" />
+
+      <div className="relative z-10 flex h-full min-h-[312px] flex-col">
+        <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-xl border backdrop-blur-md ${module.iconClass}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+
+        <h3 className="text-xl font-semibold text-white">{module.title}</h3>
+        <p className="mt-3 text-sm leading-6 text-white/60">{module.description}</p>
+
+        <div className="mt-6 flex flex-wrap gap-2">
+          {module.tags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full border border-white/10 bg-white/[0.07] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-white/60 backdrop-blur-md"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+
+        <div className={`mt-auto inline-flex items-center gap-2 pt-8 text-sm font-semibold underline-offset-4 transition group-hover:underline ${module.linkClass}`}>
+          <span>Open Module</span>
+          <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+        </div>
+      </div>
+    </Link>
+  )
+}
 
 function GISHome() {
   return (
-    <div className="min-h-screen bg-slate-900">
+    <main className="min-h-screen overflow-hidden bg-[#0a0f1a] text-white">
+      <section className="relative px-5 pb-10 pt-8 sm:px-8 lg:pt-10">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(168,85,247,0.16),transparent_34%),linear-gradient(180deg,#0a0f1a_0%,#0d1320_100%)]" />
 
-      {/* Hero Section */}
-      <div className="text-center py-12 px-8 border-b border-slate-700">
-        <p className="text-blue-400 text-sm font-medium tracking-widest uppercase mb-3">
-          IT22889874 — Parami K K J
-        </p>
-        <h1 className="text-4xl font-bold text-slate-100 mb-4">
-          GIS & Spatial
-          <span className="text-blue-400"> Analysis Module</span>
-        </h1>
-        <p className="text-slate-400 max-w-2xl mx-auto text-base leading-relaxed">
-          Site mapping, temporal layers, and AI spatial pattern detection
-          for osteoarchaeological research across Sri Lanka.
-        </p>
-        <div className="flex justify-center gap-3 mt-6">
-          <span className="bg-slate-800 text-slate-300 text-xs px-3 py-1 rounded-full border border-slate-700">
-            Leaflet.js GIS
-          </span>
-          <span className="bg-slate-800 text-slate-300 text-xs px-3 py-1 rounded-full border border-slate-700">
-            DBSCAN AI
-          </span>
-          <span className="bg-slate-800 text-slate-300 text-xs px-3 py-1 rounded-full border border-slate-700">
-            Temporal Layers
-          </span>
-        </div>
-      </div>
+        <div className="relative mx-auto max-w-6xl">
+          <div className="relative min-h-[280px] overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-10 shadow-2xl shadow-black/30 sm:px-8 lg:px-10">
+            <img
+              src={imageUrls.hero}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover opacity-55"
+              aria-hidden="true"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#0a0f1a]/95 via-[#0a0f1a]/78 to-[#0a0f1a]/45" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0a0f1a]/85 via-transparent to-transparent" />
 
-      {/* 4 Module Cards */}
-      <div className="max-w-6xl mx-auto px-8 py-12">
-        <h2 className="text-slate-400 text-sm font-medium uppercase tracking-widest mb-8 text-center">
-          GIS Module Sections
-        </h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-          {/* Card 1 — Site Mapping & Analysis */}
-          <Link to="/parami" className="bg-slate-800 rounded-2xl p-6 border border-slate-700 hover:border-teal-500 transition-all group block">
-            <div className="flex items-start justify-between mb-4">
-              <div className="bg-teal-900 p-3 rounded-xl">
-                <span className="text-2xl">🗺️</span>
+            <div className="relative z-10">
+              <div className="max-w-3xl">
+                <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-purple-400/20 bg-purple-400/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-purple-300">
+                  <span className="h-2 w-2 rounded-full bg-purple-400 shadow-[0_0_18px_rgba(192,132,252,0.9)]" />
+                  IT22889874 &middot; GIS &amp; Spatial Analysis
+                </p>
+                <h1 className="max-w-3xl text-4xl font-bold leading-tight tracking-normal text-white md:text-5xl">
+                  GIS &amp; Spatial{' '}
+                  <span className="text-purple-400">Analysis Module</span>
+                </h1>
+                <p className="mt-5 max-w-2xl text-sm leading-7 text-white/70 md:text-base">
+                  Site mapping, temporal layers, and AI spatial pattern detection for
+                  osteoarchaeological research across Sri Lanka.
+                </p>
               </div>
-              <span className="bg-slate-700 text-slate-400 text-xs px-2 py-1 rounded-full">
-                Core Module
-              </span>
-            </div>
-            <h3 className="text-lg font-bold text-slate-100 mb-2">
-              Site Mapping & Analysis
-            </h3>
-            <p className="text-slate-400 text-sm leading-relaxed mb-4">
-              Interactive GIS map of Sri Lanka archaeological sites with
-              temporal layer filtering, excavation phase timeline, and
-              DBSCAN AI spatial pattern detection.
-            </p>
-            <div className="flex flex-wrap gap-2 mb-4">
-              <span className="bg-teal-900 text-teal-300 text-xs px-2 py-1 rounded-full">
-                Site Mapping
-              </span>
-              <span className="bg-teal-900 text-teal-300 text-xs px-2 py-1 rounded-full">
-                Temporal Layers
-              </span>
-              <span className="bg-teal-900 text-teal-300 text-xs px-2 py-1 rounded-full">
-                DBSCAN AI
-              </span>
-              <span className="bg-teal-900 text-teal-300 text-xs px-2 py-1 rounded-full">
-                Cluster Detection
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-slate-500 text-xs">Spatial · Temporal · AI</span>
-              <span className="text-teal-400 text-xs group-hover:translate-x-1 transition-transform">Open Module →</span>
-            </div>
-          </Link>
-
-          {/* Card 2 — Similar Findings */}
-          <Link to="/parami/similar-findings" className="bg-slate-800 rounded-2xl p-6 border border-slate-700 hover:border-purple-500 transition-all group block">
-            <div className="flex items-start justify-between mb-4">
-              <div className="bg-purple-900 p-3 rounded-xl">
-                <span className="text-2xl">🔍</span>
-              </div>
-              <span className="bg-slate-700 text-slate-400 text-xs px-2 py-1 rounded-full">
-                AI Matching
-              </span>
-            </div>
-            <h3 className="text-lg font-bold text-slate-100 mb-2">
-              Similar Findings
-            </h3>
-            <p className="text-slate-400 text-sm leading-relaxed mb-4">
-              Discover archaeologically similar sites based on skeletal
-              characteristics, burial type, time period, and geographic
-              proximity using intelligent matching.
-            </p>
-            <div className="flex flex-wrap gap-2 mb-4">
-              <span className="bg-purple-900 text-purple-300 text-xs px-2 py-1 rounded-full">
-                Site Comparison
-              </span>
-              <span className="bg-purple-900 text-purple-300 text-xs px-2 py-1 rounded-full">
-                Pattern Match
-              </span>
-              <span className="bg-purple-900 text-purple-300 text-xs px-2 py-1 rounded-full">
-                Skeletal Data
-              </span>
-              <span className="bg-purple-900 text-purple-300 text-xs px-2 py-1 rounded-full">
-                Proximity Search
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-slate-500 text-xs">Pattern · Comparison · Match</span>
-              <span className="text-purple-400 text-xs group-hover:translate-x-1 transition-transform">Open Module →</span>
-            </div>
-          </Link>
-
-        </div>
-      </div>
-
-      {/* Stats Bar */}
-      <div className="border-t border-slate-700 py-8">
-        <div className="max-w-6xl mx-auto px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            <div>
-              <p className="text-3xl font-bold text-teal-400">23</p>
-              <p className="text-slate-400 text-sm mt-1">Total Sites</p>
-            </div>
-            <div>
-              <p className="text-3xl font-bold text-blue-400">DBSCAN</p>
-              <p className="text-slate-400 text-sm mt-1">AI Algorithm</p>
-            </div>
-            <div>
-              <p className="text-3xl font-bold text-purple-400">4</p>
-              <p className="text-slate-400 text-sm mt-1">Excavation Phases</p>
-            </div>
-            <div>
-              <p className="text-3xl font-bold text-amber-400">50K BP</p>
-              <p className="text-slate-400 text-sm mt-1">Time Coverage</p>
             </div>
           </div>
+
+          <div className="mt-5 flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.18em] text-white/30">
+            <Link to="/" className="inline-flex items-center gap-2 transition hover:text-purple-300">
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back to Home
+            </Link>
+            <span>/</span>
+            <span>Modules</span>
+            <span>/</span>
+            <span className="text-white/45">GIS &amp; Spatial Analysis</span>
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* Footer */}
-      <div className="border-t border-slate-700 py-6 text-center">
-        <p className="text-slate-500 text-sm">
-          OAHRIS — GIS & Spatial Analysis Module · IT22889874 · Parami K K J
-        </p>
-        <Link to="/" className="text-slate-600 text-xs mt-1 hover:text-slate-400 transition-colors inline-block">
-          ← Back to Main Home
-        </Link>
-      </div>
+      <section className="px-5 py-8 sm:px-8">
+        <div className="mx-auto max-w-6xl">
+          <div className="mb-7 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-purple-300/70">
+                Module Workspace
+              </p>
+              <h2 className="mt-3 text-2xl font-semibold text-white md:text-3xl">
+                Spatial analysis tools for archaeological research
+              </h2>
+            </div>
+            <p className="max-w-xl text-sm leading-6 text-white/50">
+              Each sub-module supports the chain from site mapping and temporal filtering
+              through AI-driven cluster detection and cross-site similarity matching.
+            </p>
+          </div>
 
-    </div>
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            {subModules.map((module) => (
+              <SubModuleCard key={module.title} module={module} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-white/10 bg-white/[0.02] px-5 py-6 sm:px-8">
+        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-4 md:grid-cols-4">
+          {moduleStats.map((stat) => (
+            <div key={stat.label} className="py-3 text-center">
+              <p className="text-3xl font-bold text-purple-400 md:text-4xl">{stat.value}</p>
+              <p className="mt-1 text-sm font-semibold text-white/70">{stat.title}</p>
+              <p className="mt-1 text-xs text-white/40">{stat.label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <footer className="border-t border-white/10 px-5 py-8 sm:px-8">
+        <div className="mx-auto flex max-w-6xl flex-col gap-2 text-xs text-white/20 md:flex-row md:items-center md:justify-between">
+          <p>OAHRIS - IT4010 Research Project &middot; SLIIT &middot; 2026</p>
+          <p>GIS &amp; Spatial Analysis Module &middot; IT22889874 &middot; Parami K K J</p>
+        </div>
+      </footer>
+    </main>
   )
 }
 

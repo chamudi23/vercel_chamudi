@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import 'leaflet/dist/leaflet.css'
-import { MapContainer, TileLayer, CircleMarker, Popup, Circle, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, CircleMarker, Popup, Circle } from 'react-leaflet'
 import { DBSCAN } from 'density-clustering'
 
 const RISK_COLOUR = {
@@ -41,23 +41,6 @@ function StatCard({ label, value, color = 'blue' }) {
   )
 }
 
-// Leaflet Heatmap Component
-function HeatLayer({ points }) {
-  const map = useMap()
-  useEffect(() => {
-    if (!map || points.length === 0) return
-    import('leaflet.heat').then(() => {
-      const heat = window.L.heatLayer(
-        points.map(p => [p.lat, p.lng, p.intensity]),
-        { radius: 35, blur: 20, maxZoom: 10, max: 1.0 }
-      )
-      heat.addTo(map)
-      return () => { map.removeLayer(heat) }
-    })
-  }, [map, points])
-  return null
-}
-
 // Simple period guesser from free-text time_period field
 function guessPeriodYear(timePeriod) {
   if (!timePeriod) return null
@@ -86,9 +69,8 @@ function ParamiModulePage() {
   const [loading,      setLoading]      = useState(true)
   const [error,        setError]        = useState(null)
   const [periodIdx,    setPeriodIdx]    = useState(0)
-  const [showClusters, setShowClusters] = useState(false)
-  const [showHeatmap, setShowHeatmap] = useState(false)
-  const [eps,          setEps]          = useState(0.8)
+  const [showClusters, setShowClusters] = useState(true)
+  const [eps,          setEps]          = useState(0.3)
   const [minPts,       setMinPts]       = useState(2)
   const [searchTerm,   setSearchTerm]   = useState('')
   const [activePanel,  setActivePanel]  = useState('temporal')
@@ -166,13 +148,6 @@ function ParamiModulePage() {
     return result
   }, [filteredSites, showClusters, eps, minPts])
 
-const heatmapPoints = useMemo(() => {
-    return filteredSites.map(s => ({
-      lat: parseFloat(s.latitude),
-      lng: parseFloat(s.longitude),
-      intensity: s.risk_level === 'High' ? 1.0 : s.risk_level === 'Medium' ? 0.6 : 0.3,
-    }))
-  }, [filteredSites])
   // Map each site index to its cluster id
   const siteClusterMap = useMemo(() => {
     const map = {}
@@ -213,18 +188,6 @@ const heatmapPoints = useMemo(() => {
   >
     🔍 Similar Findings
   </Link>
-  <Link
-  to="/parami/add-specimen"
-  className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-4 py-2 rounded-lg transition-colors"
->
-  🦴 Add Specimen
-</Link>
-  <Link
-    to="/parami/add-site"
-    className="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-2 rounded-lg transition-colors"
-  >
-    📍 Add New Site
-  </Link>
 </div>
 
       </div>
@@ -257,7 +220,6 @@ const heatmapPoints = useMemo(() => {
         <div className="flex border-b border-slate-700">
           {[
             { key: 'temporal', label: 'Time Period', on: periodIdx !== 0 },
-            { key: 'heatmap',  label: 'Heatmap',      on: showHeatmap },
             { key: 'clusters', label: 'AI Clusters',  on: showClusters },
           ].map(tab => (
             <button
@@ -318,37 +280,6 @@ const heatmapPoints = useMemo(() => {
                 <span>50,000 BP</span>
                 <span>Present</span>
               </div>
-            </div>
-          )}
-
-          {/* Heatmap tab */}
-          {activePanel === 'heatmap' && (
-            <div>
-              <div className="flex items-center justify-between">
-                <p className="text-slate-400 text-sm">
-                  Visualize concentration of archaeological sites on the map
-                </p>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <span className="text-slate-400 text-sm">Show heatmap</span>
-                  <div
-                    onClick={() => setShowHeatmap(v => !v)}
-                    className={`w-10 h-5 rounded-full transition-colors relative cursor-pointer ${
-                      showHeatmap ? 'bg-orange-500' : 'bg-slate-600'
-                    }`}
-                  >
-                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                      showHeatmap ? 'translate-x-5' : 'translate-x-0.5'
-                    }`} />
-                  </div>
-                </label>
-              </div>
-              {showHeatmap && (
-                <div className="mt-3 flex items-center gap-6 text-xs text-slate-400">
-                  <span>🔴 High risk sites = more intense</span>
-                  <span>🟡 Medium risk = moderate</span>
-                  <span>🟢 Low risk = light</span>
-                </div>
-              )}
             </div>
           )}
 
@@ -491,9 +422,6 @@ const heatmapPoints = useMemo(() => {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             />
-                    {/* Heatmap Layer */}
-         {showHeatmap && <HeatLayer points={heatmapPoints} />}
-
             {/* Cluster radius circles */}
             {showClusters && clusters.map((cluster, ci) => {
               const colour = CLUSTER_COLOURS[ci % CLUSTER_COLOURS.length]
