@@ -238,9 +238,23 @@ export const SKELETON_ORIENTATION_MARKERS = {
   back: { left: 'L', right: 'R' },
 }
 
+export function screenSideForAnatomicalSide(view, side) {
+  const normalizedSide = normalizeSide(side)
+  if (normalizedSide !== 'Left' && normalizedSide !== 'Right') return null
+  if (view === 'front') return normalizedSide === 'Left' ? 'right' : 'left'
+  if (view === 'back') return normalizedSide.toLowerCase()
+  return null
+}
+
+export function skeletonViewsForMode(mode) {
+  if (mode === 'Both') return ['front', 'back']
+  const view = normalize(mode)
+  return view === 'front' || view === 'back' ? [view] : []
+}
+
 // These group indexes refer to unmodified source groups in the two attributed SVG files.
 // Only groups that were visually checked against the source drawing are included.
-export const SKELETON_SVG_GROUPS = {
+const SKELETON_NONSIDED_SVG_GROUPS = {
   front: {
     CRANIUM_MIDLINE: [128, 129, 130, 131, 132, 133, 135, 137],
     MANDIBLE_MIDLINE: [125],
@@ -250,53 +264,57 @@ export const SKELETON_SVG_GROUPS = {
     SACRUM_MIDLINE: [68],
     COCCYX_MIDLINE: [67],
     RIB_UNKNOWN: [82],
-    CLAVICLE_LEFT: [142],
-    CLAVICLE_RIGHT: [141],
-    SCAPULA_LEFT: [64],
-    SCAPULA_RIGHT: [65],
-    HUMERUS_LEFT: [144],
-    HUMERUS_RIGHT: [150],
-    RADIUS_LEFT: [147],
-    RADIUS_RIGHT: [154],
-    ULNA_LEFT: [148],
-    ULNA_RIGHT: [155],
-    CARPAL_LEFT: [177],
-    CARPAL_RIGHT: [197, 198, 199, 201, 213, 214, 215, 216, 220],
-    METACARPAL_LEFT: [167, 168, 175, 188, 189, 191, 193],
-    METACARPAL_RIGHT: [217, 221, 222, 223, 224],
-    HAND_PHALANX_LEFT: [157, 158, 159, 160, 162, 165, 170, 171, 172, 173, 174, 190, 194, 195],
-    HAND_PHALANX_RIGHT: [204, 205, 206, 207, 208, 209, 210, 211, 212, 218, 219],
     OS_COXA_UNKNOWN: [61],
-    FEMUR_LEFT: [59],
-    FEMUR_RIGHT: [55],
-    PATELLA_LEFT: [228],
-    PATELLA_RIGHT: [227],
-    TIBIA_LEFT: [226],
-    TIBIA_RIGHT: [53],
-    FIBULA_LEFT: [225],
-    FIBULA_RIGHT: [52],
-    OTHER_TARSAL_LEFT: [30, 31, 32, 33, 34],
-    OTHER_TARSAL_RIGHT: [4, 5, 6, 7, 8],
-    METATARSAL_LEFT: [36, 37, 38, 39, 40],
-    METATARSAL_RIGHT: [10, 11, 12, 13, 14],
-    FOOT_PHALANX_LEFT: [41],
-    FOOT_PHALANX_RIGHT: [15],
   },
   back: {
     CRANIUM_MIDLINE: [93],
-    HUMERUS_LEFT: [47],
-    HUMERUS_RIGHT: [2],
-    RADIUS_LEFT: [49],
-    RADIUS_RIGHT: [45],
-    ULNA_LEFT: [51],
-    ULNA_RIGHT: [44],
-    FEMUR_LEFT: [87],
-    FEMUR_RIGHT: [84],
-    TIBIA_LEFT: [205],
-    TIBIA_RIGHT: [201],
-    FIBULA_LEFT: [208],
-    FIBULA_RIGHT: [204],
   },
+}
+
+// Paired source groups are recorded by their literal screen position. Anatomical
+// laterality is resolved separately because a front-facing skeleton is mirrored.
+export const SKELETON_SCREEN_SIDE_GROUPS = {
+  front: {
+    CLAVICLE: { left: [141], right: [142] },
+    SCAPULA: { left: [65], right: [64] },
+    HUMERUS: { left: [150], right: [144] },
+    RADIUS: { left: [154], right: [147] },
+    ULNA: { left: [155], right: [148] },
+    CARPAL: { left: [197, 198, 199, 201, 213, 214, 215, 216, 220], right: [177] },
+    METACARPAL: { left: [217, 221, 222, 223, 224], right: [167, 168, 175, 188, 189, 191, 193] },
+    HAND_PHALANX: { left: [204, 205, 206, 207, 208, 209, 210, 211, 212, 218, 219], right: [157, 158, 159, 160, 162, 165, 170, 171, 172, 173, 174, 190, 194, 195] },
+    FEMUR: { left: [55], right: [59] },
+    PATELLA: { left: [227], right: [228] },
+    TIBIA: { left: [53], right: [226] },
+    FIBULA: { left: [52], right: [225] },
+    OTHER_TARSAL: { left: [4, 5, 6, 7, 8], right: [30, 31, 32, 33, 34] },
+    METATARSAL: { left: [10, 11, 12, 13, 14], right: [36, 37, 38, 39, 40] },
+    FOOT_PHALANX: { left: [15], right: [41] },
+  },
+  back: {
+    HUMERUS: { left: [2], right: [47] },
+    RADIUS: { left: [45], right: [49] },
+    ULNA: { left: [44], right: [51] },
+    FEMUR: { left: [84], right: [87] },
+    TIBIA: { left: [201], right: [205] },
+    FIBULA: { left: [204], right: [208] },
+  },
+}
+
+function anatomicalSvgGroups(view) {
+  const mappings = { ...(SKELETON_NONSIDED_SVG_GROUPS[view] || {}) }
+  Object.entries(SKELETON_SCREEN_SIDE_GROUPS[view] || {}).forEach(([categoryCode, screenGroups]) => {
+    for (const side of ['Left', 'Right']) {
+      const screenSide = screenSideForAnatomicalSide(view, side)
+      mappings[`${categoryCode}_${side.toUpperCase()}`] = screenGroups[screenSide]
+    }
+  })
+  return mappings
+}
+
+export const SKELETON_SVG_GROUPS = {
+  front: anatomicalSvgGroups('front'),
+  back: anatomicalSvgGroups('back'),
 }
 
 export const SPECIMEN_SELECT = `
