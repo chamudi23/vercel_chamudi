@@ -3,11 +3,23 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../supabase";
 import { analyseBone } from "../api";
 import BoneImageList from "../components/BoneImageList";
-
-const TIME_PERIODS = ["Mesolithic","Neolithic","Bronze Age","Iron Age","Protohistoric","Early Historic","Medieval","Unknown"];
-const PRESERVATION_STATES = ["Excellent","Good","Fair","Poor","Fragmentary"];
-const DISTRICTS = ["Colombo","Gampaha","Kalutara","Kandy","Matale","Nuwara Eliya","Galle","Matara","Hambantota","Jaffna","Kilinochchi","Mannar","Vavuniya","Mullaitivu","Batticaloa","Ampara","Trincomalee","Kurunegala","Puttalam","Anuradhapura","Polonnaruwa","Badulla","Monaragala","Ratnapura","Kegalle"];
-const PROVINCES = ["Western","Central","Southern","Northern","Eastern","North Western","North Central","Uva","Sabaragamuwa"];
+import {
+  PP1_BONE_LABELS,
+  allowedSidesForCategory,
+  findDuplicateSpecimen,
+  normalizeBoneCategory,
+  validateCategorySide,
+} from "../utils/pp1ImageModule";
+import {
+  DATING_METHODS,
+  DISTRICTS,
+  hasMetadataValue,
+  optionalNumber,
+  PRESERVATION_STATES,
+  PROVINCES,
+  TIME_PERIODS,
+  validateExcavationAndDating,
+} from "../utils/specimenMetadata";
 
 const BONE_TYPES = [
   "Femur","Tibia","Fibula","Humerus","Humerus (Distal End)",
@@ -52,6 +64,45 @@ function newMeasurementRow() {
   };
 }
 
+function relatedDraft(record, fields) {
+  return Object.fromEntries(fields.map((field) => [field, record?.[field] ?? ""]));
+}
+
+function displayValue(value) {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "string" && value.trim() === "") return "—";
+  return String(value);
+}
+
+function displayDate(value) {
+  if (!value) return "—";
+  const isoDate = String(value).match(/^\d{4}-\d{2}-\d{2}/)?.[0];
+  return isoDate || displayValue(value);
+}
+
+// eslint-disable-next-line react/prop-types
+function MetadataValue({ label, value, className = "" }) {
+  return (
+    <div className={className}>
+      <p className="text-xs text-white/30 uppercase tracking-wider mb-1">{label}</p>
+      <p className="text-white/80">{displayValue(value)}</p>
+    </div>
+  );
+}
+
+function resolveSavedBoneCategory(specimenRecord, measurementRecords) {
+  if (String(specimenRecord.bone_type || "").trim()) return specimenRecord.bone_type;
+  const categories = new Map();
+  measurementRecords.forEach((measurement) => {
+    const category = normalizeBoneCategory(measurement.bone_type);
+    if (category) categories.set(category.code, category.label);
+  });
+  return categories.size === 1 ? [...categories.values()][0] : "";
+}
+
+const EXCAVATION_FIELDS = ["excavation_date", "excavation_phase", "depth_found", "excavator_name", "excavation_notes"];
+const LAB_DATING_FIELDS = ["dating_method", "date_result", "date_range_min", "date_range_max", "lab_name", "result_notes"];
+
 export default function SpecimenDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -59,6 +110,8 @@ export default function SpecimenDetailPage() {
   const attachmentSectionRef = useRef(null);
   const attachmentSectionRequested = searchParams.get("section") === "attachments";
   const attachmentEditImageId = attachmentSectionRequested ? (searchParams.get("editImage") || "") : "";
+  const attachmentAddRequested = attachmentSectionRequested && searchParams.get("addImage") === "true";
+  const attachmentOnlyEditing = Boolean(attachmentEditImageId || attachmentAddRequested);
   const fromGallery = searchParams.get("from") === "gallery";
 
   const [specimen, setSpecimen] = useState(null);
@@ -71,9 +124,14 @@ export default function SpecimenDetailPage() {
 
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
+  const [excavationDraft, setExcavationDraft] = useState(relatedDraft(null, EXCAVATION_FIELDS));
+  const [labDatingDraft, setLabDatingDraft] = useState(relatedDraft(null, LAB_DATING_FIELDS));
   const [measurementDrafts, setMeasurementDrafts] = useState({});
+  const [deletedMeasurementIds, setDeletedMeasurementIds] = useState([]);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [duplicateSpecimenId, setDuplicateSpecimenId] = useState("");
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -99,14 +157,18 @@ export default function SpecimenDetailPage() {
       return;
     }
 
-    setSpecimen(specData);
-    setEditForm(specData);
-
     const { data: measData } = await supabase
       .from("measurements")
       .select("*")
       .eq("specimen_id", specData.specimen_id);
+    const displayedSpecimen = {
+      ...specData,
+      bone_type: resolveSavedBoneCategory(specData, measData || []),
+    };
+    setSpecimen(displayedSpecimen);
+    setEditForm(displayedSpecimen);
     setMeasurements(measData || []);
+    setDeletedMeasurementIds([]);
     setMeasurementDrafts(Object.fromEntries((measData || []).map((measurement) => [measurement.measurement_id, {
       bone_type: measurement.bone_type || "",
       measurement_type: measurement.measurement_type || "",
@@ -121,6 +183,7 @@ export default function SpecimenDetailPage() {
       .eq("specimen_id", specData.specimen_id)
       .single();
     setExcavation(excData || null);
+    setExcavationDraft(relatedDraft(excData, EXCAVATION_FIELDS));
 
     const { data: labData } = await supabase
       .from("laboratory_dating_results")
@@ -128,6 +191,7 @@ export default function SpecimenDetailPage() {
       .eq("specimen_id", specData.specimen_id)
       .single();
     setLabDating(labData || null);
+    setLabDatingDraft(relatedDraft(labData, LAB_DATING_FIELDS));
 
     const { data: logData } = await supabase
       .from("data_quality_log")
@@ -141,7 +205,18 @@ export default function SpecimenDetailPage() {
 
   function handleEditChange(e) {
     const { name, value } = e.target;
+    if (name === "bone_type") {
+      const nextSides = allowedSidesForCategory(value);
+      setEditForm((prev) => ({ ...prev, bone_type: value, side: nextSides.includes(prev.side) ? prev.side : (nextSides[0] || "Unknown") }));
+      setSaveError("");
+      setDuplicateSpecimenId("");
+      return;
+    }
     setEditForm((prev) => ({ ...prev, [name]: value }));
+    if (name === "side") {
+      setSaveError("");
+      setDuplicateSpecimenId("");
+    }
   }
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
@@ -161,7 +236,16 @@ export default function SpecimenDetailPage() {
   }
 
   function startEditing() {
-    setEditForm(specimen);
+    if (attachmentOnlyEditing) return;
+    const sides = allowedSidesForCategory(specimen.bone_type);
+    setEditForm({
+      ...specimen,
+      side: sides.length === 1 && sides[0] === "Midline" ? "Midline" : specimen.side,
+    });
+    setExcavationDraft(relatedDraft(excavation, EXCAVATION_FIELDS));
+    setLabDatingDraft(relatedDraft(labDating, LAB_DATING_FIELDS));
+    setSaveError("");
+    setDuplicateSpecimenId("");
     setMeasurementDrafts(Object.fromEntries(measurements.map((measurement) => [measurement.measurement_id, {
       bone_type: measurement.bone_type || "",
       measurement_type: measurement.measurement_type || "",
@@ -169,12 +253,20 @@ export default function SpecimenDetailPage() {
       unit: measurement.unit || "mm",
       notes: measurement.notes || "",
     }])));
+    setDeletedMeasurementIds([]);
     setEditing(true);
   }
 
   function cancelEditing() {
     setEditForm(specimen);
+    setExcavationDraft(relatedDraft(excavation, EXCAVATION_FIELDS));
+    setLabDatingDraft(relatedDraft(labDating, LAB_DATING_FIELDS));
+    setSaveError("");
+    setDuplicateSpecimenId("");
+    setDeletedMeasurementIds([]);
+    setShowAddMeasurement(false);
     setEditing(false);
+    fetchAll();
   }
 
   function handleMeasurementEdit(measurementId, field, value) {
@@ -185,19 +277,54 @@ export default function SpecimenDetailPage() {
   }
 
   async function handleSave() {
+    const metadataErrors = validateExcavationAndDating(excavationDraft, labDatingDraft);
+    if (Object.keys(metadataErrors).length > 0) {
+      setSaveError(Object.values(metadataErrors)[0]);
+      return;
+    }
+    const sideError = validateCategorySide(editForm.bone_type, editForm.side);
+    if (sideError) {
+      setSaveError(sideError);
+      return;
+    }
     const invalidMeasurement = measurements.find((measurement) => {
       const draft = measurementDrafts[measurement.measurement_id];
       return !draft?.bone_type || draft.value === "" || Number.isNaN(Number(draft.value));
     });
     if (invalidMeasurement) {
-      alert("Each measurement must have a bone type and numeric value.");
+      setSaveError("Each measurement must have a bone type and numeric value.");
       return;
     }
 
     setSaving(true);
-    const { error } = await supabase
+    setSaveError("");
+    setDuplicateSpecimenId("");
+    const { data: specimenRows, error: duplicateCheckError } = await supabase
+      .from("specimens")
+      .select("specimen_id, skeleton_code, bone_type, side, measurements(bone_type)");
+    if (duplicateCheckError) {
+      setSaving(false);
+      setSaveError(`Could not check existing skeleton records: ${duplicateCheckError.message}`);
+      return;
+    }
+    const duplicate = findDuplicateSpecimen(specimenRows, {
+      skeletonCode: specimen.skeleton_code,
+      boneCategory: editForm.bone_type,
+      side: editForm.side,
+      excludeSpecimenId: specimen.specimen_id,
+    });
+    if (duplicate) {
+      const category = normalizeBoneCategory(editForm.bone_type);
+      setSaving(false);
+      setDuplicateSpecimenId(duplicate.specimen_id);
+      setSaveError(`A ${editForm.side} ${category.label} is already registered for skeleton ${specimen.skeleton_code}.`);
+      return;
+    }
+    const { error: specimenError } = await supabase
       .from("specimens")
       .update({
+        bone_type: editForm.bone_type,
+        side: editForm.side,
         site_name: editForm.site_name,
         district: editForm.district,
         province: editForm.province,
@@ -210,7 +337,47 @@ export default function SpecimenDetailPage() {
       .eq("specimen_id", id);
 
     let measurementError = null;
-    if (!error) {
+    let excavationError = null;
+    let labDatingError = null;
+    if (!specimenError) {
+      const excavationPayload = {
+        specimen_id: id,
+        excavation_date: excavationDraft.excavation_date || null,
+        excavation_phase: excavationDraft.excavation_phase || null,
+        depth_found: optionalNumber(excavationDraft.depth_found),
+        excavator_name: excavationDraft.excavator_name || null,
+        excavation_notes: excavationDraft.excavation_notes || null,
+      };
+      if (excavation) {
+        ({ error: excavationError } = await supabase.from("excavation_records").update(excavationPayload).eq("excavation_id", excavation.excavation_id));
+      } else if (hasMetadataValue(excavationDraft)) {
+        ({ error: excavationError } = await supabase.from("excavation_records").insert([{ ...excavationPayload, excavation_id: generateId("EX") }]));
+      }
+
+      const labDatingPayload = {
+        specimen_id: id,
+        dating_method: labDatingDraft.dating_method || null,
+        date_result: labDatingDraft.date_result || null,
+        date_range_min: optionalNumber(labDatingDraft.date_range_min),
+        date_range_max: optionalNumber(labDatingDraft.date_range_max),
+        lab_name: labDatingDraft.lab_name || null,
+        result_notes: labDatingDraft.result_notes || null,
+      };
+      if (!excavationError && labDating) {
+        ({ error: labDatingError } = await supabase.from("laboratory_dating_results").update(labDatingPayload).eq("lab_id", labDating.lab_id));
+      } else if (!excavationError && hasMetadataValue(labDatingDraft)) {
+        ({ error: labDatingError } = await supabase.from("laboratory_dating_results").insert([{ ...labDatingPayload, lab_id: generateId("LAB") }]));
+      }
+    }
+
+    if (!specimenError && !excavationError && !labDatingError) {
+      const deleteResults = await Promise.all(deletedMeasurementIds.map((measurementId) => (
+        supabase.from("measurements").delete().eq("measurement_id", measurementId)
+      )));
+      measurementError = deleteResults.find((result) => result.error)?.error || null;
+    }
+
+    if (!specimenError && !excavationError && !labDatingError && !measurementError) {
       const results = await Promise.all(measurements.map((measurement) => {
         const draft = measurementDrafts[measurement.measurement_id];
         return supabase
@@ -228,18 +395,13 @@ export default function SpecimenDetailPage() {
     }
 
     setSaving(false);
-    if (!error && !measurementError) {
-      setSpecimen({ ...specimen, ...editForm, specimen_id: specimen.specimen_id, skeleton_code: specimen.skeleton_code });
-      setMeasurements((current) => current.map((measurement) => ({
-        ...measurement,
-        ...measurementDrafts[measurement.measurement_id],
-        value: Number(measurementDrafts[measurement.measurement_id].value),
-      })));
+    if (!specimenError && !excavationError && !labDatingError && !measurementError) {
       setSaveSuccess(true);
       setEditing(false);
+      await fetchAll();
       setTimeout(() => setSaveSuccess(false), 3000);
     } else {
-      alert("Error saving: " + (error || measurementError).message);
+      setSaveError("Error saving: " + (specimenError || excavationError || labDatingError || measurementError).message);
     }
   }
 
@@ -320,6 +482,13 @@ export default function SpecimenDetailPage() {
     const { data: measData } = await supabase
       .from("measurements").select("*").eq("specimen_id", id);
     setMeasurements(measData || []);
+    setMeasurementDrafts(Object.fromEntries((measData || []).map((measurement) => [measurement.measurement_id, {
+      bone_type: measurement.bone_type || "",
+      measurement_type: measurement.measurement_type || "",
+      value: measurement.value ?? "",
+      unit: measurement.unit || "mm",
+      notes: measurement.notes || "",
+    }])));
 
     const { data: logData } = await supabase
       .from("data_quality_log").select("*").eq("specimen_id", id)
@@ -329,9 +498,14 @@ export default function SpecimenDetailPage() {
     setTimeout(() => setMeasurementSuccess(false), 3000);
   }
 
-  async function handleDeleteMeasurement(measurementId) {
-    await supabase.from("measurements").delete().eq("measurement_id", measurementId);
+  function handleDeleteMeasurement(measurementId) {
     setMeasurements((prev) => prev.filter((m) => m.measurement_id !== measurementId));
+    setMeasurementDrafts((prev) => {
+      const next = { ...prev };
+      delete next[measurementId];
+      return next;
+    });
+    setDeletedMeasurementIds((current) => [...current, measurementId]);
   }
 
   const scoreColor = (score) => {
@@ -360,6 +534,8 @@ export default function SpecimenDetailPage() {
   const plainSelect = "w-full bg-[#0f1a14] border border-white/10 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors";
   const plainInput = "w-full bg-[#0f1a14] border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-white/25 focus:outline-none focus:border-emerald-500 transition-colors";
   const labelClass = "block text-xs text-white/50 uppercase tracking-wider mb-1.5";
+  const editAllowedSides = allowedSidesForCategory(editForm.bone_type);
+  const editSideIsLocked = editAllowedSides.length === 1 && editAllowedSides[0] === "Midline";
 
   if (loading) return (
     <div className="min-h-screen bg-[#0f1a14] text-white flex items-center justify-center">
@@ -411,7 +587,14 @@ export default function SpecimenDetailPage() {
           {fromGallery && <button onClick={() => navigate("/gallery")} className="text-sm font-medium text-violet-300 transition-colors hover:text-violet-200">Back to Gallery</button>}
         </div>
         <div className="flex items-center gap-3">
-          {!editing ? (
+          {editing ? (
+            <>
+              <button onClick={cancelEditing} className="px-4 py-2 text-sm text-white/40 hover:text-white border border-white/10 rounded-xl transition-colors">Cancel</button>
+              <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm text-white font-medium transition-colors">
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+            </>
+          ) : !attachmentOnlyEditing ? (
             <>
               <button onClick={startEditing} className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm text-white/60 hover:text-white transition-colors">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
@@ -422,14 +605,7 @@ export default function SpecimenDetailPage() {
                 Delete
               </button>
             </>
-          ) : (
-            <>
-              <button onClick={cancelEditing} className="px-4 py-2 text-sm text-white/40 hover:text-white border border-white/10 rounded-xl transition-colors">Cancel</button>
-              <button onClick={handleSave} disabled={saving} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm text-white font-medium transition-colors">
-                {saving ? "Saving..." : "Save Changes"}
-              </button>
-            </>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -439,6 +615,12 @@ export default function SpecimenDetailPage() {
           <div className="bg-emerald-500/20 border border-emerald-500/40 rounded-xl px-5 py-4 text-emerald-300 text-sm flex items-center gap-3">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5 shrink-0"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
             Specimen updated successfully!
+          </div>
+        )}
+        {saveError && (
+          <div className="bg-red-500/15 border border-red-500/40 rounded-xl px-5 py-4 text-red-300 text-sm">
+            {saveError}{" "}
+            {duplicateSpecimenId && <button type="button" onClick={() => navigate(`/specimens/${encodeURIComponent(duplicateSpecimenId)}`)} className="underline hover:text-red-200">Open existing record</button>}
           </div>
         )}
 
@@ -461,7 +643,7 @@ export default function SpecimenDetailPage() {
           )}
         </div>
 
-        {/* Specimen Info */}
+        {/* Specimen Information */}
         <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6">
           <p className="text-xs text-white/30 uppercase tracking-widest mb-5">
             Specimen Information {editing && <span className="text-emerald-400/60 ml-2">— Editing</span>}
@@ -470,6 +652,40 @@ export default function SpecimenDetailPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div><label className={labelClass}>Specimen ID</label><input value={specimen.specimen_id || ""} readOnly disabled className={`${inputClass} cursor-not-allowed border-white/5 bg-white/5 text-white/35`} /></div>
               <div><label className={labelClass}>Skeleton ID</label><input value={specimen.skeleton_code || ""} readOnly disabled className={`${inputClass} cursor-not-allowed border-white/5 bg-white/5 text-white/35`} /></div>
+              <div>
+                <label className={labelClass}>Bone Category</label>
+                <select name="bone_type" value={editForm.bone_type || ""} onChange={handleEditChange} className={selectClass}>
+                  <option value="">Select bone category</option>
+                  {editForm.bone_type && !PP1_BONE_LABELS.includes(editForm.bone_type) && <option value={editForm.bone_type}>{editForm.bone_type}</option>}
+                  {PP1_BONE_LABELS.map((bone) => <option key={bone} value={bone}>{bone}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Side</label>
+                <select name="side" value={editForm.side || "Unknown"} onChange={handleEditChange} disabled={editSideIsLocked} className={selectClass + (editSideIsLocked ? " cursor-not-allowed opacity-65" : "")}>
+                  {editForm.side && !editAllowedSides.includes(editForm.side) && <option value={editForm.side}>Legacy: {editForm.side}</option>}
+                  {editAllowedSides.map((side) => <option key={side} value={side}>{side}</option>)}
+                </select>
+                {editSideIsLocked && <p className="text-white/35 text-xs mt-1">Midline is automatic because left/right is not anatomically applicable.</p>}
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8">
+              <MetadataValue label="Specimen ID" value={specimen.specimen_id} />
+              <MetadataValue label="Skeleton ID" value={specimen.skeleton_code} />
+              <MetadataValue label="Bone Category" value={specimen.bone_type} />
+              <MetadataValue label="Side" value={specimen.side} />
+            </div>
+          )}
+        </div>
+
+        {/* Site Information */}
+        <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6">
+          <p className="text-xs text-white/30 uppercase tracking-widest mb-5">
+            Site Information {editing && <span className="text-emerald-400/60 ml-2">— Editing</span>}
+          </p>
+          {editing ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div><label className={labelClass}>Site Name</label><input name="site_name" value={editForm.site_name || ""} onChange={handleEditChange} className={inputClass} /></div>
               <div>
                 <label className={labelClass}>District</label>
@@ -492,6 +708,24 @@ export default function SpecimenDetailPage() {
                   {TIME_PERIODS.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8">
+              <MetadataValue label="Site Name" value={specimen.site_name} />
+              <MetadataValue label="District" value={specimen.district} />
+              <MetadataValue label="Province" value={specimen.province} />
+              <MetadataValue label="Time Period" value={specimen.time_period} />
+            </div>
+          )}
+        </div>
+
+        {/* Condition & Storage */}
+        <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6">
+          <p className="text-xs text-white/30 uppercase tracking-widest mb-5">
+            Condition &amp; Storage {editing && <span className="text-emerald-400/60 ml-2">— Editing</span>}
+          </p>
+          {editing ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>Preservation State</label>
                 <select name="preservation_state" value={editForm.preservation_state || ""} onChange={handleEditChange} className={selectClass}>
@@ -505,28 +739,10 @@ export default function SpecimenDetailPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8">
-              {[
-                { label: "Site Name", value: specimen.site_name },
-                { label: "District", value: specimen.district },
-                { label: "Province", value: specimen.province },
-                { label: "Time Period", value: specimen.time_period },
-                { label: "Storage Location", value: specimen.location_stored },
-              ].map((item) => (
-                <div key={item.label}>
-                  <p className="text-xs text-white/30 uppercase tracking-wider mb-1">{item.label}</p>
-                  <p className="text-white/80">{item.value || "—"}</p>
-                </div>
-              ))}
-              <div className="md:col-span-2">
-                <p className="text-xs text-white/30 uppercase tracking-wider mb-1">Burial Context</p>
-                <p className="text-white/80">{specimen.burial_context || "—"}</p>
-              </div>
-              {specimen.notes && (
-                <div className="md:col-span-2">
-                  <p className="text-xs text-white/30 uppercase tracking-wider mb-1">Notes</p>
-                  <p className="text-white/80">{specimen.notes}</p>
-                </div>
-              )}
+              <MetadataValue label="Preservation State" value={specimen.preservation_state} />
+              <MetadataValue label="Storage Location" value={specimen.location_stored} />
+              <MetadataValue label="Burial Context" value={specimen.burial_context} className="md:col-span-2" />
+              <MetadataValue label="Notes" value={specimen.notes} className="md:col-span-2" />
             </div>
           )}
         </div>
@@ -536,11 +752,11 @@ export default function SpecimenDetailPage() {
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs uppercase tracking-widest text-white/30">Attached Images</p>
-              <p className="mt-1 text-[10px] text-white/20">{attachmentEditImageId ? "Only the selected attachment is editable. Specimen data and measurements remain read-only." : "Images linked through the shared bone_images records."}</p>
+              <p className="mt-1 text-[10px] text-white/20">{attachmentEditImageId ? "Only the selected attachment is editable. Specimen data and measurements remain read-only." : attachmentAddRequested ? "Add an image to this saved specimen. Specimen data and measurements remain read-only." : "Images linked through the shared bone_images records."}</p>
             </div>
-            {!editing && !attachmentEditImageId && <p className="text-[10px] text-white/25">Choose Edit to manage files and metadata here.</p>}
+            {!editing && !attachmentOnlyEditing && <p className="text-[10px] text-white/25">Choose Edit to manage files and metadata here.</p>}
           </div>
-          <BoneImageList specimenId={specimen.specimen_id} editing={editing} editImageId={attachmentEditImageId} onFinishSelectedEdit={finishAttachmentEdit} />
+          <BoneImageList specimenId={specimen.specimen_id} specimen={{ ...specimen, boneCategory: resolveSavedBoneCategory(specimen, measurements) }} editing={editing} addMode={attachmentAddRequested} editImageId={attachmentEditImageId} onFinishSelectedEdit={finishAttachmentEdit} />
         </div>
 
         {/* Measurements */}
@@ -550,13 +766,13 @@ export default function SpecimenDetailPage() {
               <p className="text-xs text-white/30 uppercase tracking-widest">Bone Measurements</p>
               <p className="text-[10px] text-white/20 mt-0.5">{measurements.length} record{measurements.length !== 1 ? "s" : ""}</p>
             </div>
-            <button
+            {editing && <button
               onClick={() => setShowAddMeasurement(!showAddMeasurement)}
               className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/30 rounded-xl text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
               Add Measurement
-            </button>
+            </button>}
           </div>
 
           {measurementSuccess && (
@@ -600,7 +816,7 @@ export default function SpecimenDetailPage() {
           )}
 
           {/* Add Measurement Form */}
-          {showAddMeasurement && (
+          {editing && showAddMeasurement && (
             <div className="mb-5 border border-emerald-500/20 rounded-xl p-5 bg-emerald-500/[0.03]">
               <p className="text-xs text-emerald-400/70 uppercase tracking-wider mb-4">New Measurement + Python AI Analysis</p>
 
@@ -769,17 +985,21 @@ export default function SpecimenDetailPage() {
         {/* Excavation Record */}
         <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6">
           <p className="text-xs text-white/30 uppercase tracking-widest mb-5">Excavation Record</p>
-          {!excavation ? (
-            <p className="text-white/25 text-sm">No excavation record for this specimen.</p>
+          {editing ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div><label className={labelClass}>Excavation Date</label><input name="excavation_date" type="date" value={excavationDraft.excavation_date} onChange={(event) => setExcavationDraft((draft) => ({ ...draft, excavation_date: event.target.value }))} className={inputClass} style={{ colorScheme: "dark" }} /></div>
+              <div><label className={labelClass}>Excavation Phase</label><input name="excavation_phase" value={excavationDraft.excavation_phase} onChange={(event) => setExcavationDraft((draft) => ({ ...draft, excavation_phase: event.target.value }))} className={inputClass} /></div>
+              <div><label className={labelClass}>Depth Found (m)</label><input name="depth_found" type="number" min="0" step="0.01" value={excavationDraft.depth_found} onChange={(event) => setExcavationDraft((draft) => ({ ...draft, depth_found: event.target.value }))} className={inputClass} /></div>
+              <div><label className={labelClass}>Excavator Name</label><input name="excavator_name" value={excavationDraft.excavator_name} onChange={(event) => setExcavationDraft((draft) => ({ ...draft, excavator_name: event.target.value }))} className={inputClass} /></div>
+              <div className="md:col-span-2"><label className={labelClass}>Excavation Notes</label><textarea name="excavation_notes" value={excavationDraft.excavation_notes} onChange={(event) => setExcavationDraft((draft) => ({ ...draft, excavation_notes: event.target.value }))} rows={3} className={inputClass + " resize-none"} /></div>
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8">
-              <div><p className="text-xs text-white/30 uppercase tracking-wider mb-1">Excavation Date</p><p className="text-white/80">{excavation.excavation_date || "—"}</p></div>
-              <div><p className="text-xs text-white/30 uppercase tracking-wider mb-1">Excavation Phase</p><p className="text-white/80">{excavation.excavation_phase || "—"}</p></div>
-              <div><p className="text-xs text-white/30 uppercase tracking-wider mb-1">Depth Found (m)</p><p className="text-white/80">{excavation.depth_found ?? "—"}</p></div>
-              <div><p className="text-xs text-white/30 uppercase tracking-wider mb-1">Excavator Name</p><p className="text-white/80">{excavation.excavator_name || "—"}</p></div>
-              {excavation.excavation_notes && (
-                <div className="md:col-span-2"><p className="text-xs text-white/30 uppercase tracking-wider mb-1">Excavation Notes</p><p className="text-white/80">{excavation.excavation_notes}</p></div>
-              )}
+              <MetadataValue label="Excavation Date" value={displayDate(excavation?.excavation_date)} />
+              <MetadataValue label="Excavation Phase" value={excavation?.excavation_phase} />
+              <MetadataValue label="Depth Found (m)" value={excavation?.depth_found} />
+              <MetadataValue label="Excavator Name" value={excavation?.excavator_name} />
+              <MetadataValue label="Excavation Notes" value={excavation?.excavation_notes} className="md:col-span-2" />
             </div>
           )}
         </div>
@@ -787,18 +1007,23 @@ export default function SpecimenDetailPage() {
         {/* Lab Dating */}
         <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6">
           <p className="text-xs text-white/30 uppercase tracking-widest mb-5">Laboratory Dating</p>
-          {!labDating ? (
-            <p className="text-white/25 text-sm">No laboratory dating results for this specimen.</p>
+          {editing ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div><label className={labelClass}>Dating Method</label><select name="dating_method" value={labDatingDraft.dating_method} onChange={(event) => setLabDatingDraft((draft) => ({ ...draft, dating_method: event.target.value }))} className={selectClass}><option value="">Select method</option>{DATING_METHODS.map((method) => <option key={method} value={method}>{method}</option>)}</select></div>
+              <div><label className={labelClass}>Date Result</label><input name="date_result" value={labDatingDraft.date_result} onChange={(event) => setLabDatingDraft((draft) => ({ ...draft, date_result: event.target.value }))} className={inputClass} /></div>
+              <div><label className={labelClass}>Date Range Min (BP)</label><input name="date_range_min" type="number" min="0" value={labDatingDraft.date_range_min} onChange={(event) => setLabDatingDraft((draft) => ({ ...draft, date_range_min: event.target.value }))} className={inputClass} /></div>
+              <div><label className={labelClass}>Date Range Max (BP)</label><input name="date_range_max" type="number" min="0" value={labDatingDraft.date_range_max} onChange={(event) => setLabDatingDraft((draft) => ({ ...draft, date_range_max: event.target.value }))} className={inputClass} /></div>
+              <div><label className={labelClass}>Lab Name</label><input name="lab_name" value={labDatingDraft.lab_name} onChange={(event) => setLabDatingDraft((draft) => ({ ...draft, lab_name: event.target.value }))} className={inputClass} /></div>
+              <div className="md:col-span-2"><label className={labelClass}>Result Notes</label><textarea name="result_notes" value={labDatingDraft.result_notes} onChange={(event) => setLabDatingDraft((draft) => ({ ...draft, result_notes: event.target.value }))} rows={3} className={inputClass + " resize-none"} /></div>
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8">
-              <div><p className="text-xs text-white/30 uppercase tracking-wider mb-1">Dating Method</p><p className="text-white/80">{labDating.dating_method || "—"}</p></div>
-              <div><p className="text-xs text-white/30 uppercase tracking-wider mb-1">Date Result</p><p className="text-white/80 font-mono">{labDating.date_result || "—"}</p></div>
-              <div><p className="text-xs text-white/30 uppercase tracking-wider mb-1">Date Range Min (BP)</p><p className="text-white/80 font-mono">{labDating.date_range_min ?? "—"}</p></div>
-              <div><p className="text-xs text-white/30 uppercase tracking-wider mb-1">Date Range Max (BP)</p><p className="text-white/80 font-mono">{labDating.date_range_max ?? "—"}</p></div>
-              <div><p className="text-xs text-white/30 uppercase tracking-wider mb-1">Lab Name</p><p className="text-white/80">{labDating.lab_name || "—"}</p></div>
-              {labDating.result_notes && (
-                <div className="md:col-span-2"><p className="text-xs text-white/30 uppercase tracking-wider mb-1">Result Notes</p><p className="text-white/80">{labDating.result_notes}</p></div>
-              )}
+              <MetadataValue label="Dating Method" value={labDating?.dating_method} />
+              <MetadataValue label="Date Result" value={labDating?.date_result} />
+              <MetadataValue label="Date Range Min (BP)" value={labDating?.date_range_min} />
+              <MetadataValue label="Date Range Max (BP)" value={labDating?.date_range_max} />
+              <MetadataValue label="Lab Name" value={labDating?.lab_name} />
+              <MetadataValue label="Result Notes" value={labDating?.result_notes} className="md:col-span-2" />
             </div>
           )}
         </div>

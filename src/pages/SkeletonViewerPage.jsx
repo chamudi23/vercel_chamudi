@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import SkeletonViewer from '../components/SkeletonViewer'
 import { supabase } from '../supabase'
 import {
+  CONTROLLED_BONE_CATEGORIES,
   EXPECTED_CATEGORY_SIDE_KEYS,
   categorySideKey,
   imageNotes,
@@ -70,9 +71,10 @@ function calculateCoverage(specimens, measurements, images) {
     const mappedCategoryCodes = new Set(mappedRows.map((sourceRow) => sourceRow.category.code))
 
     mappedRows.forEach((sourceRow) => {
-      const specimenSide = normalizeSide(specimen.side)
+      const rawSpecimenSide = String(specimen.side || '').trim()
+      const specimenSide = rawSpecimenSide ? normalizeSide(rawSpecimenSide) : ''
       const sourceSide = legacySideFromBoneName(sourceRow.value)
-      const side = specimenSide === 'Unknown' ? sourceSide : specimenSide
+      const side = specimenSide || (sourceRow.category.laterality === 'midline' ? 'Midline' : sourceSide)
       const key = categorySideKey(sourceRow.category.code, side)
       const groupedSide = parseCategorySideKey(key)?.side || side
       const specimenImages = imagesBySpecimen.get(specimen.specimen_id) || []
@@ -139,7 +141,9 @@ function calculateCoverage(specimens, measurements, images) {
     .filter((record) => record.status !== 'unknown')
     .map((record) => parseCategorySideKey(record.key)?.category.code)
     .filter(Boolean)).size
-  const coveragePercent = knownCount > 0 ? Math.round((documentedCount / knownCount) * 100) : 0
+  const supportedCategoryCount = CONTROLLED_BONE_CATEGORIES.length
+  const recordedCategoryCoveragePercent = supportedCategoryCount > 0 ? Math.round((knownCategoryCount / supportedCategoryCount) * 100) : 0
+  const imageDocumentationPercent = knownCount > 0 ? Math.round((documentedCount / knownCount) * 100) : 0
 
   return {
     statusData,
@@ -147,7 +151,9 @@ function calculateCoverage(specimens, measurements, images) {
     presentNoImageCount,
     knownCount,
     knownCategoryCount,
-    coveragePercent,
+    supportedCategoryCount,
+    recordedCategoryCoveragePercent,
+    imageDocumentationPercent,
     unmappedValues,
   }
 }
@@ -164,6 +170,34 @@ function SummaryCard({ label, value, tone = 'slate' }) {
     <div className={`min-w-0 rounded-md border p-3 ${tones[tone]}`}>
       <p className="text-xs opacity-55">{label}</p>
       <p className="mt-1 text-2xl font-bold">{value}</p>
+    </div>
+  )
+}
+
+function CoverageGauge({ label, percent, fraction, explanation, tone = 'cyan' }) {
+  const accent = tone === 'green' ? '#34d399' : '#67e8f9'
+  const safePercent = Math.max(0, Math.min(100, Number(percent) || 0))
+
+  return (
+    <div className="flex min-w-0 flex-col items-center rounded-md border border-white/10 bg-slate-950/70 p-4 text-center sm:flex-row sm:text-left">
+      <div
+        className="relative h-28 w-28 shrink-0 rounded-full p-2"
+        style={{ background: `conic-gradient(${accent} ${safePercent * 3.6}deg, rgba(255,255,255,0.08) 0deg)` }}
+        role="progressbar"
+        aria-label={`${label}: ${safePercent}%`}
+        aria-valuemin="0"
+        aria-valuemax="100"
+        aria-valuenow={safePercent}
+      >
+        <div className="flex h-full w-full items-center justify-center rounded-full bg-slate-950">
+          <span className="text-2xl font-bold text-white">{safePercent}%</span>
+        </div>
+      </div>
+      <div className="mt-3 min-w-0 sm:ml-5 sm:mt-0">
+        <h3 className="text-sm font-semibold text-white">{label}</h3>
+        <p className="mt-1 text-sm font-medium" style={{ color: accent }}>{fraction}</p>
+        <p className="mt-2 text-xs leading-5 text-white/45">{explanation}</p>
+      </div>
     </div>
   )
 }
@@ -370,22 +404,34 @@ export default function SkeletonViewerPage() {
           </div>
 
           <div className="rounded-md border border-white/10 bg-white/[0.03] p-5">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 className="text-base font-semibold">Category Documentation Coverage — not skeletal completeness.</h2>
-                <p className="mt-1 max-w-3xl text-xs leading-5 text-white/40">
-                  Documented known category-side groups divided by all known present category-side groups.
-                </p>
-              </div>
-              <p className="text-3xl font-bold text-cyan-200">
-                {hasSelection && coverage.knownCount > 0 ? `${coverage.coveragePercent}%` : '-'}
-              </p>
+            <h2 className="text-base font-semibold">Coverage Summary</h2>
+            <p id="recorded-group-help" className="mt-1 max-w-3xl text-xs leading-5 text-white/40" title="A recorded group is a saved bone category and side combination, such as Humerus — Left.">
+              A recorded group is a saved bone category and side combination, such as Humerus — Left.
+            </p>
+            <div className="mt-4 grid gap-3 xl:grid-cols-2" aria-describedby="recorded-group-help">
+              <CoverageGauge
+                label="Recorded Category Coverage"
+                percent={hasSelection ? coverage.recordedCategoryCoveragePercent : 0}
+                fraction={hasSelection ? `${coverage.knownCategoryCount} of ${coverage.supportedCategoryCount} supported categories recorded` : 'Select a skeleton to calculate coverage'}
+                explanation={hasSelection && coverage.knownCategoryCount === 0
+                  ? 'No supported bone categories have been registered for this skeleton.'
+                  : 'Distinct saved bone categories divided by the controlled catalogue. This is category coverage, not scientific skeletal completeness.'}
+              />
+              <CoverageGauge
+                label="Image Documentation"
+                percent={hasSelection ? coverage.imageDocumentationPercent : 0}
+                fraction={hasSelection ? `${coverage.documentedCount} of ${coverage.knownCount} recorded groups have images` : 'Select a skeleton to calculate coverage'}
+                explanation={hasSelection && coverage.knownCount === 0
+                  ? 'No bone records have been registered, so image documentation is 0%.'
+                  : 'Recorded category-side groups with linked images divided by all recorded category-side groups.'}
+                tone="green"
+              />
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
               <SummaryCard label="Saved bone categories" value={hasSelection ? coverage.knownCategoryCount : '-'} tone="cyan" />
-              <SummaryCard label="Known present groups" value={hasSelection ? coverage.knownCount : '-'} />
+              <SummaryCard label="Recorded category-side groups" value={hasSelection ? coverage.knownCount : '-'} />
               <SummaryCard label="Groups with linked images" value={hasSelection ? coverage.documentedCount : '-'} tone="green" />
-              <SummaryCard label="Present, awaiting images" value={hasSelection ? coverage.presentNoImageCount : '-'} tone="amber" />
+              <SummaryCard label="Recorded groups without images" value={hasSelection ? coverage.presentNoImageCount : '-'} tone="amber" />
             </div>
           </div>
         </section>
@@ -539,7 +585,7 @@ export default function SkeletonViewerPage() {
         </div>
 
         <p className="mt-6 text-center text-xs text-white/25">
-          The full catalogue contains 28 controlled categories. Unrecorded categories remain Not assessed. SVG source details are recorded in the local attribution file.
+          The full catalogue contains {CONTROLLED_BONE_CATEGORIES.length} controlled categories. Unrecorded categories remain Not assessed. SVG source details are recorded in the local attribution file.
         </p>
       </div>
     </main>

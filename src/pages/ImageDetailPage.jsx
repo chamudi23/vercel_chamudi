@@ -3,11 +3,21 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Pencil } from 'lucide-react'
 import { supabase } from '../supabase'
-import { imageNotes } from '../utils/pp1ImageModule'
+import { imageNotes, regionForBoneCategory } from '../utils/pp1ImageModule'
 
 function skeletonIdFor(image) {
-  if (!image?.specimen_id) return 'Unlinked image'
+  if (!image?.specimen_id) return 'Unlinked legacy image'
   return image.specimen?.skeleton_code?.trim() || 'Skeleton ID not assigned'
+}
+
+function boneCategoryFor(image) {
+  return image?.specimen_id
+    ? (image.specimen?.bone_type || image.specimen?.measurements?.find((measurement) => measurement.bone_type)?.bone_type || '')
+    : (image?.bone_name || '')
+}
+
+function sideFor(image) {
+  return image?.specimen_id ? (image.specimen?.side || '') : (image?.side || '')
 }
 
 function InfoRow({ label, value }) {
@@ -26,13 +36,13 @@ function RelatedImage({ image, onOpen }) {
     <button onClick={onOpen} className="group overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] text-left transition hover:border-violet-500/40">
       <div className="aspect-square overflow-hidden bg-black/30">
         {imageSrc ? (
-          <img src={imageSrc} alt={image.bone_name || 'Related skeletal image'} className="h-full w-full object-cover transition group-hover:scale-105" />
+          <img src={imageSrc} alt={boneCategoryFor(image) || 'Related skeletal image'} className="h-full w-full object-cover transition group-hover:scale-105" />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-xs text-white/35">No image</div>
         )}
       </div>
       <div className="p-2">
-        <p className="truncate text-xs font-medium text-white/80">{image.bone_name || '-'}</p>
+        <p className="truncate text-xs font-medium text-white/80">{boneCategoryFor(image) || '-'}</p>
         <p className="truncate text-[11px] text-white/35">{skeletonIdFor(image)}</p>
       </div>
     </button>
@@ -55,7 +65,7 @@ export default function ImageDetailPage() {
 
     const { data: imageData, error: imageError } = await supabase
       .from('bone_images')
-      .select('*, specimen:specimens!bone_images_specimen_id_fkey(specimen_id, skeleton_code)')
+      .select('*, specimen:specimens!bone_images_specimen_id_fkey(specimen_id, skeleton_code, bone_type, side, measurements(bone_type))')
       .eq('image_id', imageId)
       .maybeSingle()
 
@@ -76,13 +86,13 @@ export default function ImageDetailPage() {
         .order('annotated_at', { ascending: true }),
       supabase
         .from('bone_images')
-        .select('image_id, specimen_id, image_url, file_url, bone_name, side, specimen:specimens!bone_images_specimen_id_fkey(specimen_id, skeleton_code)')
+        .select('image_id, specimen_id, image_url, file_url, bone_name, side, specimen:specimens!bone_images_specimen_id_fkey(specimen_id, skeleton_code, bone_type, side, measurements(bone_type))')
         .eq('specimen_id', imageData.specimen_id || '')
         .neq('image_id', imageId)
         .limit(6),
       supabase
         .from('bone_images')
-        .select('image_id, specimen_id, image_url, file_url, bone_name, side, specimen:specimens!bone_images_specimen_id_fkey(specimen_id, skeleton_code)')
+        .select('image_id, specimen_id, image_url, file_url, bone_name, side, specimen:specimens!bone_images_specimen_id_fkey(specimen_id, skeleton_code, bone_type, side, measurements(bone_type))')
         .ilike('bone_name', `%${imageData.bone_name || ''}%`)
         .neq('image_id', imageId)
         .limit(6),
@@ -104,10 +114,10 @@ export default function ImageDetailPage() {
     ['Image ID', image?.image_id],
     ['Skeleton ID', skeletonIdFor(image)],
     ['Specimen ID', image?.specimen_id],
-    ['Bone Name', image?.bone_name],
-    ['Side', image?.side],
+    ['Bone Category', boneCategoryFor(image)],
+    ['Side', sideFor(image)],
     ['Condition Visible', image?.condition],
-    ['Skeleton Region', image?.skeleton_region],
+    ['Skeleton Region', image?.specimen_id ? regionForBoneCategory(boneCategoryFor(image)) : image?.skeleton_region],
     ['Image View', image?.image_view || image?.view_angle],
     ['Image Type', image?.image_type],
     ['Notes', imageNotes(image)],
@@ -145,7 +155,7 @@ export default function ImageDetailPage() {
         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <Link to="/gallery" className="text-sm text-violet-300 hover:underline">Back to gallery</Link>
-            <h1 className="mt-2 text-3xl font-bold">{image.bone_name || 'Skeletal Image Detail'}</h1>
+            <h1 className="mt-2 text-3xl font-bold">{boneCategoryFor(image) || 'Skeletal Image Detail'}</h1>
             <p className="mt-1 text-sm text-white/40">
               {skeletonIdFor(image)} - {image.image_id}
             </p>
@@ -181,7 +191,7 @@ export default function ImageDetailPage() {
           <section className="space-y-5">
             <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/30">
               {imageSrc ? (
-                <img src={imageSrc} alt={image.bone_name || 'Skeletal specimen'} className="max-h-[70vh] w-full object-contain" />
+                <img src={imageSrc} alt={boneCategoryFor(image) || 'Skeletal specimen'} className="max-h-[70vh] w-full object-contain" />
               ) : (
                 <div className="flex min-h-[360px] items-center justify-center text-sm text-white/35">
                   No image URL saved for this record.

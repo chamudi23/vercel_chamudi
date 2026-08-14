@@ -8,6 +8,7 @@ import {
   categorySideKey,
   categorySides,
   parseCategorySideKey,
+  skeletonViewsForMode,
 } from '../utils/pp1ImageModule'
 
 const VIEW_OPTIONS = ['Front', 'Back', 'Both']
@@ -357,7 +358,7 @@ export default function SkeletonViewer({ statusData = {}, selectedKey = '', onSe
     })
   }, [availableCategoryCodes, categoryMode, search])
 
-  const views = viewMode === 'Both' ? ['front', 'back'] : [viewMode.toLowerCase()]
+  const views = skeletonViewsForMode(viewMode)
   const showAllCategories = categoryMode === 'all'
 
   return (
