@@ -133,7 +133,6 @@ function SimilarFindingsPage() {
   const [knnResults,     setKnnResults]     = useState([])
   const [knnModel,       setKnnModel]       = useState(null)
   const [knnTrained,     setKnnTrained]     = useState(false)
-  const [knnTraining,    setKnnTraining]    = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -170,7 +169,6 @@ function SimilarFindingsPage() {
   // ── Train KNN Model ────────────────────────────────────────────────────────
   const trainKNN = () => {
     if (validFindings.length < 5) return
-    setKnnTraining(true)
 
     try {
       // Feature vectors: [length_cm, width_cm, bone_type_encoded, time_period_encoded]
@@ -189,10 +187,26 @@ function SimilarFindingsPage() {
       setKnnTrained(true)
     } catch (e) {
       console.error('KNN training error:', e)
-    } finally {
-      setKnnTraining(false)
     }
   }
+
+  // Auto-train whenever there's enough data or the requested K changes, so
+  // end users always see live results instead of a manual "train" step.
+  useEffect(() => {
+    if (validFindings.length >= 5) {
+      trainKNN()
+    } else {
+      setKnnTrained(false)
+      setKnnModel(null)
+    }
+  }, [validFindings, knnK])
+
+  // Re-run the query automatically against the freshly retrained model.
+  useEffect(() => {
+    if (knnModel && selectedSpec) {
+      runKNN(selectedSpec)
+    }
+  }, [knnModel])
 
   // ── Run KNN Prediction ─────────────────────────────────────────────────────
   const runKNN = (specimen) => {
@@ -303,12 +317,11 @@ function SimilarFindingsPage() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
         {[
           { label: 'Total Findings',    value: findings.length,      color: 'text-blue-400' },
           { label: 'Sites Covered',     value: new Set(findings.map(f => f.site_name)).size, color: 'text-emerald-400' },
           { label: 'Rule-Based Groups', value: ruleGroups.length,    color: 'text-purple-400' },
-          { label: 'KNN Training Data', value: validFindings.length, color: 'text-orange-400' },
         ].map(s => (
           <div key={s.label} className="bg-slate-800 rounded-xl p-5 border border-slate-700">
             <p className={`text-3xl font-bold ${s.color}`}>{s.value}</p>
@@ -574,7 +587,7 @@ function SimilarFindingsPage() {
               </label>
               <div className="flex gap-2">
                 {K_OPTIONS.map(k => (
-                  <button key={k} onClick={() => { setKnnK(k); setKnnTrained(false); setKnnResults([]); setSelectedSpec(null) }}
+                  <button key={k} onClick={() => setKnnK(k)}
                     className={`flex-1 py-2 rounded-lg border text-sm font-semibold transition-all ${
                       knnK === k
                         ? 'bg-blue-600 border-blue-500 text-white'
@@ -586,23 +599,8 @@ function SimilarFindingsPage() {
               </div>
             </div>
 
-            {/* Train button */}
-            <button
-              onClick={trainKNN}
-              disabled={knnTraining || validFindings.length < 5}
-              className={`w-full py-3 rounded-xl font-semibold text-sm transition-all ${
-                knnTrained
-                  ? 'bg-emerald-700 border border-emerald-600 text-emerald-200'
-                  : 'bg-blue-600 hover:bg-blue-500 text-white'
-              } disabled:bg-slate-600 disabled:cursor-not-allowed`}
-            >
-              {knnTraining ? '⏳ Training...' :
-               knnTrained  ? `✅ Model Trained — ${validFindings.length} specimens | K=${knnK} | Retrain` :
-               `🧠 Train KNN Model (${validFindings.length} specimens)`}
-            </button>
-
             {validFindings.length < 5 && (
-              <p className="text-red-400 text-xs mt-2">⚠️ Need at least 5 specimens with measurements to train.</p>
+              <p className="text-red-400 text-xs mt-2">⚠️ Need at least 5 specimens with measurements to run analysis.</p>
             )}
           </div>
 
@@ -709,12 +707,10 @@ function SimilarFindingsPage() {
               {/* Summary */}
               <div className="mt-6 bg-slate-800 rounded-xl border border-slate-700 p-5">
                 <h4 className="text-slate-200 font-semibold mb-3">📊 KNN Analysis Summary</h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   {[
                     { label: 'Neighbors Found', value: knnResults.length, color: 'text-blue-400' },
                     { label: 'Unique Sites',     value: new Set(knnResults.map(r => r.specimen.site_name)).size, color: 'text-emerald-400' },
-                    { label: 'Best Distance',    value: knnResults[0]?.distance.toFixed(3), color: 'text-purple-400' },
-                    { label: 'Avg Distance',     value: (knnResults.reduce((s, r) => s + r.distance, 0) / knnResults.length).toFixed(3), color: 'text-orange-400' },
                   ].map(s => (
                     <div key={s.label} className="bg-slate-700 rounded-lg p-3 text-center">
                       <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -735,11 +731,11 @@ function SimilarFindingsPage() {
             </div>
           )}
 
-          {!knnTrained && (
+          {!knnTrained && validFindings.length >= 5 && (
             <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
               <p className="text-slate-500 text-4xl mb-3">🧠</p>
-              <p className="text-slate-400 font-medium">Train the KNN model first</p>
-              <p className="text-slate-500 text-sm mt-1">Click "Train KNN Model" above to start</p>
+              <p className="text-slate-400 font-medium">Analyzing specimens...</p>
+              <p className="text-slate-500 text-sm mt-1">The model trains automatically</p>
             </div>
           )}
         </div>
