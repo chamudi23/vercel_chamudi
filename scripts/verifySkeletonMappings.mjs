@@ -5,8 +5,12 @@ import {
   SKELETON_ORIENTATION_MARKERS,
   SKELETON_SCREEN_SIDE_GROUPS,
   SKELETON_SVG_GROUPS,
+  categorySideKey,
+  normalizeBoneCategory,
   screenSideForAnatomicalSide,
+  skeletonStatusKeysForSvgKey,
   skeletonViewsForMode,
+  toggleBoneSelection,
 } from '../src/utils/pp1ImageModule.js'
 
 const expectedMappings = {
@@ -19,12 +23,17 @@ const expectedMappings = {
     FIBULA_LEFT: [225], FIBULA_RIGHT: [52],
   },
   back: {
+    MANDIBLE_MIDLINE: [94],
     HUMERUS_LEFT: [2], HUMERUS_RIGHT: [47],
     RADIUS_LEFT: [45], RADIUS_RIGHT: [49],
     ULNA_LEFT: [44], ULNA_RIGHT: [51],
     FEMUR_LEFT: [84], FEMUR_RIGHT: [87],
     TIBIA_LEFT: [201], TIBIA_RIGHT: [205],
     FIBULA_LEFT: [204], FIBULA_RIGHT: [208],
+    OTHER_TARSAL_LEFT: [222, 223, 224, 225, 226, 227],
+    OTHER_TARSAL_RIGHT: [210, 211, 212, 213, 214, 215],
+    METATARSAL_LEFT: [229, 230, 231], METATARSAL_RIGHT: [217, 218, 219],
+    FOOT_PHALANX_LEFT: [232], FOOT_PHALANX_RIGHT: [220],
   },
 }
 
@@ -37,6 +46,25 @@ assert.equal(screenSideForAnatomicalSide('back', 'Right'), 'right')
 assert.equal(screenSideForAnatomicalSide('front', 'Midline'), null)
 assert.equal(screenSideForAnatomicalSide('back', 'Unknown'), null)
 assert.deepEqual(skeletonViewsForMode('Both'), ['front', 'back'])
+assert.equal(categorySideKey('Mandible', 'Left'), 'MANDIBLE_MIDLINE')
+assert.equal(categorySideKey('Cranium', 'Right'), 'CRANIUM_MIDLINE')
+assert.equal(normalizeBoneCategory('Maxilla')?.code, 'CRANIUM')
+assert.equal(normalizeBoneCategory('Molar')?.code, 'MANDIBLE')
+assert.equal(normalizeBoneCategory('Premolar')?.code, 'MANDIBLE')
+assert.equal(normalizeBoneCategory('Phalanx')?.code, 'FOOT_PHALANX')
+assert.ok(skeletonStatusKeysForSvgKey('OTHER_TARSAL_RIGHT').includes('TALUS_RIGHT'))
+assert.ok(skeletonStatusKeysForSvgKey('OTHER_TARSAL_RIGHT').includes('CALCANEUS_RIGHT'))
+assert.ok(skeletonStatusKeysForSvgKey('RIB_UNKNOWN').includes('RIB_LEFT'))
+assert.ok(skeletonStatusKeysForSvgKey('OS_COXA_UNKNOWN').includes('OS_COXA_RIGHT'))
+
+for (const category of ['MANDIBLE_MIDLINE', 'OTHER_TARSAL_LEFT', 'OTHER_TARSAL_RIGHT', 'METATARSAL_LEFT', 'METATARSAL_RIGHT', 'FOOT_PHALANX_LEFT', 'FOOT_PHALANX_RIGHT']) {
+  assert.ok(SKELETON_SVG_GROUPS.back[category]?.length, `${category} must be visible in the back view`)
+}
+assert.equal(SKELETON_SVG_GROUPS.back.PATELLA_LEFT, undefined, 'posterior SVG must not colour the femur as a patella proxy')
+assert.equal(SKELETON_SVG_GROUPS.back.PATELLA_RIGHT, undefined, 'posterior SVG must not colour the femur as a patella proxy')
+assert.equal(toggleBoneSelection('', 'PATELLA_LEFT'), 'PATELLA_LEFT')
+assert.equal(toggleBoneSelection('PATELLA_LEFT', 'PATELLA_LEFT'), '')
+assert.equal(toggleBoneSelection('PATELLA_LEFT', ''), '')
 
 for (const view of ['front', 'back']) {
   for (const side of ['Left', 'Right']) {

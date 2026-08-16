@@ -134,11 +134,11 @@ function AddSpecimenPage() {
       <div className="mb-8 flex items-start justify-between flex-wrap gap-4">
         <div>
           <p className="text-blue-400 text-xs font-medium uppercase tracking-widest mb-2">
-            IT22889874 — Parami's Module
+            Spatial Records
           </p>
           <h2 className="text-2xl font-bold text-slate-100">Add Skeletal Specimen</h2>
           <p className="text-slate-400 text-sm mt-1">
-            Record new skeletal specimen data to the OAHRIS specimens database
+            Record new skeletal specimen data for spatial analysis
           </p>
         </div>
         <div className="flex gap-3">
@@ -155,7 +155,7 @@ function AddSpecimenPage() {
             <span className="text-emerald-400 text-xl">✅</span>
             <div>
               <p className="text-emerald-200 font-semibold">Specimen added successfully!</p>
-              <p className="text-emerald-400 text-sm">All fields saved to the specimens database.</p>
+              <p className="text-emerald-400 text-sm">All specimen fields were saved successfully.</p>
             </div>
           </div>
           <div className="flex gap-3">

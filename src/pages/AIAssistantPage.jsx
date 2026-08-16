@@ -126,7 +126,7 @@ export default function AIAssistantPage() {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      text: 'Ask me to find PP1 image records by skeleton code, bone name, or condition. I search bone_images directly.',
+      text: 'Ask me to find image records by skeleton code, bone name, or condition.',
     },
   ])
 
@@ -221,15 +221,15 @@ export default function AIAssistantPage() {
       <div className="mx-auto flex min-h-[calc(100vh-73px)] max-w-6xl flex-col px-5 py-8 sm:px-8">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300/70">PP1 Retrieval Assistant</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300/70">Image Retrieval Assistant</p>
             <h1 className="mt-2 text-3xl font-bold">AI Assistant</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-white/45">
-              Chat-style image retrieval over `bone_images` using skeleton code, bone name, and condition.
+              Chat-style image retrieval using skeleton code, bone name, and condition.
             </p>
           </div>
           <div className="hidden rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white/55 md:flex md:items-center md:gap-2">
             <Sparkles className="h-4 w-4 text-emerald-200" />
-            Direct bone_images search
+            Direct record search
           </div>
         </div>
 
@@ -245,7 +245,7 @@ export default function AIAssistantPage() {
                   <Bot className="h-4 w-4" />
                 </div>
                 <div className="rounded-3xl border border-white/10 bg-white/[0.04] px-5 py-4 text-sm text-white/60">
-                  Searching bone_images...
+                  Searching image records...
                 </div>
               </div>
             )}

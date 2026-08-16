@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import BonePage from './pages/BonePage'
 import HomePage from './pages/HomePage'
 import BoneDetailPage from './pages/BoneDetailPage'
@@ -35,42 +35,11 @@ import SkeletalBoneFeatureGuide from './pages/Knowledge/KgcBoneFeatureGuide';
 import SkeletalCourse from './pages/Knowledge/KgcCourse';
 import { AnalysisProvider } from './context/AnalysisContext';
 import { AuthProvider } from './context/AuthContext';
+import AppLayout from './components/layout/AppLayout';
 
-function App() {
+function ApplicationRoutes() {
   return (
-    <AuthProvider>
-    <AnalysisProvider>
-    <BrowserRouter>
-      <div className="min-h-screen bg-slate-900 text-slate-100">
-
-        <div className="bg-slate-800 border-b border-slate-700 px-8 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-blue-400">OAHRIS</h1>
-            <p className="text-slate-400 text-xs">
-              Osteoarchaeological Research Information System
-            </p>
-          </div>
-          <nav className="flex gap-6">
-            <Link to="/"
-              className="text-slate-300 hover:text-blue-400 transition-colors">
-              Home
-            </Link>
-            <Link to="/bones"
-              className="text-slate-300 hover:text-blue-400 transition-colors">
-              Bone Records
-            </Link>
-            <Link to="/search"
-              className="text-slate-300 hover:text-blue-400 transition-colors">
-              Image Search
-            </Link>
-            <Link to="/skeleton"
-              className="text-slate-300 hover:text-blue-400 transition-colors">
-              Skeleton Viewer
-            </Link>
-          </nav>
-        </div>
-
-        <Routes>
+    <Routes>
           {/* Main OAHRIS Routes */}
           <Route path="/" element={<HomePage />} />
           <Route path="/bones" element={<BonePage />} />
@@ -112,11 +81,33 @@ function App() {
           <Route path="/skeletal/knowledge/tutorial" element={<SkeletalNewAnalysisTutorial />} />
           <Route path="/skeletal/knowledge/guide" element={<SkeletalBoneFeatureGuide />} />
           <Route path="/skeletal/knowledge/course" element={<SkeletalCourse />} />
-        </Routes>
+    </Routes>
+  )
+}
 
-      </div>
-    </BrowserRouter>
-    </AnalysisProvider>
+function AppContent() {
+  const { pathname } = useLocation()
+  const isSkeletalModule = pathname.startsWith('/skeletal')
+
+  if (isSkeletalModule) {
+    return <ApplicationRoutes />
+  }
+
+  return (
+    <AppLayout>
+      <ApplicationRoutes />
+    </AppLayout>
+  )
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AnalysisProvider>
+        <BrowserRouter>
+          <AppContent />
+        </BrowserRouter>
+      </AnalysisProvider>
     </AuthProvider>
   )
 }

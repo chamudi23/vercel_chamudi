@@ -8,6 +8,7 @@ import {
   categorySideKey,
   categorySides,
   parseCategorySideKey,
+  skeletonStatusKeysForSvgKey,
   skeletonViewsForMode,
 } from '../utils/pp1ImageModule'
 
@@ -94,15 +95,15 @@ function prepareSvg(svgText, view, statusData, selectedKey, showAllCategories) {
   svg.prepend(style)
 
   Object.entries(SKELETON_SVG_GROUPS[view] || {}).forEach(([key, groupIndexes]) => {
-    const mappedParts = parseCategorySideKey(key)
-    const unknownKey = mappedParts ? categorySideKey(mappedParts.category.code, 'Unknown') : ''
-    const directRecord = statusData[key]
-    const unknownSideRecord = statusData[unknownKey]
-    const useUnknownSideRecord = directRecord?.status === 'unknown'
-      && unknownSideRecord?.status
-      && unknownSideRecord.status !== 'unknown'
-    const interactionKey = useUnknownSideRecord ? unknownKey : key
-    const record = useUnknownSideRecord ? unknownSideRecord : directRecord
+    const statusKeys = skeletonStatusKeysForSvgKey(key)
+    const selectedStatusKey = statusKeys.find((statusKey) => (
+      statusKey === selectedKey && statusData[statusKey]?.status !== 'unknown'
+    ))
+    const firstKnownStatusKey = statusKeys.find((statusKey) => (
+      statusData[statusKey]?.status && statusData[statusKey].status !== 'unknown'
+    ))
+    const interactionKey = selectedStatusKey || firstKnownStatusKey || key
+    const record = statusData[interactionKey] || statusData[key]
     const baseStatus = record?.status || 'unknown'
     if (!showAllCategories && baseStatus === 'unknown') return
 
@@ -301,9 +302,13 @@ function InteractiveSvg({ view, statusData, selectedKey, showAllCategories, onSe
             return
           }
           const key = findBoneKey(event.target)
-          if (key) onSelect(key)
+          onSelect(key || '')
         }}
         onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            onSelect('')
+            return
+          }
           if (event.key !== 'Enter' && event.key !== ' ') return
           const key = findBoneKey(event.target)
           if (!key) return
@@ -384,12 +389,7 @@ export default function SkeletonViewer({ statusData = {}, selectedKey = '', onSe
           <div className="inline-flex w-fit rounded-md border border-white/10 bg-slate-950 p-1" aria-label="Bone category filter">
             <button
               type="button"
-              onClick={() => {
-                setCategoryMode('available')
-                if (statusData[selectedKey]?.status === 'unknown' || !statusData[selectedKey]) {
-                  onSelect(availableKeys[0] || '')
-                }
-              }}
+              onClick={() => setCategoryMode('available')}
               className={`rounded px-3 py-1.5 text-xs font-semibold transition ${categoryMode === 'available' ? 'bg-white text-slate-950' : 'text-white/55 hover:text-white'}`}
               aria-pressed={categoryMode === 'available'}
             >

@@ -1,7 +1,6 @@
 /* eslint-disable react/prop-types */
 import { Link } from 'react-router-dom'
 import {
-  ArrowLeft,
   ArrowRight,
   Bone,
   BrainCircuit,
@@ -55,7 +54,7 @@ const subModules = [
     icon: Layers,
     title: 'Skeleton Viewer',
     description:
-      'Click exact PP1 bone labels in the interactive 2D skeleton map to retrieve linked specimen images from bone_images.',
+      'Select anatomical regions in the interactive skeleton map to retrieve linked specimen images.',
     tags: ['2D Skeleton', 'Bone Linkage', 'Bone Map', 'Interactive'],
     link: '/skeleton',
     image: imageUrls.viewer,
@@ -66,7 +65,7 @@ const subModules = [
     icon: BrainCircuit,
     title: 'Retrieval Assistant',
     description:
-      'Ask PP1-safe natural language retrieval questions about skeletal image records, bone conditions, skeleton codes, and sites.',
+      'Ask natural-language retrieval questions about skeletal image records, bone conditions, skeleton codes, and sites.',
     tags: ['Natural Language', 'Query', 'Rule Based'],
     link: '/ai-assistant',
     image: imageUrls.assistant,
@@ -80,16 +79,6 @@ const moduleStats = [
   { value: 'Metadata', title: 'Driven', label: 'Retrieval System' },
   { value: '2D', title: 'Linked', label: 'Skeleton Viewer' },
   { value: 'Rules', title: 'Based', label: 'Query Interface' },
-]
-
-const pp1Progress = [
-  ['Image upload', 'Completed'],
-  ['Supabase storage + metadata', 'Completed / In progress'],
-  ['Gallery retrieval', 'Completed'],
-  ['Image detail view', 'Completed'],
-  ['2D skeleton image linkage', 'Prototype'],
-  ['Retrieval assistant', 'Prototype'],
-  ['Full RAG assistant', 'Planned after PP1'],
 ]
 
 const workflowSteps = [
@@ -223,16 +212,6 @@ function IlshanModulePage() {
             </div>
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.18em] text-white/30">
-            <Link to="/" className="inline-flex items-center gap-2 transition hover:text-violet-300">
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Back to Home
-            </Link>
-            <span>/</span>
-            <span>Modules</span>
-            <span>/</span>
-            <span className="text-white/45">Skeletal Image Documentation</span>
-          </div>
         </div>
       </section>
 
@@ -269,39 +248,6 @@ function IlshanModulePage() {
               <p className="mt-1 text-xs text-white/40">{stat.label}</p>
             </div>
           ))}
-        </div>
-      </section>
-
-      <section className="px-5 py-10 sm:px-8">
-        <div className="mx-auto max-w-6xl rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-300/70">
-                PP1 Progress
-              </p>
-              <h2 className="mt-2 text-2xl font-semibold text-white">Prototype scope status</h2>
-            </div>
-            <p className="max-w-lg text-sm leading-6 text-white/45">
-              PP1 focuses on Supabase-backed upload, retrieval, image detail, 2D linkage, and rule-based querying.
-            </p>
-          </div>
-
-          <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
-            {pp1Progress.map(([item, status]) => (
-              <div key={item} className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-slate-950/60 px-4 py-3">
-                <span className="text-sm text-white/70">{item}</span>
-                <span className={`rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${
-                  status.includes('Completed')
-                    ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-200'
-                    : status.includes('Planned')
-                      ? 'border-white/10 bg-white/[0.04] text-white/40'
-                      : 'border-violet-400/25 bg-violet-400/10 text-violet-200'
-                }`}>
-                  {status}
-                </span>
-              </div>
-            ))}
-          </div>
         </div>
       </section>
 
@@ -361,12 +307,6 @@ function IlshanModulePage() {
         </div>
       </section>
 
-      <footer className="border-t border-white/10 px-5 py-8 sm:px-8">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2 text-xs text-white/20 md:flex-row md:items-center md:justify-between">
-          <p>OAHRIS - IT4010 Research Project &middot; SLIIT &middot; 2026</p>
-          <p>Skeletal Image Documentation Module</p>
-        </div>
-      </footer>
     </main>
   )
 }

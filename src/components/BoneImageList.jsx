@@ -49,11 +49,14 @@ export default function BoneImageList({ specimenId, specimen: specimenProp = nul
       .eq('specimen_id', specimenId)
       .order('uploaded_at', { ascending: false })
 
-    setImages(data || [])
-    setDrafts(Object.fromEntries((data || []).map((image) => [image.image_id, attachmentMetadataFromImage(image)])))
+    const loadedImages = data || []
+    setImages(loadedImages)
+    setDrafts(Object.fromEntries(loadedImages.map((image) => [image.image_id, attachmentMetadataFromImage(image)])))
+    const metadataOnlyImage = loadedImages.find((image) => !image.image_url && !image.file_url)
+    if (addMode && metadataOnlyImage) setUploadForm(attachmentMetadataFromImage(metadataOnlyImage))
     setError(loadError?.message || '')
     setLoading(false)
-  }, [specimenId])
+  }, [addMode, specimenId])
 
   useEffect(() => {
     loadImages()
@@ -136,7 +139,7 @@ export default function BoneImageList({ specimenId, specimen: specimenProp = nul
     const publicUrl = publicUrlData.publicUrl
     const { error: updateError } = await supabase
       .from('bone_images')
-      .update({ image_url: publicUrl, file_url: publicUrl })
+      .update({ image_url: publicUrl, file_url: publicUrl, uploaded_at: new Date().toISOString() })
       .eq('image_id', image.image_id)
 
     if (updateError) {
@@ -207,7 +210,8 @@ export default function BoneImageList({ specimenId, specimen: specimenProp = nul
 
     setBusyId('upload')
     setMessage(null)
-    const imageId = `IMG-${Date.now()}`
+    const metadataOnlyImage = images.find((image) => !image.image_url && !image.file_url)
+    const imageId = metadataOnlyImage?.image_id || `IMG-${Date.now()}`
     const safeName = uploadFile.name.replace(/[^\w.-]+/g, '_')
     const storagePath = `skeletons/${specimenId}/${imageId}_${safeName}`
     const { error: uploadError } = await supabase.storage.from('bone-images').upload(storagePath, uploadFile, { upsert: false })
@@ -227,11 +231,13 @@ export default function BoneImageList({ specimenId, specimen: specimenProp = nul
       file_url: publicUrl,
       uploaded_at: new Date().toISOString(),
     }
-    const { error: insertError } = await supabase.from('bone_images').insert(payload)
-    if (insertError) {
+    const { error: saveError } = metadataOnlyImage
+      ? await supabase.from('bone_images').update(payload).eq('image_id', metadataOnlyImage.image_id)
+      : await supabase.from('bone_images').insert(payload)
+    if (saveError) {
       await supabase.storage.from('bone-images').remove([storagePath])
       setBusyId('')
-      setMessage({ type: 'error', text: insertError.message })
+      setMessage({ type: 'error', text: saveError.message })
       return
     }
 

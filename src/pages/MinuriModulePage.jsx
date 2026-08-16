@@ -33,7 +33,7 @@ const features = [
     id: 3,
     title: "Specimen Detail",
     description:
-      "View full specimen metadata, all linked measurements, data completeness score, and a link to Ilshan's image module for that skeleton.",
+      "View full specimen metadata, linked measurements, data completeness, and the image documentation associated with that skeleton.",
     route: "/specimens/:id",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-7 h-7">
@@ -48,7 +48,7 @@ const features = [
     id: 4,
     title: "Data Import",
     description:
-      "Upload a CSV file of bulk specimen records. Preview, validate, and confirm before saving to Supabase. Errors are shown before commit.",
+      "Upload a CSV file of bulk specimen records. Preview, validate, and confirm before saving. Errors are shown before import.",
     route: "/specimens/import",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-7 h-7">
@@ -79,27 +79,13 @@ export default function MinuriModulePage() {
 
   return (
     <div className="min-h-screen bg-[#0f1a14] text-white font-sans">
-      {/* Top nav bar */}
-      <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between">
-        <button
-          onClick={() => navigate("/")}
-          className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          Back to OAHRIS Home
-        </button>
-        <span className="text-xs text-white/30 tracking-widest uppercase">IT22159908 — Minuri</span>
-      </div>
-
       {/* Header */}
       <div className="max-w-5xl mx-auto px-6 pt-14 pb-10">
         {/* Subtle top tag */}
         <div className="flex items-center gap-2 mb-5">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           <span className="text-xs tracking-[0.2em] uppercase text-emerald-400/80">
-            Data Integration Module
+            Data Integration
           </span>
         </div>
 
@@ -111,26 +97,10 @@ export default function MinuriModulePage() {
 
         <p className="mt-4 text-white/50 max-w-xl leading-relaxed text-sm">
           Integrate osteoarchaeological data from multiple sources into a
-          centralized database. Manage specimen records, run validation checks,
+          centralized collection. Manage specimen records, run validation checks,
           and monitor data completeness across the collection.
         </p>
 
-        {/* Quick stats strip */}
-        <div className="flex flex-wrap gap-4 mt-8">
-          {[
-            { label: "Database Tables", value: "3" },
-            { label: "Pages", value: "5" },
-            { label: "Module", value: "Minuri" },
-          ].map((s) => (
-            <div
-              key={s.label}
-              className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-lg px-4 py-2"
-            >
-              <span className="text-xl font-bold text-emerald-400">{s.value}</span>
-              <span className="text-xs text-white/40 uppercase tracking-wider">{s.label}</span>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Cards grid */}
@@ -195,28 +165,6 @@ export default function MinuriModulePage() {
           ))}
         </div>
 
-        {/* DB tables info strip */}
-        <div className="mt-8 border border-white/10 rounded-2xl p-6 bg-white/[0.02]">
-          <p className="text-xs text-white/30 uppercase tracking-widest mb-4">Supabase Tables</p>
-          <div className="flex flex-wrap gap-3">
-            {[
-              { name: "specimens", desc: "Core record — all metadata" },
-              { name: "measurements", desc: "Bone measurements per specimen" },
-              { name: "data_quality_log", desc: "Validation issues & status" },
-            ].map((t) => (
-              <div
-                key={t.name}
-                className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3"
-              >
-                <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                <div>
-                  <p className="text-xs font-mono text-emerald-300">{t.name}</p>
-                  <p className="text-[10px] text-white/30">{t.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );

@@ -12,6 +12,7 @@ import {
   normalizeBoneCategory,
   normalizeSide,
   parseCategorySideKey,
+  toggleBoneSelection,
 } from '../utils/pp1ImageModule'
 
 const IMAGE_COLUMNS = 'image_id, specimen_id, skeleton_code, image_url, file_url, bone_name, side, condition, skeleton_region, image_view, image_type, notes, image_notes'
@@ -24,6 +25,10 @@ const STATUS_LABELS = {
 
 function isFragmented(value) {
   return String(value || '').toLowerCase().includes('fragment')
+}
+
+function hasUploadedImage(image) {
+  return Boolean(String(image?.image_url || '').trim() || String(image?.file_url || '').trim())
 }
 
 function addUnmappedValue(target, value, source, specimenId = '') {
@@ -53,10 +58,10 @@ function calculateCoverage(specimens, measurements, images) {
   specimens.forEach((specimen) => {
     const specimenMeasurements = measurementsBySpecimen.get(specimen.specimen_id) || []
     const sourceRows = specimen.bone_type
-      ? [{ value: specimen.bone_type, source: 'specimens.bone_type' }]
+      ? [{ value: specimen.bone_type, source: 'Specimen record' }]
       : specimenMeasurements
         .filter((measurement) => measurement.bone_type)
-        .map((measurement) => ({ value: measurement.bone_type, source: 'measurements.bone_type' }))
+        .map((measurement) => ({ value: measurement.bone_type, source: 'Measurement record' }))
 
     sourceRows.forEach((sourceRow) => addUnmappedValue(
       unmappedValues,
@@ -79,6 +84,7 @@ function calculateCoverage(specimens, measurements, images) {
       const groupedSide = parseCategorySideKey(key)?.side || side
       const specimenImages = imagesBySpecimen.get(specimen.specimen_id) || []
       const matchingImages = specimenImages.filter((image) => {
+        if (!hasUploadedImage(image)) return false
         if (mappedCategoryCodes.size === 1) return true
         const imageCategory = normalizeBoneCategory(image.bone_name)
         return imageCategory?.code === sourceRow.category.code
@@ -114,7 +120,7 @@ function calculateCoverage(specimens, measurements, images) {
   images.forEach((image) => addUnmappedValue(
     unmappedValues,
     image.bone_name,
-    'bone_images.bone_name',
+    'Image record',
     image.specimen_id,
   ))
 
@@ -337,27 +343,15 @@ export default function SkeletonViewerPage() {
       .sort((a, b) => a.value.localeCompare(b.value))
   }, [coverage.unmappedValues])
 
-  useEffect(() => {
-    if (!selectedSkeletonCode || loadingCoverage) return
-
-    const knownRecords = Object.values(coverage.statusData)
-      .filter((record) => record.status === 'documented' || record.status === 'present_no_image')
-      .sort((a, b) => {
-        if (a.status === b.status) return a.key.localeCompare(b.key)
-        return a.status === 'documented' ? -1 : 1
-      })
-
-    setSelectedKey((currentKey) => {
-      if (coverage.statusData[currentKey]?.status && coverage.statusData[currentKey].status !== 'unknown') return currentKey
-      return knownRecords[0]?.key || ''
-    })
-  }, [coverage.statusData, loadingCoverage, selectedSkeletonCode])
-
   const selectedRecord = selectedKey
     ? coverage.statusData[selectedKey] || { status: 'unknown', specimenIds: [], images: [], sourceValues: [], conditionValues: [], fragmented: false }
     : null
   const selectedParts = parseCategorySideKey(selectedKey)
   const hasSelection = Boolean(selectedSkeletonCode)
+  const uploadedImageCount = images.filter(hasUploadedImage).length
+  const handleBoneSelect = (requestedKey) => {
+    setSelectedKey((currentKey) => toggleBoneSelection(currentKey, requestedKey))
+  }
 
   const selectClass = 'w-full rounded-md border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none transition focus:border-cyan-300/60 disabled:cursor-not-allowed disabled:opacity-50'
 
@@ -365,7 +359,7 @@ export default function SkeletonViewerPage() {
     <main className="min-h-screen bg-slate-950 px-4 py-8 text-white sm:px-7">
       <div className="mx-auto max-w-[1500px]">
         <header className="mb-6">
-          <p className="text-xs font-semibold text-cyan-300/70">PP1 Image Documentation</p>
+          <p className="text-xs font-semibold text-cyan-300/70">Image Documentation</p>
           <h1 className="mt-2 text-3xl font-bold">Skeleton Documentation Coverage Viewer</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-white/45">
             Category-level documentation for saved specimen bones and images linked through specimen ID.
@@ -399,7 +393,7 @@ export default function SkeletonViewerPage() {
             </label>
             <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
               <DetailLine label="Specimen records" value={hasSelection ? specimens.length : '-'} />
-              <DetailLine label="Linked images" value={hasSelection ? images.length : '-'} />
+              <DetailLine label="Linked images" value={hasSelection ? uploadedImageCount : '-'} />
             </div>
           </div>
 
@@ -452,7 +446,7 @@ export default function SkeletonViewerPage() {
               key={selectedSkeletonCode}
               statusData={coverage.statusData}
               selectedKey={selectedKey}
-              onSelect={setSelectedKey}
+              onSelect={handleBoneSelect}
             />
           )}
         </section>
@@ -478,6 +472,13 @@ export default function SkeletonViewerPage() {
                   {selectedRecord.fragmented && (
                     <span className="rounded-md border border-red-300/40 bg-red-300/10 px-2.5 py-1 text-xs font-semibold text-red-100">Fragmented</span>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedKey('')}
+                    className="rounded-md border border-white/15 bg-slate-950 px-2.5 py-1 text-xs font-semibold text-white/65 transition hover:border-cyan-300/40 hover:text-white"
+                  >
+                    Clear selection
+                  </button>
                 </div>
               )}
             </div>
@@ -544,7 +545,9 @@ export default function SkeletonViewerPage() {
                 <p className="flex items-center gap-3 text-white/70"><span className="h-3 w-3 rounded-sm bg-emerald-400" /> Documented</p>
                 <p className="flex items-center gap-3 text-white/70"><span className="h-3 w-3 rounded-sm bg-amber-400" /> Present, no image</p>
                 <p className="flex items-center gap-3 text-white/70"><span className="h-3 w-3 rounded-sm bg-slate-500" /> Not assessed</p>
-                <p className="flex items-center gap-3 text-white/70"><span className="h-3 w-3 rounded-sm border-2 border-sky-300 shadow-[0_0_6px_rgba(56,189,248,0.8)]" /> Selected outline</p>
+                {selectedKey && (
+                  <p className="flex items-center gap-3 text-white/70"><span className="h-3 w-3 rounded-sm border-2 border-sky-300 shadow-[0_0_6px_rgba(56,189,248,0.8)]" /> Selected outline</p>
+                )}
                 <p className="flex items-center gap-3 text-white/70"><span className="h-3 w-3 rounded-sm border-2 border-dashed border-red-400" /> Fragmented condition</p>
               </div>
             </section>
@@ -569,7 +572,7 @@ export default function SkeletonViewerPage() {
 
             {uniqueUnmappedValues.length > 0 && (
               <section className="rounded-md border border-cyan-300/20 bg-cyan-300/10 p-5">
-                <h2 className="text-sm font-semibold text-cyan-50">Unmapped database values</h2>
+                <h2 className="text-sm font-semibold text-cyan-50">Unmapped record values</h2>
                 <p className="mt-2 text-xs leading-5 text-cyan-50/60">These values were kept visible and were not guessed into a category.</p>
                 <div className="mt-3 space-y-2">
                   {uniqueUnmappedValues.map((item) => (

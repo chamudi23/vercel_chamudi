@@ -85,7 +85,7 @@ export default function ImageUploadPage() {
         .select('specimen_id, skeleton_code, bone_type, side, preservation_state, measurements(bone_type)')
         .order('skeleton_code', { ascending: true })
         .order('specimen_id', { ascending: true }),
-      supabase.from('bone_images').select('image_id, specimen_id'),
+      supabase.from('bone_images').select('image_id, specimen_id, image_url, file_url'),
     ])
 
     if (specimenResult.error || imageResult.error) {
@@ -97,6 +97,8 @@ export default function ImageUploadPage() {
     const imageCounts = new Map()
     let unlinked = 0
     ;(imageResult.data || []).forEach((image) => {
+      const hasUploadedFile = Boolean(image.image_url?.trim() || image.file_url?.trim())
+      if (!hasUploadedFile) return
       if (!image.specimen_id) {
         unlinked += 1
         return
@@ -160,7 +162,7 @@ export default function ImageUploadPage() {
     <main className="min-h-screen bg-slate-950 px-5 py-8 text-white sm:px-8">
       <div className="mx-auto max-w-7xl">
         <div className="mb-7">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-300/70">PP1 Image Documentation</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-300/70">Image Documentation</p>
           <h1 className="mt-2 text-3xl font-bold">Upload Image</h1>
           <p className="mt-2 max-w-3xl text-sm text-white/45">Select a saved skeleton and specimen, then attach an image. Bone identity remains owned by the Specimen Record.</p>
         </div>

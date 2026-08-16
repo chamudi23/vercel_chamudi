@@ -300,7 +300,7 @@ function SimilarFindingsPage() {
       <div className="mb-8 flex items-start justify-between flex-wrap gap-4">
         <div>
           <p className="text-blue-400 text-xs font-medium uppercase tracking-widest mb-2">
-            IT22889874 — Parami's Module
+            Spatial Analysis
           </p>
           <h2 className="text-2xl font-bold text-slate-100">Similar Bone Findings Analysis</h2>
           <p className="text-slate-400 text-sm mt-1">

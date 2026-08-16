@@ -84,7 +84,15 @@ const CATEGORY_BY_LABEL = new Map(CONTROLLED_BONE_CATEGORIES.map((category) => [
 const LEGACY_CATEGORY_ALIASES = new Map([
   ['skull', 'CRANIUM'],
   ['cranium', 'CRANIUM'],
+  ['maxilla', 'CRANIUM'],
+  ['maxillary bone', 'CRANIUM'],
   ['mandible', 'MANDIBLE'],
+  ['molar', 'MANDIBLE'],
+  ['molar tooth', 'MANDIBLE'],
+  ['premolar', 'MANDIBLE'],
+  ['premolar tooth', 'MANDIBLE'],
+  ['tooth', 'MANDIBLE'],
+  ['teeth', 'MANDIBLE'],
   ['hyoid', 'HYOID'],
   ['cervical vertebra', 'CERVICAL_VERTEBRA'],
   ['cervical vertebrae', 'CERVICAL_VERTEBRA'],
@@ -128,6 +136,8 @@ const LEGACY_CATEGORY_ALIASES = new Map([
   ['phalanx proximal (foot)', 'FOOT_PHALANX'],
   ['foot phalanx', 'FOOT_PHALANX'],
   ['foot phalanges', 'FOOT_PHALANX'],
+  ['pedal phalanx', 'FOOT_PHALANX'],
+  ['phalanx', 'FOOT_PHALANX'],
 ])
 
 export function getCategoryByCode(code) {
@@ -164,7 +174,7 @@ export function legacySideFromBoneName(value) {
 export function categorySideKey(categoryOrCode, side) {
   const category = getCategoryByCode(categoryOrCode) || normalizeBoneCategory(categoryOrCode)
   if (!category) return ''
-  const normalizedSide = normalizeSide(side)
+  const normalizedSide = category.laterality === 'midline' ? 'Midline' : normalizeSide(side)
   return `${category.code}_${normalizedSide.toUpperCase()}`
 }
 
@@ -252,6 +262,11 @@ export function skeletonViewsForMode(mode) {
   return view === 'front' || view === 'back' ? [view] : []
 }
 
+export function toggleBoneSelection(currentKey, requestedKey) {
+  if (!requestedKey || currentKey === requestedKey) return ''
+  return requestedKey
+}
+
 // These group indexes refer to unmodified source groups in the two attributed SVG files.
 // Only groups that were visually checked against the source drawing are included.
 const SKELETON_NONSIDED_SVG_GROUPS = {
@@ -268,6 +283,10 @@ const SKELETON_NONSIDED_SVG_GROUPS = {
   },
   back: {
     CRANIUM_MIDLINE: [93],
+    // The posterior artwork combines the lower face into one nested group.
+    // Using that group keeps mandible/tooth records visible without colouring
+    // the entire cranium proxy used above.
+    MANDIBLE_MIDLINE: [94],
   },
 }
 
@@ -296,8 +315,16 @@ export const SKELETON_SCREEN_SIDE_GROUPS = {
     RADIUS: { left: [45], right: [49] },
     ULNA: { left: [44], right: [51] },
     FEMUR: { left: [84], right: [87] },
+    // Patella is intentionally omitted: it is anterior and the posterior SVG
+    // has no isolated patella shape. Mapping its parent would colour the femur.
     TIBIA: { left: [201], right: [205] },
     FIBULA: { left: [204], right: [208] },
+    OTHER_TARSAL: {
+      left: [222, 223, 224, 225, 226, 227],
+      right: [210, 211, 212, 213, 214, 215],
+    },
+    METATARSAL: { left: [229, 230, 231], right: [217, 218, 219] },
+    FOOT_PHALANX: { left: [232], right: [220] },
   },
 }
 
@@ -315,6 +342,22 @@ function anatomicalSvgGroups(view) {
 export const SKELETON_SVG_GROUPS = {
   front: anatomicalSvgGroups('front'),
   back: anatomicalSvgGroups('back'),
+}
+
+const SKELETON_SVG_STATUS_ALIASES = {
+  RIB_UNKNOWN: ['RIB_LEFT', 'RIB_RIGHT'],
+  OS_COXA_UNKNOWN: ['OS_COXA_LEFT', 'OS_COXA_RIGHT'],
+  OTHER_TARSAL_LEFT: ['TALUS_LEFT', 'CALCANEUS_LEFT', 'TALUS_UNKNOWN', 'CALCANEUS_UNKNOWN'],
+  OTHER_TARSAL_RIGHT: ['TALUS_RIGHT', 'CALCANEUS_RIGHT', 'TALUS_UNKNOWN', 'CALCANEUS_UNKNOWN'],
+}
+
+export function skeletonStatusKeysForSvgKey(svgKey) {
+  const keys = [svgKey, ...(SKELETON_SVG_STATUS_ALIASES[svgKey] || [])]
+  const parsed = parseCategorySideKey(svgKey)
+  if (parsed && (parsed.side === 'Left' || parsed.side === 'Right')) {
+    keys.push(categorySideKey(parsed.category.code, 'Unknown'))
+  }
+  return [...new Set(keys)]
 }
 
 export const SPECIMEN_SELECT = `

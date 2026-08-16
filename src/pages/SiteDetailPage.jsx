@@ -107,7 +107,7 @@ function SiteDetailPage() {
       {/* Header */}
       <div className="mb-8">
         <p className="text-blue-400 text-xs font-medium uppercase tracking-widest mb-2">
-          IT22889874 — Site Detail View
+          Archaeological Site Details
         </p>
         <div className="flex items-start justify-between flex-wrap gap-4">
           <div>
@@ -314,7 +314,6 @@ function SiteDetailPage() {
         <Link to="/parami" className="text-slate-400 hover:text-slate-200 text-sm transition-colors">
           ← Back to GIS Map
         </Link>
-        <p className="text-slate-600 text-xs">IT22889874 — Parami's GIS Module</p>
       </div>
 
     </div>

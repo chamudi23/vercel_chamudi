@@ -752,7 +752,7 @@ export default function SpecimenDetailPage() {
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs uppercase tracking-widest text-white/30">Attached Images</p>
-              <p className="mt-1 text-[10px] text-white/20">{attachmentEditImageId ? "Only the selected attachment is editable. Specimen data and measurements remain read-only." : attachmentAddRequested ? "Add an image to this saved specimen. Specimen data and measurements remain read-only." : "Images linked through the shared bone_images records."}</p>
+              <p className="mt-1 text-[10px] text-white/20">{attachmentEditImageId ? "Only the selected attachment is editable. Specimen data and measurements remain read-only." : attachmentAddRequested ? "Add an image to this saved specimen. Specimen data and measurements remain read-only." : "Images linked to this specimen record."}</p>
             </div>
             {!editing && !attachmentOnlyEditing && <p className="text-[10px] text-white/25">Choose Edit to manage files and metadata here.</p>}
           </div>
