@@ -28,12 +28,12 @@ function InfoRow({ label, value }) {
 
 function SiteDetailPage() {
   const { siteId } = useParams()
-  const [site,      setSite]      = useState(null)
-  const [specimens, setSpecimens] = useState([])
-  const [loading,   setLoading]   = useState(true)
-  const [specLoad,  setSpecLoad]  = useState(true)
-  const [error,     setError]     = useState(null)
-  const [activeTab, setActiveTab] = useState('info')
+  const [site,       setSite]       = useState(null)
+  const [specimens,  setSpecimens]  = useState([])
+  const [loading,    setLoading]    = useState(true)
+  const [specLoad,   setSpecLoad]   = useState(true)
+  const [error,      setError]      = useState(null)
+  const [activeTab,  setActiveTab]  = useState('info')
 
   useEffect(() => {
     async function loadSite() {
@@ -197,6 +197,23 @@ function SiteDetailPage() {
               </div>
             </div>
           </div>
+
+          {/* Site Photo */}
+          {site.image_url && (
+            <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+              <h2 className="text-slate-200 font-semibold mb-4 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-orange-400 inline-block" />
+                Site Photo
+              </h2>
+              <a href={site.image_url} target="_blank" rel="noopener noreferrer" className="block group">
+                <img
+                  src={site.image_url}
+                  alt={site.site_name}
+                  className="w-full max-h-96 object-cover rounded-lg border border-slate-700 group-hover:opacity-90 transition-opacity"
+                />
+              </a>
+            </div>
+          )}
 
           {/* Research Notes */}
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
