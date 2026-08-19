@@ -11,6 +11,7 @@ const RISK_COLOUR = {
   Low:    '#34d399',
 }
 
+// Archaeological eras used to filter map markers by excavation period
 const TIME_PERIODS = [
   { label: 'All Periods',      desc: 'All excavation phases',   values: null },
   { label: 'Prehistoric',      desc: '50,000 BP – 1,000 BC',    values: ['Mesolithic', 'Prehistoric', 'Upper Paleolithic'] },
@@ -76,6 +77,8 @@ function ParamiModulePage() {
   const [searchTerm,   setSearchTerm]   = useState('')
   const [activePanel,  setActivePanel]  = useState('temporal')
 
+  // Load all sites with coordinates from Supabase, plus a count of
+  // specimens (findings) recorded against each site name
   useEffect(() => {
     async function load() {
       try {
@@ -146,7 +149,11 @@ function ParamiModulePage() {
     return result
   }, [sites, periodIdx, searchTerm])
 
-  // Run DBSCAN on filtered sites
+  // DBSCAN groups sites that are geographically close together, without
+  // needing to know the number of clusters in advance (unlike K-Means).
+  // eps = search radius in degrees (how close sites must be to group);
+  // minPts = minimum sites required before a group counts as a cluster.
+  // Sites that don't have enough close neighbours are left unclustered.
   const clusters = useMemo(() => {
     if (!showClusters || filteredSites.length < 2) return []
     const dbscan = new DBSCAN()
@@ -421,6 +428,8 @@ function ParamiModulePage() {
           </div>
         </div>
 
+        {/* Leaflet map: TileLayer pulls the base map from OpenStreetMap,
+            centered on Sri Lanka; markers/circles below are drawn on top */}
         {!loading && (
           <MapContainer
             center={[7.8731, 80.7718]}
