@@ -35,6 +35,9 @@ function SiteDetailPage() {
   const [error,      setError]      = useState(null)
   const [activeTab,  setActiveTab]  = useState('info')
 
+  // Load one site by its id (from the URL param), then look up specimens
+  // linked to that site by matching site_name — used to show findings
+  // for this specific location
   useEffect(() => {
     async function loadSite() {
       try {
@@ -241,7 +244,8 @@ function SiteDetailPage() {
         </div>
       )}
 
-      {/* Tab: Map */}
+      {/* Tab: Map — same Leaflet setup as the main GIS map, but zoomed
+          into this one site's coordinates instead of showing all sites */}
       {activeTab === 'map' && (
         <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-700">

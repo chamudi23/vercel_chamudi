@@ -4,6 +4,10 @@ import { supabase } from '../supabase'
 import KNN from 'ml-knn'
 
 // ── Simple K-Means implementation ──────────────────────────────────────────
+// Unsupervised clustering: picks k random starting centroids, assigns each
+// bone to its nearest centroid by Euclidean distance (length + width), then
+// recomputes each centroid as the average of its assigned points, repeating
+// for `iterations` rounds until the groups stabilise.
 function kMeans(data, k, iterations = 50) {
   if (data.length < k) k = data.length
   if (k === 0) return { clusters: [], assignments: [] }
@@ -41,6 +45,10 @@ function kMeans(data, k, iterations = 50) {
 }
 
 // ── Rule-based similarity ───────────────────────────────────────────────────
+// Hard-coded domain rule (not machine learning): two bones are "similar" if
+// they're the same bone type, from the same time period, and their length
+// difference is within the tolerance. Used as a simple baseline to compare
+// against the K-Means and KNN results.
 function areSimilar(a, b, lengthTolerance = 3.0) {
   return (
     a.bone_type   === b.bone_type &&
@@ -75,6 +83,8 @@ function euclideanDistance(a, b) {
 }
 
 // ── Encode bone type to number ──────────────────────────────────────────────
+// KNN/distance calculations need numeric features, so text fields
+// (bone type, time period) are mapped to arbitrary numeric ids here.
 function encodeBoneType(bone_type) {
   const map = { 'Femur': 1, 'Humerus': 2, 'Tibia': 3, 'Radius': 4, 'Fibula': 5, 'Ulna': 6 }
   return map[bone_type] || 0
@@ -167,6 +177,9 @@ function SimilarFindingsPage() {
   )
 
   // ── Train KNN Model ────────────────────────────────────────────────────────
+  // Builds a 4-feature vector per specimen (length, width, encoded bone
+  // type, encoded time period) and trains the ml-knn model on those vectors.
+  // Labels are just array indexes, used later to look the specimen back up.
   const trainKNN = () => {
     if (validFindings.length < 5) return
 
@@ -209,6 +222,9 @@ function SimilarFindingsPage() {
   }, [knnModel])
 
   // ── Run KNN Prediction ─────────────────────────────────────────────────────
+  // Given a reference specimen, computes Euclidean distance to every other
+  // trained specimen in 4D feature space, sorts ascending, and keeps the
+  // closest K (excluding itself) as the "most similar" results.
   const runKNN = (specimen) => {
     if (!knnModel) return
     setSelectedSpec(specimen)
