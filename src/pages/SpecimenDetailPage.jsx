@@ -21,20 +21,6 @@ import {
   validateExcavationAndDating,
 } from "../utils/specimenMetadata";
 
-const BONE_TYPES = [
-  "Femur","Tibia","Fibula","Humerus","Humerus (Distal End)",
-  "Radius","Ulna","Skull","Mandible (Left)","Mandible (Right)",
-  "Maxilla (Left)","Maxilla (Right)","Maxilla (Upper)",
-  "Molar 1st (Upper)","Molar 1st (Lower)","Molar 2nd (Upper)",
-  "Molar 2nd (Lower)","Molar 3rd (Upper)","Molar 3rd (Lower)",
-  "Premolar 1st (Upper)","Premolar 1st (Lower)",
-  "Premolar 2nd (Upper)","Premolar 2nd (Lower)",
-  "Clavicle","Scapula","Pelvis","Vertebra","Rib","Sternum",
-  "Patella","Calcaneum (Left)","Calcaneum (Right)",
-  "Astragalus (Left)","Astragalus (Right)",
-  "Metacarpal","Metatarsal","Phalanx (Hand)","Phalanx (Foot)","Other",
-];
-
 const MEASUREMENT_TYPES = [
   "Maximum Length","Minimum Length","Maximum Width",
   "Minimum Width","Maximum Diameter","Minimum Diameter",
@@ -535,7 +521,7 @@ export default function SpecimenDetailPage() {
   const plainInput = "w-full bg-[#0f1a14] border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-white/25 focus:outline-none focus:border-emerald-500 transition-colors";
   const labelClass = "block text-xs text-white/50 uppercase tracking-wider mb-1.5";
   const editAllowedSides = allowedSidesForCategory(editForm.bone_type);
-  const editSideIsLocked = editAllowedSides.length === 1 && editAllowedSides[0] === "Midline";
+  const editSideIsLocked = editAllowedSides.length === 1;
 
   if (loading) return (
     <div className="min-h-screen bg-[#0f1a14] text-white flex items-center justify-center">
@@ -655,7 +641,7 @@ export default function SpecimenDetailPage() {
               <div>
                 <label className={labelClass}>Bone Category</label>
                 <select name="bone_type" value={editForm.bone_type || ""} onChange={handleEditChange} className={selectClass}>
-                  <option value="">Select bone category</option>
+                  <option value="">Select skeletal element...</option>
                   {editForm.bone_type && !PP1_BONE_LABELS.includes(editForm.bone_type) && <option value={editForm.bone_type}>{editForm.bone_type}</option>}
                   {PP1_BONE_LABELS.map((bone) => <option key={bone} value={bone}>{bone}</option>)}
                 </select>
@@ -666,7 +652,7 @@ export default function SpecimenDetailPage() {
                   {editForm.side && !editAllowedSides.includes(editForm.side) && <option value={editForm.side}>Legacy: {editForm.side}</option>}
                   {editAllowedSides.map((side) => <option key={side} value={side}>{side}</option>)}
                 </select>
-                {editSideIsLocked && <p className="text-white/35 text-xs mt-1">Midline is automatic because left/right is not anatomically applicable.</p>}
+                {editSideIsLocked && <p className="text-white/35 text-xs mt-1">{editForm.bone_type === 'Other' ? 'Anatomical side is not applicable to Other.' : 'Midline is automatic because left/right is not anatomically applicable.'}</p>}
               </div>
             </div>
           ) : (
@@ -825,7 +811,7 @@ export default function SpecimenDetailPage() {
                   <label className="block text-[10px] text-white/30 uppercase tracking-wider mb-1">Bone Type *</label>
                   <select value={newMeasurement.bone_type} onChange={(e) => handleNewMeasurementChange("bone_type", e.target.value)} className={plainSelect}>
                     <option value="">Select bone</option>
-                    {BONE_TYPES.map((b) => <option key={b} value={b}>{b}</option>)}
+                    {PP1_BONE_LABELS.map((b) => <option key={b} value={b}>{b}</option>)}
                   </select>
                 </div>
                 <div className="md:col-span-2">
@@ -929,7 +915,7 @@ export default function SpecimenDetailPage() {
                     return (
                       <tr key={m.measurement_id || i} className={`border-b border-white/5 ${i % 2 === 0 ? "" : "bg-white/[0.01]"}`}>
                         <td className="px-3 py-3 text-white/70">
-                          {editing ? <select value={draft.bone_type || ""} onChange={(event) => handleMeasurementEdit(m.measurement_id, "bone_type", event.target.value)} className={plainSelect}><option value="">Select bone</option>{BONE_TYPES.map((bone) => <option key={bone}>{bone}</option>)}</select> : (m.bone_type || "—")}
+                          {editing ? <select value={draft.bone_type || ""} onChange={(event) => handleMeasurementEdit(m.measurement_id, "bone_type", event.target.value)} className={plainSelect}><option value="">Select skeletal element...</option>{draft.bone_type && !PP1_BONE_LABELS.includes(draft.bone_type) && <option value={draft.bone_type}>{draft.bone_type} (legacy)</option>}{PP1_BONE_LABELS.map((bone) => <option key={bone}>{bone}</option>)}</select> : (m.bone_type || "—")}
                         </td>
                         <td className="px-3 py-3 text-white/70">
                           {editing ? <select value={draft.measurement_type || ""} onChange={(event) => handleMeasurementEdit(m.measurement_id, "measurement_type", event.target.value)} className={plainSelect}><option value="">Select type</option>{MEASUREMENT_TYPES.map((type) => <option key={type}>{type}</option>)}</select> : (m.measurement_type || "—")}

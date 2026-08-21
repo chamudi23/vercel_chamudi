@@ -134,7 +134,7 @@ export default function SpecimenFormPage() {
     measurements.map((measurement) => normalize(measurement.measurement_type)).filter(Boolean)
   ), [measurements]);
   const allowedSides = useMemo(() => allowedSidesForCategory(form.bone_type), [form.bone_type]);
-  const sideIsLocked = allowedSides.length === 1 && allowedSides[0] === "Midline";
+  const sideIsLocked = allowedSides.length === 1;
 
   function resetBoneMeasurements(message = "") {
     setMeasurements([emptyMeasurement()]);
@@ -556,7 +556,7 @@ export default function SpecimenFormPage() {
               <div>
                 <label className={labelClass}>Bone Category</label>
                 <select name="bone_type" value={form.bone_type} onChange={handleChange} className={selectClass("bone_type")}>
-                  <option value="">Select category</option>
+                  <option value="">Select skeletal element...</option>
                   {PP1_BONE_LABELS.map((bone) => <option key={bone} value={bone}>{bone}</option>)}
                 </select>
                 {errors.bone_type && <p className="text-red-400 text-xs mt-1">{errors.bone_type}</p>}
@@ -573,7 +573,7 @@ export default function SpecimenFormPage() {
                   {!form.bone_type && <option value="Unknown">Select a bone category first</option>}
                   {allowedSides.map((side) => <option key={side} value={side}>{side}</option>)}
                 </select>
-                {sideIsLocked && <p className="text-white/35 text-xs mt-1">Midline is automatic because left/right is not anatomically applicable.</p>}
+                {sideIsLocked && <p className="text-white/35 text-xs mt-1">{form.bone_type === 'Other' ? 'Anatomical side is not applicable to Other.' : 'Midline is automatic because left/right is not anatomically applicable.'}</p>}
                 {errors.side && <p className="text-red-400 text-xs mt-1">{errors.side}</p>}
               </div>
             </div>

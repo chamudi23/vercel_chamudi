@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { RotateCcw, ZoomIn, ZoomOut } from 'lucide-react'
 import {
   CONTROLLED_BONE_CATEGORIES,
+  CONTROLLED_BONE_SECTIONS,
   SKELETON_ORIENTATION_MARKERS,
   SKELETON_SVG_GROUPS,
   categorySideKey,
@@ -10,6 +11,7 @@ import {
   parseCategorySideKey,
   skeletonStatusKeysForSvgKey,
   skeletonViewsForMode,
+  supportsFullBodyMap,
 } from '../utils/pp1ImageModule'
 
 const VIEW_OPTIONS = ['Front', 'Back', 'Both']
@@ -363,6 +365,13 @@ export default function SkeletonViewer({ statusData = {}, selectedKey = '', onSe
     })
   }, [availableCategoryCodes, categoryMode, search])
 
+  const visibleSections = useMemo(() => CONTROLLED_BONE_SECTIONS
+    .map((section) => ({
+      section,
+      categories: visibleCategories.filter((category) => category.section === section),
+    }))
+    .filter((group) => group.categories.length > 0), [visibleCategories])
+
   const views = skeletonViewsForMode(viewMode)
   const showAllCategories = categoryMode === 'all'
 
@@ -401,7 +410,7 @@ export default function SkeletonViewer({ statusData = {}, selectedKey = '', onSe
               className={`rounded px-3 py-1.5 text-xs font-semibold transition ${categoryMode === 'all' ? 'bg-white text-slate-950' : 'text-white/55 hover:text-white'}`}
               aria-pressed={categoryMode === 'all'}
             >
-              All categories (28)
+              All categories ({CONTROLLED_BONE_CATEGORIES.length})
             </button>
           </div>
         </div>
@@ -424,7 +433,9 @@ export default function SkeletonViewer({ statusData = {}, selectedKey = '', onSe
       <section className="border-t border-white/10 pt-5" aria-label="Accessible bone category list">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-white">{categoryMode === 'available' ? 'Available bones' : 'All 28 bone categories'}</h3>
+            <h3 className="text-sm font-semibold text-white">
+              {categoryMode === 'available' ? 'Available skeletal elements' : `All ${CONTROLLED_BONE_CATEGORIES.length} skeletal elements`}
+            </h3>
             <p className="mt-1 text-xs text-white/40">
               {categoryMode === 'available'
                 ? 'Categories found reliably in saved specimen or measurement records.'
@@ -443,43 +454,58 @@ export default function SkeletonViewer({ statusData = {}, selectedKey = '', onSe
           </label>
         </div>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {visibleCategories.map((category) => {
-            const sides = categoryMode === 'available'
-              ? categorySides(category).filter((side) => {
-                const record = statusData[categorySideKey(category.code, side)]
-                return record && record.status !== 'unknown'
-              })
-              : categorySides(category)
-            const fragmented = sides.some((side) => statusData[categorySideKey(category.code, side)]?.fragmented)
+        <div className="mt-4 space-y-5">
+          {visibleSections.map(({ section, categories }) => (
+            <section key={section} aria-labelledby={`skeleton-section-${section.replace(/\s+/g, '-').toLowerCase()}`}>
+              <h4 id={`skeleton-section-${section.replace(/\s+/g, '-').toLowerCase()}`} className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100/55">
+                {section}
+              </h4>
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {categories.map((category) => {
+                  const sides = categoryMode === 'available'
+                    ? categorySides(category).filter((side) => {
+                      const record = statusData[categorySideKey(category.code, side)]
+                      return record && record.status !== 'unknown'
+                    })
+                    : categorySides(category)
+                  const fragmented = sides.some((side) => statusData[categorySideKey(category.code, side)]?.fragmented)
+                  const mapSupported = supportsFullBodyMap(category.code)
 
-            return (
-              <div key={category.code} className="flex min-h-16 items-center justify-between gap-3 rounded-md border border-white/10 bg-slate-950/60 px-3 py-2">
-                <div className="min-w-0">
-                  <span className="text-sm font-medium text-white/80">{category.label}</span>
-                  {fragmented && <span className="mt-1 block text-[11px] font-semibold text-red-300">Fragmented</span>}
-                </div>
-                <div className="flex shrink-0 flex-wrap justify-end gap-1">
-                  {sides.map((side) => {
-                    const key = categorySideKey(category.code, side)
-                    const status = statusData[key]?.status || 'unknown'
-                    return (
-                      <button
-                        key={side}
-                        type="button"
-                        onClick={() => onSelect(key)}
-                        className={statusButtonClass(status, key === selectedKey)}
-                        aria-pressed={key === selectedKey}
-                        title={`${category.label}, ${side}: ${STATUS_STYLES[status].label}${statusData[key]?.fragmented ? ', fragmented condition' : ''}`}
-                      >
-                        {side === 'Unknown' ? 'Side: Unknown' : side}
-                      </button>
-                    )
-                  })}
-                </div>
+                  return (
+                    <div key={category.code} className="flex min-h-20 items-center justify-between gap-3 rounded-md border border-white/10 bg-slate-950/60 px-3 py-2">
+                      <div className="min-w-0">
+                        <span className="text-sm font-medium text-white/80">{category.label}</span>
+                        {!mapSupported && (
+                          <span className="mt-1 block text-[11px] leading-4 text-violet-200/65">
+                            Not available on the current full-body anatomical map.
+                          </span>
+                        )}
+                        {fragmented && <span className="mt-1 block text-[11px] font-semibold text-red-300">Fragmented</span>}
+                      </div>
+                      <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                        {sides.map((side) => {
+                          const key = categorySideKey(category.code, side)
+                          const status = statusData[key]?.status || 'unknown'
+                          return (
+                            <button
+                              key={side}
+                              type="button"
+                              onClick={() => onSelect(key)}
+                              className={statusButtonClass(status, key === selectedKey)}
+                              aria-pressed={key === selectedKey}
+                              title={`${category.label}, ${side}: ${STATUS_STYLES[status].label}${mapSupported ? '' : '; not available on the current full-body anatomical map'}${statusData[key]?.fragmented ? ', fragmented condition' : ''}`}
+                            >
+                              {side === 'Unknown' ? (category.laterality === 'none' ? 'Not applicable' : 'Side: Unknown') : side}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-            )
-          })}
+            </section>
+          ))}
         </div>
 
         {visibleCategories.length === 0 && (

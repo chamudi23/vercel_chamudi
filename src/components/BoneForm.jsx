@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { supabase } from '../supabase'
+import { PP1_BONE_LABELS, allowedSidesForCategory } from '../utils/pp1ImageModule'
 
 function BoneForm() {
   const [form, setForm] = useState({
     skeleton_id: '',
     bone_name: '',
-    side: 'Left',
+    side: 'Unknown',
     condition: 'Good',
     preservation: 'Good',
     context_number: '',
@@ -19,6 +20,11 @@ function BoneForm() {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
+    if (name === 'bone_name') {
+      const nextSides = allowedSidesForCategory(value)
+      setForm(prev => ({ ...prev, bone_name: value, side: nextSides.includes(prev.side) ? prev.side : (nextSides[0] || 'Unknown') }))
+      return
+    }
     setForm(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
@@ -48,7 +54,7 @@ function BoneForm() {
       setForm({
         skeleton_id: '',
         bone_name: '',
-        side: 'Left',
+        side: 'Unknown',
         condition: 'Good',
         preservation: 'Good',
         context_number: '',
@@ -112,22 +118,8 @@ function BoneForm() {
             required
             className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-slate-100 focus:outline-none focus:border-blue-500"
           >
-            <option value="">Select bone...</option>
-            <option>Femur</option>
-            <option>Tibia</option>
-            <option>Fibula</option>
-            <option>Humerus</option>
-            <option>Radius</option>
-            <option>Ulna</option>
-            <option>Cranium</option>
-            <option>Mandible</option>
-            <option>Pelvis</option>
-            <option>Vertebra</option>
-            <option>Rib</option>
-            <option>Patella</option>
-            <option>Clavicle</option>
-            <option>Scapula</option>
-            <option>Sternum</option>
+            <option value="">Select skeletal element...</option>
+            {PP1_BONE_LABELS.map((bone) => <option key={bone} value={bone}>{bone}</option>)}
           </select>
         </div>
 
@@ -140,10 +132,10 @@ function BoneForm() {
             onChange={handleChange}
             className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-slate-100 focus:outline-none focus:border-blue-500"
           >
-            <option>Left</option>
-            <option>Right</option>
-            <option>Midline</option>
-            <option>N/A</option>
+            {!form.bone_name && <option value="Unknown">Select a skeletal element first</option>}
+            {allowedSidesForCategory(form.bone_name).map((side) => (
+              <option key={side} value={side}>{side === 'Unknown' && form.bone_name === 'Other' ? 'Not applicable' : side}</option>
+            ))}
           </select>
         </div>
 
