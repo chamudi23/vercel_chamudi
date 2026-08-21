@@ -170,10 +170,19 @@ function SimilarFindingsPage() {
     setSelectedGroup(null)
   }
 
-  // Valid findings for ML (must have measurements)
+  // Filtered findings — respects the Bone Type / Time Period filters above,
+  // so every tab (Rule-Based, K-Means, KNN) works off the same narrowed set
+  const filtered = useMemo(() => findings.filter(f =>
+    (boneFilter  === 'All' || f.bone_type   === boneFilter) &&
+    (periodFilter === 'All' || f.time_period === periodFilter)
+  ), [findings, boneFilter, periodFilter])
+
+  // Valid findings for ML (must have measurements) — built from the
+  // filtered list so KNN only trains on / lists specimens matching the
+  // selected Bone Type / Time Period filters
   const validFindings = useMemo(() =>
-    findings.filter(f => f.length_cm && f.width_cm && f.bone_type),
-    [findings]
+    filtered.filter(f => f.length_cm && f.width_cm && f.bone_type),
+    [filtered]
   )
 
   // ── Train KNN Model ────────────────────────────────────────────────────────
@@ -255,12 +264,6 @@ function SimilarFindingsPage() {
   // Unique filter values
   const boneTypes   = useMemo(() => ['All', ...new Set(findings.map(f => f.bone_type).filter(Boolean))], [findings])
   const timePeriods = useMemo(() => ['All', ...new Set(findings.map(f => f.time_period).filter(Boolean))], [findings])
-
-  // Filtered findings
-  const filtered = useMemo(() => findings.filter(f =>
-    (boneFilter  === 'All' || f.bone_type   === boneFilter) &&
-    (periodFilter === 'All' || f.time_period === periodFilter)
-  ), [findings, boneFilter, periodFilter])
 
   // Rule-based groups (Union-Find so similarity is transitive: if A~B and
   // B~C, all three land in one group even if A and C aren't directly within
