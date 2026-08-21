@@ -47,7 +47,7 @@ const modules = [
     description:
       'GIS tools to map skeletal find locations and archaeological sites. Supports spatial and temporal interpretation of osteoarchaeological records across Sri Lanka.',
     icon: Map,
-    link: '/parami',
+    link: '/parami/home',
     image: imageUrls.sriLankaRuins,
     tags: ['Site Mapping', 'Spatial Queries', 'Temporal Analysis'],
     iconClass: 'bg-purple-400/10 text-purple-300 ring-purple-400/25',

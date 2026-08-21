@@ -304,6 +304,7 @@ function SiteDetailPage() {
                   <tr className="border-b border-slate-700">
                     <th className="text-left px-6 py-3 text-slate-400 font-medium">Specimen ID</th>
                     <th className="text-left px-6 py-3 text-slate-400 font-medium">Skeleton Code</th>
+                    <th className="text-left px-6 py-3 text-slate-400 font-medium">Bone Type</th>
                     <th className="text-left px-6 py-3 text-slate-400 font-medium">Time Period</th>
                     <th className="text-left px-6 py-3 text-slate-400 font-medium">Excavation Year</th>
                     <th className="text-left px-6 py-3 text-slate-400 font-medium">Location Stored</th>
@@ -315,6 +316,7 @@ function SiteDetailPage() {
                     <tr key={spec.specimen_id || i} className={`border-b border-slate-700 hover:bg-slate-700 transition-colors ${i % 2 !== 0 ? 'bg-slate-800/50' : ''}`}>
                       <td className="px-6 py-3 text-blue-400 font-mono text-xs">{spec.specimen_id || '—'}</td>
                       <td className="px-6 py-3 text-slate-200 font-medium">{spec.skeleton_code || '—'}</td>
+                      <td className="px-6 py-3 text-slate-400">{spec.bone_type || '—'}</td>
                       <td className="px-6 py-3 text-slate-400">{spec.time_period || '—'}</td>
                       <td className="px-6 py-3 text-slate-400">{spec.excavation_year || '—'}</td>
                       <td className="px-6 py-3 text-slate-400">{spec.location_stored || '—'}</td>
