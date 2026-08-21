@@ -1,7 +1,5 @@
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
-import BonePage from './pages/BonePage'
 import HomePage from './pages/HomePage'
-import BoneDetailPage from './pages/BoneDetailPage'
 import ImageSearchPage from './pages/ImageSearchPage'
 import ImageUploadPage from './pages/ImageUploadPage'
 import ImageDetailPage from './pages/ImageDetailPage'
@@ -42,8 +40,6 @@ function ApplicationRoutes() {
     <Routes>
           {/* Main OAHRIS Routes */}
           <Route path="/" element={<HomePage />} />
-          <Route path="/bones" element={<BonePage />} />
-          <Route path="/bones/:boneId" element={<BoneDetailPage />} />
           <Route path="/upload" element={<ImageUploadPage />} />
           <Route path="/gallery" element={<ImageSearchPage />} />
           <Route path="/image/:imageId" element={<ImageDetailPage />} />

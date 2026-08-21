@@ -6,8 +6,6 @@ const routeTrails = [
   { pattern: '/specimens/import', trail: [['Specimen Records', '/specimens'], ['Import Records']] },
   { pattern: '/specimens/:id', trail: [['Specimen Records', '/specimens'], ['Specimen Details']] },
   { pattern: '/specimens', trail: [['Specimen Records']] },
-  { pattern: '/bones/:boneId', trail: [['Bone Records', '/bones'], ['Bone Details']] },
-  { pattern: '/bones', trail: [['Bone Records']] },
   { pattern: '/image/:imageId', trail: [['Image Library', '/gallery'], ['Image Details']] },
   { pattern: '/upload', trail: [['Image Library', '/gallery'], ['Upload Image']] },
   { pattern: '/gallery', trail: [['Image Library']] },
