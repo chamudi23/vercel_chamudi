@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import 'leaflet/dist/leaflet.css'
-import { MapContainer, TileLayer, CircleMarker, Popup, Circle } from 'react-leaflet'
+import { MapContainer, TileLayer, CircleMarker, Popup, Tooltip, Circle } from 'react-leaflet'
 import { DBSCAN } from 'density-clustering'
 
 const RISK_COLOUR = {
@@ -11,6 +11,7 @@ const RISK_COLOUR = {
   Low:    '#34d399',
 }
 
+// Archaeological eras used to filter map markers by excavation period
 const TIME_PERIODS = [
   { label: 'All Periods',      desc: 'All excavation phases',   values: null },
   { label: 'Prehistoric',      desc: '50,000 BP – 1,000 BC',    values: ['Mesolithic', 'Prehistoric', 'Upper Paleolithic'] },
@@ -65,6 +66,7 @@ const CLUSTER_COLOURS = [
 function ParamiModulePage() {
   const navigate = useNavigate()
   const [sites,        setSites]        = useState([])
+  const [findingsMap,  setFindingsMap]  = useState({})
   const [stats,        setStats]        = useState(null)
   const [loading,      setLoading]      = useState(true)
   const [error,        setError]        = useState(null)
@@ -75,17 +77,28 @@ function ParamiModulePage() {
   const [searchTerm,   setSearchTerm]   = useState('')
   const [activePanel,  setActivePanel]  = useState('temporal')
 
+  // Load all sites with coordinates from Supabase, plus a count of
+  // specimens (findings) recorded against each site name
   useEffect(() => {
     async function load() {
       try {
         const { data, error: err } = await supabase
           .from('sites')
-          .select('id, site_name, district, province, latitude, longitude, time_period, site_type, risk_level, protected_status')
+          .select('id, site_name, district, province, latitude, longitude, time_period, site_type, risk_level, protected_status, image_url')
           .not('latitude', 'is', null)
           .order('site_name', { ascending: true })
         if (err) throw err
         const rows = data || []
         setSites(rows)
+
+        // Total findings per site (specimens recorded against that site name)
+        const { data: specRows } = await supabase.from('specimens').select('site_name')
+        const fMap = (specRows || []).reduce((acc, r) => {
+          if (r.site_name) acc[r.site_name] = (acc[r.site_name] || 0) + 1
+          return acc
+        }, {})
+        setFindingsMap(fMap)
+
         const by_type = rows.reduce((acc, s) => {
           if (s.site_type) acc[s.site_type] = (acc[s.site_type] || 0) + 1
           return acc
@@ -136,7 +149,11 @@ function ParamiModulePage() {
     return result
   }, [sites, periodIdx, searchTerm])
 
-  // Run DBSCAN on filtered sites
+  // DBSCAN groups sites that are geographically close together, without
+  // needing to know the number of clusters in advance (unlike K-Means).
+  // eps = search radius in degrees (how close sites must be to group);
+  // minPts = minimum sites required before a group counts as a cluster.
+  // Sites that don't have enough close neighbours are left unclustered.
   const clusters = useMemo(() => {
     if (!showClusters || filteredSites.length < 2) return []
     const dbscan = new DBSCAN()
@@ -411,6 +428,8 @@ function ParamiModulePage() {
           </div>
         </div>
 
+        {/* Leaflet map: TileLayer pulls the base map from OpenStreetMap,
+            centered on Sri Lanka; markers/circles below are drawn on top */}
         {!loading && (
           <MapContainer
             center={[7.8731, 80.7718]}
@@ -447,17 +466,35 @@ function ParamiModulePage() {
               const opts = showClusters && isInCluster
                 ? { radius: 9, fillColor: clusterColour, color: '#fff', weight: 2, fillOpacity: 0.95 }
                 : markerOptions(site.risk_level)
+              const findingsCount = findingsMap[site.site_name] || 0
               return (
               <CircleMarker
                   key={site.id}
                   center={[parseFloat(site.latitude), parseFloat(site.longitude)]}
                   pathOptions={opts}
-                  eventHandlers={{
-                    click: () => navigate(`/parami/site/${site.id}`)
-                  }}
                 >
+                  {/* Hover: small findings-count box */}
+                  <Tooltip direction="top" offset={[0, -8]} opacity={1}>
+                    <div style={{ fontSize: '12px', lineHeight: 1.4 }}>
+                      <strong>{site.site_name}</strong><br />
+                      {findingsCount} finding{findingsCount === 1 ? '' : 's'} recorded
+                    </div>
+                  </Tooltip>
+
+                  {/* Click: image + full site details */}
                   <Popup>
-                    <div style={{ minWidth: '180px' }}>
+                    <div style={{ minWidth: '200px', maxWidth: '240px' }}>
+                      {site.image_url ? (
+                        <img
+                          src={site.image_url}
+                          alt={site.site_name}
+                          style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px' }}
+                        />
+                      ) : (
+                        <div style={{ width: '100%', height: '70px', borderRadius: '6px', marginBottom: '8px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '11px' }}>
+                          No photo yet
+                        </div>
+                      )}
                       <p style={{ fontWeight: 700, marginBottom: '6px', fontSize: '14px' }}>
                         {site.site_name}
                       </p>
@@ -473,6 +510,7 @@ function ParamiModulePage() {
                             ['Type',      site.site_type],
                             ['Period',    site.time_period],
                             ['Risk',      site.risk_level],
+                            ['Findings',  findingsCount],
                           ].map(([label, val]) => val ? (
                             <tr key={label}>
                               <td style={{ color: '#6b7280', paddingRight: '8px', paddingBottom: '2px' }}>{label}</td>
@@ -481,6 +519,13 @@ function ParamiModulePage() {
                           ) : null)}
                         </tbody>
                       </table>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/parami/site/${site.id}`)}
+                        style={{ marginTop: '8px', fontSize: '11px', fontWeight: 600, color: '#2563eb', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                      >
+                        View Full Details →
+                      </button>
                     </div>
                   </Popup>
                 </CircleMarker>
