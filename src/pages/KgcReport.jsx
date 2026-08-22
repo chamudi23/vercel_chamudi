@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import SkeletalHeader from '../components/KgcSkeletalHeader';
+import KgcSimilarCases from '../components/KgcSimilarCases';
 import { useAnalysis } from '../context/AnalysisContext';
 import { getAnalysis } from '../lib/analysisStore';
 import { sendReportEmail } from '../lib/emailReport';
@@ -67,11 +68,6 @@ export default function Report() {
   const predictions = source.predictions || {};
   const { bonesType, ...measurementFields } = measurements;
   const notFound = Boolean(caseId) && stored === null;
-
-  const mockSimilarCasesData = [
-    { caseId: 'C089', name: 'Unknown', bonesType: 'Skull', location: 'Texas', foundDate: '2023-01-15' },
-    { caseId: 'C102', name: 'Unknown', bonesType: 'Skull', location: 'Nevada', foundDate: '2023-04-22' },
-  ];
 
   const mockAgeData = [
     { ageGroup: '0-18', count: 5 },
@@ -297,33 +293,14 @@ export default function Report() {
 
         {/* Similar Cases + Chart */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-700">
-              <h3 className="text-slate-200 font-semibold">Similar Cases</h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-700">
-                    <th className="text-left px-6 py-3 text-slate-400 font-medium">Case ID</th>
-                    <th className="text-left px-6 py-3 text-slate-400 font-medium">Bones Type</th>
-                    <th className="text-left px-6 py-3 text-slate-400 font-medium">Location</th>
-                    <th className="text-left px-6 py-3 text-slate-400 font-medium">Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {mockSimilarCasesData.map((row, i) => (
-                    <tr key={i} className="border-b border-slate-700 hover:bg-slate-700/50 transition-colors">
-                      <td className="px-6 py-3 text-slate-300">{row.caseId}</td>
-                      <td className="px-6 py-3 text-slate-300">{row.bonesType}</td>
-                      <td className="px-6 py-3 text-slate-300">{row.location}</td>
-                      <td className="px-6 py-3 text-slate-300">{row.foundDate}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          {/* Similar Cases — live from the Centralized Specimen Record
+              Management catalogue (read-only; see lib/similarCases.js) */}
+          <KgcSimilarCases
+            basicInfo={basicInfo}
+            measurements={measurements}
+            predictions={predictions}
+            compact
+          />
 
           <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
             <h3 className="text-slate-200 font-semibold mb-4">Age Distribution</h3>

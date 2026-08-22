@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SkeletalHeader from '../../components/KgcSkeletalHeader';
+import KgcSimilarCases from '../../components/KgcSimilarCases';
 import { useAnalysis } from '../../context/AnalysisContext';
 import { saveAnalysis } from '../../lib/analysisStore';
 
@@ -142,11 +143,6 @@ export default function Step3Review() {
   // Build a summary of measurements entered
   const { bonesType, ...measurementFields } = measurements;
 
-  const mockCases = [
-    { caseId: 'C089', bonesType: 'Skull', location: 'Texas', foundDate: '2023-01-15' },
-    { caseId: 'C102', bonesType: 'Skull', location: 'Nevada', foundDate: '2023-04-22' },
-  ];
-
   const handleGenerateReport = async () => {
     setSaving(true);
     setSaveError('');
@@ -225,21 +221,13 @@ export default function Step3Review() {
             </div>
           )}
 
-          {/* Similar Cases */}
-          <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-700"><h3 className="text-slate-200 font-semibold">Similar Cases</h3></div>
-            <table className="w-full text-sm">
-              <thead><tr className="border-b border-slate-700">
-                <th className="text-left px-6 py-3 text-slate-400 font-medium">Case ID</th>
-                <th className="text-left px-6 py-3 text-slate-400 font-medium">Bones Type</th>
-                <th className="text-left px-6 py-3 text-slate-400 font-medium">Location</th>
-                <th className="text-left px-6 py-3 text-slate-400 font-medium">Date</th>
-              </tr></thead>
-              <tbody>{mockCases.map((r, i) => (
-                <tr key={i} className="border-b border-slate-700 hover:bg-slate-700/50"><td className="px-6 py-3 text-slate-300">{r.caseId}</td><td className="px-6 py-3 text-slate-300">{r.bonesType}</td><td className="px-6 py-3 text-slate-300">{r.location}</td><td className="px-6 py-3 text-slate-300">{r.foundDate}</td></tr>
-              ))}</tbody>
-            </table>
-          </div>
+          {/* Similar Cases — live from the Centralized Specimen Record
+              Management catalogue (read-only; see lib/similarCases.js) */}
+          <KgcSimilarCases
+            basicInfo={basicInfo}
+            measurements={measurements}
+            predictions={predictions}
+          />
 
           {saveError && (
             <div className="bg-red-900/20 border border-red-700/40 text-red-300 rounded-lg px-4 py-3 text-sm">
