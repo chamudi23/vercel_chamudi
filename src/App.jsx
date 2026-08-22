@@ -22,6 +22,7 @@ import SkeletalKnowledgeBase from './pages/Knowledge/KgcKnowledgeBase';
 import SkeletalNewAnalysisTutorial from './pages/Knowledge/KgcNewAnalysisTutorial';
 import SkeletalBoneFeatureGuide from './pages/Knowledge/KgcBoneFeatureGuide';
 import SkeletalCourse from './pages/Knowledge/KgcCourse';
+import SkeletalLearnerProgress from './pages/Knowledge/KgcLearnerProgress';
 import { AnalysisProvider } from './context/AnalysisContext';
 import { AuthProvider } from './context/AuthContext';
 
@@ -85,6 +86,7 @@ function App() {
           <Route path="/skeletal/knowledge/tutorial" element={<SkeletalNewAnalysisTutorial />} />
           <Route path="/skeletal/knowledge/guide" element={<SkeletalBoneFeatureGuide />} />
           <Route path="/skeletal/knowledge/course" element={<SkeletalCourse />} />
+          <Route path="/skeletal/admin/learners" element={<SkeletalLearnerProgress />} />
         </Routes>
 
       </div>
