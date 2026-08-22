@@ -12,6 +12,7 @@ const navigation = [
   { label: 'Data Quality', to: '/data-quality', roles: null },
   { label: 'Research Assistant', to: '/ai-assistant', roles: ['researcher'] },
   { label: 'Add Site', to: '/parami/add-site', roles: ['admin'] },
+  { label: 'Approvals', to: '/admin/approvals', roles: ['admin'] },
 ]
 
 function navClass({ isActive }) {

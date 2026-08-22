@@ -32,7 +32,7 @@ export default function LoginPage() {
     } else {
       const { error: err } = await signUp(email, password, fullName)
       if (err) setError(err.message)
-      else setInfo('Account created. New accounts start as "student" — an admin can upgrade your role afterwards. Check your email if confirmation is required, then sign in.')
+      else setInfo('Account created. It now needs to be approved by an Admin before you can sign in — check back once you\'ve been approved.')
     }
 
     setSubmitting(false)

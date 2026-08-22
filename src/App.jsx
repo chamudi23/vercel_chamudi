@@ -40,6 +40,7 @@ import { AppAuthProvider } from './context/AppAuthContext';
 import AppLayout from './components/layout/AppLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
+import AdminApprovalsPage from './pages/AdminApprovalsPage';
 
 // Role sets, so the intent of each route is readable at a glance below.
 const ANY_ROLE = null // any signed-in user (admin, researcher, or student)
@@ -78,6 +79,7 @@ function ApplicationRoutes() {
           {/* Data Integration & Management (Minuri) — Admin full, Researcher shared
               (own-record edit only, enforced by RLS + the Specimen Detail page),
               Student view-only */}
+          <Route path="/admin/approvals" element={<Guard roles={ADMIN}><AdminApprovalsPage /></Guard>} />
           <Route path="/minuri" element={<Guard roles={ANY_ROLE}><MinuriModulePage /></Guard>} />
           <Route path="/data-management" element={<Guard roles={ANY_ROLE}><MinuriModulePage /></Guard>} />
           <Route path="/specimens/add" element={<Guard roles={ADMIN_RESEARCHER}><SpecimenFormPage /></Guard>} />
