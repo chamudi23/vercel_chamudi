@@ -85,7 +85,7 @@ export default function ImageSearchPage() {
   const filteredImages = useMemo(() => {
     const q = normalize(search)
 
-    return images.filter((image) => {
+    const matchingImages = images.filter((image) => {
       const tags = image.image_retrieval_tags?.map((tag) => tag.tag_name).join(' ') || ''
       const searchable = [
         boneCategoryFor(image),
@@ -109,6 +109,17 @@ export default function ImageSearchPage() {
       })
 
       return matchesSearch && matchesFilters
+    })
+
+    // Keep records with an uploaded image at the top of the gallery. Metadata-only
+    // records remain available below them, ordered by their upload date as usual.
+    return matchingImages.sort((first, second) => {
+      const firstHasImage = Boolean(first.image_url || first.file_url)
+      const secondHasImage = Boolean(second.image_url || second.file_url)
+
+      if (firstHasImage !== secondHasImage) return firstHasImage ? -1 : 1
+
+      return new Date(second.uploaded_at || 0) - new Date(first.uploaded_at || 0)
     })
   }, [filters, images, search])
 

@@ -13,7 +13,7 @@ export const CONTROLLED_BONE_CATEGORIES = [
   { code: 'PREMOLAR', label: 'Premolar', section: 'Teeth', laterality: 'paired', region: 'Cranial', mapSupport: 'cranial-detail' },
   { code: 'MOLAR', label: 'Molar', section: 'Teeth', laterality: 'paired', region: 'Cranial', mapSupport: 'cranial-detail' },
   { code: 'CLAVICLE', label: 'Clavicle', section: 'Upper Limb', laterality: 'paired', region: 'Upper Limb', mapSupport: 'full-body-direct', mapViews: ['front'], uniquePerSide: true },
-  { code: 'SCAPULA', label: 'Scapula', section: 'Upper Limb', laterality: 'paired', region: 'Upper Limb', mapSupport: 'full-body-direct', mapViews: ['front'], uniquePerSide: true },
+  { code: 'SCAPULA', label: 'Scapula', section: 'Upper Limb', laterality: 'paired', region: 'Upper Limb', mapSupport: 'full-body-direct', mapViews: ['front', 'back'], uniquePerSide: true },
   { code: 'HUMERUS', label: 'Humerus', section: 'Upper Limb', laterality: 'paired', region: 'Upper Limb', mapSupport: 'full-body-direct', uniquePerSide: true },
   { code: 'RADIUS', label: 'Radius', section: 'Upper Limb', laterality: 'paired', region: 'Upper Limb', mapSupport: 'full-body-direct', uniquePerSide: true },
   { code: 'ULNA', label: 'Ulna', section: 'Upper Limb', laterality: 'paired', region: 'Upper Limb', mapSupport: 'full-body-direct', uniquePerSide: true },
@@ -383,6 +383,7 @@ export const SKELETON_SCREEN_SIDE_GROUPS = {
     FOOT_PHALANX: { left: [15], right: [41] },
   },
   back: {
+    SCAPULA: { left: [136], right: [137] },
     HUMERUS: { left: [2], right: [47] },
     RADIUS: { left: [45], right: [49] },
     ULNA: { left: [44], right: [51] },

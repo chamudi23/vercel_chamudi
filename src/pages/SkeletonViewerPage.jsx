@@ -476,7 +476,7 @@ export default function SkeletonViewerPage() {
                 <div className="flex flex-wrap gap-2">
                   <span className={`rounded-md border px-2.5 py-1 text-xs font-semibold ${
                     selectedRecord.status === 'documented'
-                      ? 'border-emerald-300/30 bg-emerald-300/15 text-emerald-100'
+                      ? 'border-sky-300/40 bg-sky-300/15 text-sky-50'
                       : selectedRecord.status === 'present_no_image'
                         ? 'border-amber-300/30 bg-amber-300/15 text-amber-100'
                         : 'border-slate-300/20 bg-slate-300/10 text-slate-200'
@@ -562,14 +562,11 @@ export default function SkeletonViewerPage() {
             <section className="rounded-md border border-white/10 bg-white/[0.03] p-5">
               <h2 className="text-base font-semibold">Status Legend</h2>
               <div className="mt-4 space-y-3 text-sm">
-                <p className="flex items-center gap-3 text-white/70"><span className="h-3 w-3 rounded-sm bg-emerald-400" /> Documented</p>
+                <p className="flex items-center gap-3 text-white/70"><span className="h-3 w-3 rounded-sm bg-sky-400" /> Documented</p>
                 <p className="flex items-center gap-3 text-white/70"><span className="h-3 w-3 rounded-sm bg-amber-400" /> Present, no image</p>
                 <p className="flex items-center gap-3 text-white/70"><span className="h-3 w-3 rounded-sm bg-slate-500" /> Not assessed</p>
                 <p className="flex items-center gap-3 text-white/70"><span className="h-3 w-3 rounded-sm border border-violet-300 bg-violet-300/15" /> Valid category, not supported by full-body map</p>
                 <p className="flex items-center gap-3 text-white/70"><span className="h-3 w-3 rounded-sm border border-dashed border-orange-300 bg-orange-300/10" /> Legacy category requiring review</p>
-                {selectedKey && (
-                  <p className="flex items-center gap-3 text-white/70"><span className="h-3 w-3 rounded-sm border-2 border-sky-300 shadow-[0_0_6px_rgba(56,189,248,0.8)]" /> Selected outline</p>
-                )}
                 <p className="flex items-center gap-3 text-white/70"><span className="h-3 w-3 rounded-sm border-2 border-dashed border-red-400" /> Fragmented condition</p>
               </div>
             </section>

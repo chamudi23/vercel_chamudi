@@ -27,9 +27,9 @@ const SVG_SOURCES = {
 const STATUS_STYLES = {
   documented: {
     label: 'Documented',
-    fill: 'rgba(16, 185, 129, 0.72)',
-    stroke: '#047857',
-    badge: 'border-emerald-400/35 bg-emerald-400/15 text-emerald-100',
+    fill: 'rgba(56, 189, 248, 0.08)',
+    stroke: '#38bdf8',
+    badge: 'border-sky-300/40 bg-sky-300/15 text-sky-50',
   },
   present_no_image: {
     label: 'Present, no image',
@@ -115,6 +115,7 @@ function prepareSvg(svgText, view, statusData, selectedKey, showAllCategories) {
 
       const selected = interactionKey === selectedKey
       const palette = STATUS_STYLES[baseStatus]
+      const highlighted = baseStatus === 'documented' || selected
       const parsed = parseCategorySideKey(interactionKey)
       const sideUnknown = parsed?.side === 'Unknown' && baseStatus !== 'unknown'
       const label = parsed ? `${parsed.category.label}, ${parsed.side}` : key
@@ -126,10 +127,10 @@ function prepareSvg(svgText, view, statusData, selectedKey, showAllCategories) {
       group.setAttribute('tabindex', '0')
       group.setAttribute('aria-label', `${label}: ${STATUS_STYLES[baseStatus].label}${conditionText}`)
       group.style.setProperty('--bone-fill', sideUnknown ? 'rgba(148, 163, 184, 0.08)' : palette.fill)
-      group.style.setProperty('--bone-stroke', record?.fragmented ? '#ef4444' : selected ? '#38bdf8' : palette.stroke)
-      group.style.setProperty('--bone-stroke-width', record?.fragmented || selected || sideUnknown ? '1.8px' : '0.8px')
+      group.style.setProperty('--bone-stroke', record?.fragmented ? '#ef4444' : highlighted ? '#38bdf8' : palette.stroke)
+      group.style.setProperty('--bone-stroke-width', record?.fragmented || highlighted || sideUnknown ? '1.8px' : '0.8px')
       group.style.setProperty('--bone-dash', record?.fragmented || sideUnknown ? '3 1.5' : 'none')
-      group.style.setProperty('--bone-filter', selected ? 'drop-shadow(0 0 4px rgba(56, 189, 248, 0.95))' : 'none')
+      group.style.setProperty('--bone-filter', highlighted ? 'drop-shadow(0 0 4px rgba(56, 189, 248, 0.95))' : 'none')
 
       const title = document.createElementNS('http://www.w3.org/2000/svg', 'title')
       title.textContent = `${label} - ${STATUS_STYLES[baseStatus].label}${conditionText}`
