@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../supabase";
+import { useAppAuth } from "../context/AppAuthContext";
 import { analyseBone } from "../api";
 import BoneImageList from "../components/BoneImageList";
 import {
@@ -92,6 +93,7 @@ const LAB_DATING_FIELDS = ["dating_method", "date_result", "date_range_min", "da
 export default function SpecimenDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user, role } = useAppAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const attachmentSectionRef = useRef(null);
   const attachmentSectionRequested = searchParams.get("section") === "attachments";
@@ -580,7 +582,7 @@ export default function SpecimenDetailPage() {
                 {saving ? "Saving..." : "Save Changes"}
               </button>
             </>
-          ) : !attachmentOnlyEditing ? (
+          ) : !attachmentOnlyEditing && (role === "admin" || specimen?.created_by === user?.id) ? (
             <>
               <button onClick={startEditing} className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-sm text-white/60 hover:text-white transition-colors">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>

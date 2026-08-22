@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
+import { useAppAuth } from "../context/AppAuthContext";
 import { CONTROLLED_BONE_CATEGORIES, CONTROLLED_BONE_SECTIONS, allowedSidesForCategory, findDuplicateSpecimen, normalize, normalizeBoneCategory, validateCategorySide } from "../utils/pp1ImageModule";
 import { DATING_METHODS, DISTRICTS, optionalNumber, PRESERVATION_STATES, PROVINCES, TIME_PERIODS, validateExcavationAndDating } from "../utils/specimenMetadata";
 const MEASUREMENT_TYPES = ["Maximum Length", "Minimum Length", "Maximum Width", "Minimum Width", "Maximum Diameter", "Minimum Diameter", "Circumference", "Height", "Depth", "Thickness", "Other"];
@@ -38,6 +39,7 @@ function ReviewField({ label, value }) {
 }
 function SpecimenFormPage() {
   const navigate = useNavigate();
+  const { user } = useAppAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [saveDestination, setSaveDestination] = useState("");
@@ -222,7 +224,8 @@ function SpecimenFormPage() {
       setSaving(false);
       return;
     }
-    const { error: specimenError } = await supabase.from("specimens").insert([{ ...form, specimen_id: specimenId, skeleton_code: skeletonCode }]);
+    const specimenPayload = { ...form, specimen_id: specimenId, skeleton_code: skeletonCode, created_by: user?.id ?? null };
+    const { error: specimenError } = await supabase.from("specimens").insert([specimenPayload]);
     if (specimenError) {
       setErrors({ submit: specimenError.message });
       setSaving(false);
