@@ -12,6 +12,8 @@ import {
   normalizeBoneCategory,
   normalizeSide,
   parseCategorySideKey,
+  resolveBoneCategory,
+  supportsFullBodyMap,
   toggleBoneSelection,
 } from '../utils/pp1ImageModule'
 
@@ -31,10 +33,16 @@ function hasUploadedImage(image) {
   return Boolean(String(image?.image_url || '').trim() || String(image?.file_url || '').trim())
 }
 
-function addUnmappedValue(target, value, source, specimenId = '') {
+function classifyRecordValue({ legacyValues, unmappedValues }, value, source, specimenId = '') {
   const cleanValue = String(value || '').trim()
-  if (!cleanValue || normalizeBoneCategory(cleanValue)) return
-  target.push({ value: cleanValue, source, specimenId })
+  if (!cleanValue) return
+  const resolution = resolveBoneCategory(cleanValue)
+  const item = { value: cleanValue, source, specimenId, kind: resolution.kind }
+  if (resolution.kind === 'legacy-subtype' || resolution.kind === 'legacy-removed' || resolution.kind === 'ambiguous-legacy') {
+    legacyValues.push(item)
+  } else if (!resolution.category) {
+    unmappedValues.push(item)
+  }
 }
 
 function calculateCoverage(specimens, measurements, images) {
@@ -54,6 +62,7 @@ function calculateCoverage(specimens, measurements, images) {
 
   const groups = new Map()
   const unmappedValues = []
+  const legacyValues = []
 
   specimens.forEach((specimen) => {
     const specimenMeasurements = measurementsBySpecimen.get(specimen.specimen_id) || []
@@ -63,8 +72,8 @@ function calculateCoverage(specimens, measurements, images) {
         .filter((measurement) => measurement.bone_type)
         .map((measurement) => ({ value: measurement.bone_type, source: 'Measurement record' }))
 
-    sourceRows.forEach((sourceRow) => addUnmappedValue(
-      unmappedValues,
+    sourceRows.forEach((sourceRow) => classifyRecordValue(
+      { legacyValues, unmappedValues },
       sourceRow.value,
       sourceRow.source,
       specimen.specimen_id,
@@ -117,8 +126,8 @@ function calculateCoverage(specimens, measurements, images) {
     })
   })
 
-  images.forEach((image) => addUnmappedValue(
-    unmappedValues,
+  images.forEach((image) => classifyRecordValue(
+    { legacyValues, unmappedValues },
     image.bone_name,
     'Image record',
     image.specimen_id,
@@ -147,8 +156,8 @@ function calculateCoverage(specimens, measurements, images) {
     .filter((record) => record.status !== 'unknown')
     .map((record) => parseCategorySideKey(record.key)?.category.code)
     .filter(Boolean)).size
-  const supportedCategoryCount = CONTROLLED_BONE_CATEGORIES.length
-  const recordedCategoryCoveragePercent = supportedCategoryCount > 0 ? Math.round((knownCategoryCount / supportedCategoryCount) * 100) : 0
+  const catalogueCategoryCount = CONTROLLED_BONE_CATEGORIES.length
+  const recordedCategoryCoveragePercent = catalogueCategoryCount > 0 ? Math.round((knownCategoryCount / catalogueCategoryCount) * 100) : 0
   const imageDocumentationPercent = knownCount > 0 ? Math.round((documentedCount / knownCount) * 100) : 0
 
   return {
@@ -157,11 +166,26 @@ function calculateCoverage(specimens, measurements, images) {
     presentNoImageCount,
     knownCount,
     knownCategoryCount,
-    supportedCategoryCount,
+    catalogueCategoryCount,
     recordedCategoryCoveragePercent,
     imageDocumentationPercent,
+    legacyValues,
     unmappedValues,
   }
+}
+
+function summarizeRecordValues(items) {
+  const values = new Map()
+  items.forEach((item) => {
+    const existing = values.get(item.value) || { value: item.value, count: 0, sources: new Set(), kinds: new Set() }
+    existing.count += 1
+    existing.sources.add(item.source)
+    existing.kinds.add(item.kind)
+    values.set(item.value, existing)
+  })
+  return [...values.values()]
+    .map((item) => ({ ...item, sources: [...item.sources], kinds: [...item.kinds] }))
+    .sort((a, b) => a.value.localeCompare(b.value))
 }
 
 function SummaryCard({ label, value, tone = 'slate' }) {
@@ -330,18 +354,8 @@ export default function SkeletonViewerPage() {
     [specimens, measurements, images],
   )
 
-  const uniqueUnmappedValues = useMemo(() => {
-    const values = new Map()
-    coverage.unmappedValues.forEach((item) => {
-      const existing = values.get(item.value) || { value: item.value, count: 0, sources: new Set() }
-      existing.count += 1
-      existing.sources.add(item.source)
-      values.set(item.value, existing)
-    })
-    return [...values.values()]
-      .map((item) => ({ ...item, sources: [...item.sources] }))
-      .sort((a, b) => a.value.localeCompare(b.value))
-  }, [coverage.unmappedValues])
+  const uniqueLegacyValues = useMemo(() => summarizeRecordValues(coverage.legacyValues), [coverage.legacyValues])
+  const uniqueUnmappedValues = useMemo(() => summarizeRecordValues(coverage.unmappedValues), [coverage.unmappedValues])
 
   const selectedRecord = selectedKey
     ? coverage.statusData[selectedKey] || { status: 'unknown', specimenIds: [], images: [], sourceValues: [], conditionValues: [], fragmented: false }
@@ -406,7 +420,7 @@ export default function SkeletonViewerPage() {
               <CoverageGauge
                 label="Recorded Category Coverage"
                 percent={hasSelection ? coverage.recordedCategoryCoveragePercent : 0}
-                fraction={hasSelection ? `${coverage.knownCategoryCount} of ${coverage.supportedCategoryCount} supported categories recorded` : 'Select a skeleton to calculate coverage'}
+                fraction={hasSelection ? `${coverage.knownCategoryCount} of ${coverage.catalogueCategoryCount} controlled categories recorded` : 'Select a skeleton to calculate coverage'}
                 explanation={hasSelection && coverage.knownCategoryCount === 0
                   ? 'No supported bone categories have been registered for this skeleton.'
                   : 'Distinct saved bone categories divided by the controlled catalogue. This is category coverage, not scientific skeletal completeness.'}
@@ -494,6 +508,12 @@ export default function SkeletonViewerPage() {
                   <DetailLine label="Recorded condition" value={selectedRecord.conditionValues?.join(', ')} />
                 </div>
 
+                {!supportsFullBodyMap(selectedParts.category.code) && (
+                  <p className="mt-4 rounded-md border border-violet-300/20 bg-violet-300/10 px-3 py-2 text-xs leading-5 text-violet-100">
+                    This is a valid controlled category, but it is not available on the current full-body anatomical map. Its documentation status and linked records remain available here.
+                  </p>
+                )}
+
                 <div className="mt-5">
                   <p className="text-xs text-white/35">Linked specimen IDs</p>
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -545,12 +565,31 @@ export default function SkeletonViewerPage() {
                 <p className="flex items-center gap-3 text-white/70"><span className="h-3 w-3 rounded-sm bg-emerald-400" /> Documented</p>
                 <p className="flex items-center gap-3 text-white/70"><span className="h-3 w-3 rounded-sm bg-amber-400" /> Present, no image</p>
                 <p className="flex items-center gap-3 text-white/70"><span className="h-3 w-3 rounded-sm bg-slate-500" /> Not assessed</p>
+                <p className="flex items-center gap-3 text-white/70"><span className="h-3 w-3 rounded-sm border border-violet-300 bg-violet-300/15" /> Valid category, not supported by full-body map</p>
+                <p className="flex items-center gap-3 text-white/70"><span className="h-3 w-3 rounded-sm border border-dashed border-orange-300 bg-orange-300/10" /> Legacy category requiring review</p>
                 {selectedKey && (
                   <p className="flex items-center gap-3 text-white/70"><span className="h-3 w-3 rounded-sm border-2 border-sky-300 shadow-[0_0_6px_rgba(56,189,248,0.8)]" /> Selected outline</p>
                 )}
                 <p className="flex items-center gap-3 text-white/70"><span className="h-3 w-3 rounded-sm border-2 border-dashed border-red-400" /> Fragmented condition</p>
               </div>
             </section>
+
+            {uniqueLegacyValues.length > 0 && (
+              <section className="rounded-md border border-orange-300/25 bg-orange-300/10 p-5">
+                <h2 className="text-sm font-semibold text-orange-100">Legacy categories requiring review</h2>
+                <p className="mt-2 text-xs leading-5 text-orange-50/65">
+                  These raw saved values were preserved. Legacy vertebral subtypes contribute to canonical Vertebra coverage; removed or ambiguous values are not guessed into a new category.
+                </p>
+                <div className="mt-3 space-y-2">
+                  {uniqueLegacyValues.map((item) => (
+                    <div key={item.value} className="rounded-md border border-orange-100/10 bg-slate-950/35 px-3 py-2">
+                      <p className="text-sm font-medium text-orange-50">{item.value} <span className="text-orange-100/45">({item.count})</span></p>
+                      <p className="mt-1 text-[11px] text-orange-50/45">{item.sources.join(', ')}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {legacyImages.length > 0 && (
               <section className="rounded-md border border-amber-300/25 bg-amber-300/10 p-5">
@@ -572,8 +611,8 @@ export default function SkeletonViewerPage() {
 
             {uniqueUnmappedValues.length > 0 && (
               <section className="rounded-md border border-cyan-300/20 bg-cyan-300/10 p-5">
-                <h2 className="text-sm font-semibold text-cyan-50">Unmapped record values</h2>
-                <p className="mt-2 text-xs leading-5 text-cyan-50/60">These values were kept visible and were not guessed into a category.</p>
+                <h2 className="text-sm font-semibold text-cyan-50">Unknown record values</h2>
+                <p className="mt-2 text-xs leading-5 text-cyan-50/60">These values are not recognized as canonical or known legacy data. They were kept visible and were not guessed into a category.</p>
                 <div className="mt-3 space-y-2">
                   {uniqueUnmappedValues.map((item) => (
                     <div key={item.value} className="rounded-md border border-cyan-100/10 bg-slate-950/35 px-3 py-2">

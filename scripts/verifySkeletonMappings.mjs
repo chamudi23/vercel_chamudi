@@ -2,19 +2,31 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import {
   CONTROLLED_BONE_CATEGORIES,
+  CONTROLLED_BONE_SECTIONS,
+  EXPECTED_CATEGORY_SIDE_KEYS,
   SKELETON_ORIENTATION_MARKERS,
   SKELETON_SCREEN_SIDE_GROUPS,
   SKELETON_SVG_GROUPS,
+  categorySides,
   categorySideKey,
+  getCategoryByCode,
   normalizeBoneCategory,
+  resolveBoneCategory,
   screenSideForAnatomicalSide,
   skeletonStatusKeysForSvgKey,
   skeletonViewsForMode,
+  supportsFullBodyMap,
   toggleBoneSelection,
 } from '../src/utils/pp1ImageModule.js'
 
 const expectedMappings = {
   front: {
+    SKULL_MIDLINE: [128, 129, 130, 131, 132, 133, 135],
+    MANDIBLE_MIDLINE: [125],
+    SACRUM_MIDLINE: [68],
+    COCCYX_MIDLINE: [67],
+    RIB_UNKNOWN: [82],
+    PELVIS_UNKNOWN: [61],
     HUMERUS_LEFT: [144], HUMERUS_RIGHT: [150],
     RADIUS_LEFT: [147], RADIUS_RIGHT: [154],
     ULNA_LEFT: [148], ULNA_RIGHT: [155],
@@ -23,18 +35,79 @@ const expectedMappings = {
     FIBULA_LEFT: [225], FIBULA_RIGHT: [52],
   },
   back: {
-    MANDIBLE_MIDLINE: [94],
+    SKULL_MIDLINE: [98, 99, 100, 102],
     HUMERUS_LEFT: [2], HUMERUS_RIGHT: [47],
     RADIUS_LEFT: [45], RADIUS_RIGHT: [49],
     ULNA_LEFT: [44], ULNA_RIGHT: [51],
     FEMUR_LEFT: [84], FEMUR_RIGHT: [87],
     TIBIA_LEFT: [201], TIBIA_RIGHT: [205],
     FIBULA_LEFT: [204], FIBULA_RIGHT: [208],
-    OTHER_TARSAL_LEFT: [222, 223, 224, 225, 226, 227],
-    OTHER_TARSAL_RIGHT: [210, 211, 212, 213, 214, 215],
     METATARSAL_LEFT: [229, 230, 231], METATARSAL_RIGHT: [217, 218, 219],
     FOOT_PHALANX_LEFT: [232], FOOT_PHALANX_RIGHT: [220],
   },
+}
+
+const unsupportedCanonicalCodes = [
+  'MAXILLA',
+  'INCISOR',
+  'CANINE',
+  'PREMOLAR',
+  'MOLAR',
+  'VERTEBRA',
+  'STERNUM',
+  'PUBIS',
+  'OTHER',
+]
+
+assert.equal(CONTROLLED_BONE_CATEGORIES.length, 28)
+assert.equal(new Set(CONTROLLED_BONE_CATEGORIES.map((category) => category.code)).size, 28)
+assert.equal(new Set(CONTROLLED_BONE_CATEGORIES.map((category) => category.label)).size, 28)
+assert.deepEqual([...new Set(CONTROLLED_BONE_CATEGORIES.map((category) => category.section))], CONTROLLED_BONE_SECTIONS)
+
+assert.equal(normalizeBoneCategory('Cranium')?.code, 'SKULL')
+assert.equal(normalizeBoneCategory('Skull')?.code, 'SKULL')
+assert.equal(normalizeBoneCategory('Hand Phalanx')?.code, 'HAND_PHALANX')
+assert.equal(normalizeBoneCategory('Foot Phalanx')?.code, 'FOOT_PHALANX')
+assert.equal(normalizeBoneCategory('Os Coxa')?.code, 'PELVIS')
+assert.equal(normalizeBoneCategory('Pelvis')?.code, 'PELVIS')
+assert.equal(normalizeBoneCategory('Maxilla')?.code, 'MAXILLA')
+assert.equal(normalizeBoneCategory('Maxilla (Left)')?.code, 'MAXILLA')
+assert.equal(normalizeBoneCategory('Molar')?.code, 'MOLAR')
+assert.equal(normalizeBoneCategory('Molar 1st (Upper)')?.code, 'MOLAR')
+assert.equal(normalizeBoneCategory('Premolar')?.code, 'PREMOLAR')
+assert.equal(normalizeBoneCategory('Incisor')?.code, 'INCISOR')
+assert.equal(normalizeBoneCategory('Canine')?.code, 'CANINE')
+assert.equal(normalizeBoneCategory('Tooth'), null)
+assert.equal(normalizeBoneCategory('Teeth'), null)
+assert.equal(resolveBoneCategory('Tooth').kind, 'ambiguous-legacy')
+assert.equal(resolveBoneCategory('Teeth').kind, 'ambiguous-legacy')
+assert.equal(resolveBoneCategory('Phalanx').kind, 'ambiguous-legacy')
+
+for (const value of ['Cervical Vertebra', 'Thoracic Vertebra', 'Lumbar Vertebra']) {
+  const resolution = resolveBoneCategory(value)
+  assert.equal(resolution.kind, 'legacy-subtype')
+  assert.equal(resolution.category?.code, 'VERTEBRA')
+  assert.equal(resolution.rawValue, value)
+}
+
+for (const value of ['Hyoid', 'Carpal', 'Talus', 'Calcaneus', 'Other Tarsal']) {
+  const resolution = resolveBoneCategory(value)
+  assert.equal(resolution.kind, 'legacy-removed')
+  assert.equal(resolution.category, null)
+  assert.equal(resolution.rawValue, value)
+}
+
+assert.deepEqual(categorySides(getCategoryByCode('OTHER')), ['Unknown'])
+assert.equal(categorySideKey('Other', 'Left'), 'OTHER_UNKNOWN')
+assert.ok(EXPECTED_CATEGORY_SIDE_KEYS.includes('OTHER_UNKNOWN'))
+
+for (const code of unsupportedCanonicalCodes) {
+  const category = getCategoryByCode(code)
+  assert.ok(category, `${code} must remain a valid canonical category`)
+  assert.equal(supportsFullBodyMap(code), false, `${code} must be explicitly unsupported by the full-body map`)
+  for (const side of categorySides(category, false)) {
+    assert.ok(EXPECTED_CATEGORY_SIDE_KEYS.includes(categorySideKey(code, side)), `${code} must remain in coverage keys`)
+  }
 }
 
 assert.deepEqual(SKELETON_ORIENTATION_MARKERS.front, { left: 'R', right: 'L' })
@@ -47,21 +120,22 @@ assert.equal(screenSideForAnatomicalSide('front', 'Midline'), null)
 assert.equal(screenSideForAnatomicalSide('back', 'Unknown'), null)
 assert.deepEqual(skeletonViewsForMode('Both'), ['front', 'back'])
 assert.equal(categorySideKey('Mandible', 'Left'), 'MANDIBLE_MIDLINE')
-assert.equal(categorySideKey('Cranium', 'Right'), 'CRANIUM_MIDLINE')
-assert.equal(normalizeBoneCategory('Maxilla')?.code, 'CRANIUM')
-assert.equal(normalizeBoneCategory('Molar')?.code, 'MANDIBLE')
-assert.equal(normalizeBoneCategory('Premolar')?.code, 'MANDIBLE')
-assert.equal(normalizeBoneCategory('Phalanx')?.code, 'FOOT_PHALANX')
-assert.ok(skeletonStatusKeysForSvgKey('OTHER_TARSAL_RIGHT').includes('TALUS_RIGHT'))
-assert.ok(skeletonStatusKeysForSvgKey('OTHER_TARSAL_RIGHT').includes('CALCANEUS_RIGHT'))
+assert.equal(categorySideKey('Cranium', 'Right'), 'SKULL_MIDLINE')
 assert.ok(skeletonStatusKeysForSvgKey('RIB_UNKNOWN').includes('RIB_LEFT'))
-assert.ok(skeletonStatusKeysForSvgKey('OS_COXA_UNKNOWN').includes('OS_COXA_RIGHT'))
+assert.ok(skeletonStatusKeysForSvgKey('PELVIS_UNKNOWN').includes('PELVIS_RIGHT'))
 
-for (const category of ['MANDIBLE_MIDLINE', 'OTHER_TARSAL_LEFT', 'OTHER_TARSAL_RIGHT', 'METATARSAL_LEFT', 'METATARSAL_RIGHT', 'FOOT_PHALANX_LEFT', 'FOOT_PHALANX_RIGHT']) {
+for (const category of ['SKULL_MIDLINE', 'METATARSAL_LEFT', 'METATARSAL_RIGHT', 'FOOT_PHALANX_LEFT', 'FOOT_PHALANX_RIGHT']) {
   assert.ok(SKELETON_SVG_GROUPS.back[category]?.length, `${category} must be visible in the back view`)
 }
+assert.equal(SKELETON_SVG_GROUPS.back.MANDIBLE_MIDLINE, undefined, 'posterior lower-face proxy must not be used for Mandible')
 assert.equal(SKELETON_SVG_GROUPS.back.PATELLA_LEFT, undefined, 'posterior SVG must not colour the femur as a patella proxy')
 assert.equal(SKELETON_SVG_GROUPS.back.PATELLA_RIGHT, undefined, 'posterior SVG must not colour the femur as a patella proxy')
+assert.equal(SKELETON_SVG_GROUPS.front.HYOID_MIDLINE, undefined, 'suspect anterior Hyoid group must not be used')
+for (const view of ['front', 'back']) {
+  for (const prefix of ['TALUS_', 'CALCANEUS_', 'OTHER_TARSAL_', 'CARPAL_', 'VERTEBRA_', 'STERNUM_', 'PUBIS_', 'OTHER_']) {
+    assert.equal(Object.keys(SKELETON_SVG_GROUPS[view]).some((key) => key.startsWith(prefix)), false, `${view} must not map ${prefix}`)
+  }
+}
 assert.equal(toggleBoneSelection('', 'PATELLA_LEFT'), 'PATELLA_LEFT')
 assert.equal(toggleBoneSelection('PATELLA_LEFT', 'PATELLA_LEFT'), '')
 assert.equal(toggleBoneSelection('PATELLA_LEFT', ''), '')
@@ -91,6 +165,10 @@ for (const [view, mappings] of Object.entries(expectedMappings)) {
   const groupCount = [...source.matchAll(/<g(?:\s|>)/g)].length
 
   for (const [key, indexes] of Object.entries(SKELETON_SVG_GROUPS[view])) {
+    const parsedCode = key.slice(0, key.lastIndexOf('_'))
+    const mappedCategory = getCategoryByCode(parsedCode)
+    assert.ok(mappedCategory, `${view} ${key} must reference a canonical category`)
+    assert.equal(supportsFullBodyMap(mappedCategory.code), true, `${view} ${key} must be declared full-body supported`)
     indexes.forEach((index) => {
       assert.ok(index >= 0 && index < groupCount, `${view} ${key} points outside the source SVG`)
     })
@@ -110,4 +188,4 @@ for (const [view, mappings] of Object.entries(expectedMappings)) {
   }
 }
 
-console.log('Verified anatomical front/back and both-view mappings for every mapped paired category.')
+console.log('Verified 28 canonical categories, legacy compatibility, unsupported states, and safe front/back mappings.')

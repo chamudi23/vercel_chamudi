@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { PP1_BONE_LABELS, allowedSidesForCategory, validateCategorySide } from '../utils/pp1ImageModule'
 
 const SITES = [
   'Sigiriya', 'Ibbankatuwa', 'Fa Hien Cave', 'Batadombalena',
@@ -28,8 +29,6 @@ const TIME_PERIODS = [
   'Iron Age', 'Early Historic', 'Classical Period', 'Medieval', 'Modern',
 ]
 
-const BONE_TYPES   = ['Humerus', 'Femur', 'Tibia', 'Radius', 'Fibula', 'Ulna', 'Skull', 'Mandible', 'Vertebra', 'Other']
-const SIDES        = ['Left', 'Right', 'Both', 'Unknown']
 const PRESERVATION = ['Good', 'Moderate', 'Poor', 'Fragmentary']
 const SEX_OPTIONS  = ['Male', 'Female', 'Unknown']
 
@@ -73,8 +72,15 @@ function AddSpecimenPage() {
   const [error,   setError]   = useState(null)
   const [form,    setForm]    = useState(EMPTY_FORM)
 
-  const handleChange = e =>
-    setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
+  const handleChange = e => {
+    const { name, value } = e.target
+    if (name === 'bone_type') {
+      const nextSides = allowedSidesForCategory(value)
+      setForm(prev => ({ ...prev, bone_type: value, side: nextSides.includes(prev.side) ? prev.side : (nextSides[0] || '') }))
+      return
+    }
+    setForm(prev => ({ ...prev, [name]: value }))
+  }
 
   // Auto-generate specimen_id from site name
   const generateId = () => {
@@ -89,6 +95,10 @@ function AddSpecimenPage() {
     if (!form.specimen_id.trim())   { setError('Specimen ID is required.');   return }
     if (!form.skeleton_code.trim()) { setError('Skeleton code is required.'); return }
     if (!form.site_name)            { setError('Site name is required.');     return }
+    if (form.bone_type) {
+      const sideError = validateCategorySide(form.bone_type, form.side)
+      if (sideError) { setError(sideError); return }
+    }
 
     setLoading(true)
     setError(null)
@@ -278,14 +288,14 @@ function AddSpecimenPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
             <InputField label="Bone Type">
               <select name="bone_type" value={form.bone_type} onChange={handleChange} className={selectClass}>
-                <option value="">Select Bone Type</option>
-                {BONE_TYPES.map(b => <option key={b} value={b}>{b}</option>)}
+                <option value="">Select skeletal element...</option>
+                {PP1_BONE_LABELS.map(b => <option key={b} value={b}>{b}</option>)}
               </select>
             </InputField>
             <InputField label="Side">
               <select name="side" value={form.side} onChange={handleChange} className={selectClass}>
-                <option value="">Select Side</option>
-                {SIDES.map(s => <option key={s} value={s}>{s}</option>)}
+                {!form.bone_type && <option value="">Select a skeletal element first</option>}
+                {allowedSidesForCategory(form.bone_type).map(s => <option key={s} value={s}>{s === 'Unknown' && form.bone_type === 'Other' ? 'Not applicable' : s}</option>)}
               </select>
             </InputField>
             <InputField label="Preservation State">
