@@ -6,10 +6,10 @@ import { useAppAuth } from '../../context/AppAuthContext'
 // roles: null = every signed-in role sees this link
 const navigation = [
   { label: 'Home', to: '/', end: true, roles: null },
-  { label: 'Specimen Records', to: '/specimens', roles: null },
+  { label: 'Specimen Records', to: '/specimens', roles: ['admin', 'researcher'] },
   { label: 'Image Library', to: '/gallery', related: ['/image/', '/upload', '/search'], roles: ['researcher', 'student'] },
   { label: 'Skeleton Viewer', to: '/skeleton', roles: ['researcher', 'student'] },
-  { label: 'Data Quality', to: '/data-quality', roles: null },
+  { label: 'Data Quality', to: '/data-quality', roles: ['admin', 'researcher'] },
   { label: 'Research Assistant', to: '/ai-assistant', roles: ['researcher'] },
   { label: 'Add Site', to: '/parami/add-site', roles: ['admin'] },
   { label: 'Approvals', to: '/admin/approvals', roles: ['admin'] },

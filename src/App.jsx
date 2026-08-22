@@ -77,16 +77,16 @@ function ApplicationRoutes() {
           <Route path="/analysis" element={<Guard roles={RESEARCHER}><AIAssistantPage /></Guard>} />
 
           {/* Data Integration & Management (Minuri) — Admin full, Researcher shared
-              (own-record edit only, enforced by RLS + the Specimen Detail page),
-              Student view-only */}
+              (own-record edit only, enforced by RLS + the Specimen Detail page).
+              Student has no access to this module at all. */}
           <Route path="/admin/approvals" element={<Guard roles={ADMIN}><AdminApprovalsPage /></Guard>} />
-          <Route path="/minuri" element={<Guard roles={ANY_ROLE}><MinuriModulePage /></Guard>} />
-          <Route path="/data-management" element={<Guard roles={ANY_ROLE}><MinuriModulePage /></Guard>} />
+          <Route path="/minuri" element={<Guard roles={ADMIN_RESEARCHER}><MinuriModulePage /></Guard>} />
+          <Route path="/data-management" element={<Guard roles={ADMIN_RESEARCHER}><MinuriModulePage /></Guard>} />
           <Route path="/specimens/add" element={<Guard roles={ADMIN_RESEARCHER}><SpecimenFormPage /></Guard>} />
           <Route path="/specimens/import" element={<Guard roles={ADMIN_RESEARCHER}><DataImportPage /></Guard>} />
-          <Route path="/specimens" element={<Guard roles={ANY_ROLE}><SpecimenListPage /></Guard>} />
-          <Route path="/specimens/:id" element={<Guard roles={ANY_ROLE}><SpecimenDetailPage /></Guard>} />
-          <Route path="/data-quality" element={<Guard roles={ANY_ROLE}><DataQualityPage /></Guard>} />
+          <Route path="/specimens" element={<Guard roles={ADMIN_RESEARCHER}><SpecimenListPage /></Guard>} />
+          <Route path="/specimens/:id" element={<Guard roles={ADMIN_RESEARCHER}><SpecimenDetailPage /></Guard>} />
+          <Route path="/data-quality" element={<Guard roles={ADMIN_RESEARCHER}><DataQualityPage /></Guard>} />
 
           {/* GIS & Spatial Analysis (Parami) — Researcher full, Student view;
               Add Site is Admin-only, not part of the Researcher/Student workflow */}

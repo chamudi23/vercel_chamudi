@@ -42,7 +42,7 @@ const modules = [
     tagClass: 'border-blue-400/20 bg-blue-400/10 text-blue-100',
     linkClass: 'text-blue-300',
     hoverClass: 'hover:border-blue-400/50 hover:shadow-blue-500/20',
-    roles: null, // every role can see this one
+    roles: ['admin', 'researcher'], // Student has no access to this module
   },
   {
     title: 'GIS & Spatial Analysis',
