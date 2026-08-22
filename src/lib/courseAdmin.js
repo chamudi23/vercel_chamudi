@@ -1,38 +1,24 @@
 /* ------------------------------------------------------------------ *
  *  Learner-progress admin — read-only queries
  *
- *  Backed by the `course_progress` and `course_admins` tables in the
- *  Skeletal Analysis Supabase project (see kgc_admin_setup.sql).
+ *  Backed by the `course_progress` table
+ *  (see access_control/03_consolidate_skeletal.sql).
  *
  *  Access is enforced by Row-Level Security in the database, not here:
  *    - a normal learner's SELECT on course_progress returns only their row;
- *    - a user listed in course_admins matches the extra admin policy and
- *      receives every row.
- *  The checks in this file only decide what UI to show. Removing them would
- *  not reveal anyone else's data.
+ *    - a user whose profile role is 'admin' matches the additional
+ *      course_progress_select_admin policy and receives every row.
+ *
+ *  The standalone `course_admins` allow-list this module used to consult is
+ *  retired — `role = 'admin'` in public.profiles is the single notion of
+ *  administrator across the system. Whether the caller is an admin is read
+ *  from AuthContext; this file only fetches.
  *
  *  There is no insert/update/delete in this module — the dashboard cannot
  *  alter a learner's progress.
  * ------------------------------------------------------------------ */
 
 import { supabase } from './skeletalSupabase';
-
-/** Is this user on the admin allow-list? Returns false for signed-out users. */
-export async function isCourseAdmin(userId) {
-  if (!userId) return false;
-  const { data, error } = await supabase
-    .from('course_admins')
-    .select('user_id')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (error) {
-    // 42P01 = table missing, i.e. kgc_admin_setup.sql has not been run yet.
-    console.error('[admin] admin check failed:', error.message);
-    return false;
-  }
-  return Boolean(data);
-}
 
 /**
  * Every learner's progress, most recently active first.

@@ -17,7 +17,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import SkeletalHeader from '../../components/KgcSkeletalHeader';
 import { useAuth } from '../../context/AuthContext';
 import { COURSE_STEPS } from './kgcCourseData';
-import { isCourseAdmin, getAllLearnerProgress, summariseProgress } from '../../lib/courseAdmin';
+import { getAllLearnerProgress, summariseProgress } from '../../lib/courseAdmin';
 
 const ADMIN_PATH = '/skeletal/admin/learners';
 
@@ -73,7 +73,7 @@ function timeAgo(iso) {
 
 export default function KgcLearnerProgress() {
   const navigate = useNavigate();
-  const { user, loading: authLoading, signInWithGoogle } = useAuth();
+  const { user, isAdmin, loading: authLoading, signInWithGoogle } = useAuth();
 
   const [state, setState] = useState({ status: 'checking', rows: [], error: null });
   const [search, setSearch] = useState('');
@@ -85,15 +85,16 @@ export default function KgcLearnerProgress() {
     }
     setState((s) => ({ ...s, status: 'checking' }));
 
-    const admin = await isCourseAdmin(user.id);
-    if (!admin) {
+    // "Admin" is the role on the user's profile — one notion of administrator
+    // system-wide, rather than a separate allow-list for this page.
+    if (!isAdmin) {
       setState({ status: 'forbidden', rows: [], error: null });
       return;
     }
 
     const { rows, error } = await getAllLearnerProgress();
     setState({ status: error ? 'error' : 'ready', rows, error });
-  }, [user]);
+  }, [user, isAdmin]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -170,19 +171,21 @@ export default function KgcLearnerProgress() {
         <div className="max-w-lg mx-auto rounded-3xl border border-amber-500/20 bg-amber-500/[0.06] p-8">
           <h2 className="text-xl font-bold mb-2">Not an administrator</h2>
           <p className="text-white/60 text-sm leading-relaxed mb-4">
-            You are signed in as <span className="text-white">{user?.email}</span>, which is not on the
-            course-admin allow-list. Learner progress is protected by row-level security, so this page
-            shows nothing until that account is granted access.
+            You are signed in as <span className="text-white">{user?.email}</span>, whose role is not
+            administrator. Learner progress is protected by row-level security, so this page shows
+            nothing until that account is given the admin role.
           </p>
-          <p className="text-white/40 text-xs mb-2">To grant it, run in the Supabase SQL editor:</p>
+          <p className="text-white/40 text-xs mb-2">
+            An administrator can change it from the Users screen, or directly in SQL:
+          </p>
           <pre className="text-[11px] bg-black/40 border border-white/10 rounded-lg p-3 overflow-x-auto text-emerald-300/80">
-{`insert into public.course_admins (user_id, email)
-select id, email from auth.users
-where email = '${user?.email || 'you@example.com'}'
-on conflict (user_id) do nothing;`}
+{`update public.profiles
+   set role = 'admin'
+ where lower(email) = lower('${user?.email || 'you@example.com'}');`}
           </pre>
           <p className="text-white/30 text-[11px] mt-3">
-            If the table does not exist yet, run <code>kgc_admin_setup.sql</code> first.
+            If the <code>profiles</code> table does not exist yet, run{' '}
+            <code>access_control/01_identity_and_roles.sql</code> first.
           </p>
         </div>
       </Shell>
