@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { useAppAuth } from '../context/AppAuthContext'
 import { PP1_BONE_LABELS, allowedSidesForCategory, validateCategorySide } from '../utils/pp1ImageModule'
 
 const SITES = [
@@ -68,7 +67,6 @@ function InputField({ label, required, hint, children }) {
 
 function AddSpecimenPage() {
   const navigate  = useNavigate()
-  const { user } = useAppAuth()
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error,   setError]   = useState(null)
@@ -107,7 +105,6 @@ function AddSpecimenPage() {
 
     try {
       const { error: err } = await supabase.from('specimens').insert([{
-        created_by:          user?.id ?? null,
         specimen_id:        form.specimen_id.trim(),
         skeleton_code:      form.skeleton_code.trim(),
         site_name:          form.site_name,

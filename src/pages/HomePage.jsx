@@ -1,7 +1,6 @@
 /* eslint-disable react/prop-types */
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAppAuth } from '../context/AppAuthContext'
 import {
   ArrowRight,
   Brain,
@@ -42,7 +41,6 @@ const modules = [
     tagClass: 'border-blue-400/20 bg-blue-400/10 text-blue-100',
     linkClass: 'text-blue-300',
     hoverClass: 'hover:border-blue-400/50 hover:shadow-blue-500/20',
-    roles: ['admin', 'researcher'], // Student has no access to this module
   },
   {
     title: 'GIS & Spatial Analysis',
@@ -56,7 +54,6 @@ const modules = [
     tagClass: 'border-purple-400/20 bg-purple-400/10 text-purple-100',
     linkClass: 'text-purple-300',
     hoverClass: 'hover:border-purple-400/50 hover:shadow-purple-500/20',
-    roles: ['researcher', 'student'],
   },
   {
     title: 'Skeletal Image Documentation',
@@ -70,7 +67,6 @@ const modules = [
     tagClass: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-100',
     linkClass: 'text-emerald-300',
     hoverClass: 'hover:border-emerald-400/50 hover:shadow-emerald-500/20',
-    roles: ['researcher', 'student'],
   },
   {
     title: 'Skeletal Analysis',
@@ -84,7 +80,6 @@ const modules = [
     tagClass: 'border-orange-400/20 bg-orange-400/10 text-orange-100',
     linkClass: 'text-orange-300',
     hoverClass: 'hover:border-orange-400/50 hover:shadow-orange-500/20',
-    roles: ['researcher', 'student'],
   },
 ]
 
@@ -278,8 +273,6 @@ function GalleryCard({ item, index }) {
 }
 
 function HomePage() {
-  const { role } = useAppAuth()
-  const visibleModules = modules.filter((module) => !module.roles || module.roles.includes(role))
   const [heroOffset, setHeroOffset] = useState(0)
 
   useEffect(() => {
@@ -378,7 +371,7 @@ function HomePage() {
           </Reveal>
 
           <div className="mt-12 grid grid-cols-1 gap-5 md:grid-cols-2">
-            {visibleModules.map((module, index) => (
+            {modules.map((module, index) => (
               <ModuleCard key={module.title} module={module} index={index} />
             ))}
           </div>

@@ -1,18 +1,14 @@
 import { useState } from 'react'
-import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { Link, NavLink, useLocation } from 'react-router-dom'
 import { Menu, X } from 'lucide-react'
-import { useAppAuth } from '../../context/AppAuthContext'
 
-// roles: null = every signed-in role sees this link
 const navigation = [
-  { label: 'Home', to: '/', end: true, roles: null },
-  { label: 'Specimen Records', to: '/specimens', roles: ['admin', 'researcher'] },
-  { label: 'Image Library', to: '/gallery', related: ['/image/', '/upload', '/search'], roles: ['researcher', 'student'] },
-  { label: 'Skeleton Viewer', to: '/skeleton', roles: ['researcher', 'student'] },
-  { label: 'Data Quality', to: '/data-quality', roles: ['admin', 'researcher'] },
-  { label: 'Research Assistant', to: '/ai-assistant', roles: ['researcher'] },
-  { label: 'Add Site', to: '/parami/add-site', roles: ['admin'] },
-  { label: 'Approvals', to: '/admin/approvals', roles: ['admin'] },
+  { label: 'Home', to: '/', end: true },
+  { label: 'Specimen Records', to: '/specimens' },
+  { label: 'Image Library', to: '/gallery', related: ['/image/', '/upload', '/search'] },
+  { label: 'Skeleton Viewer', to: '/skeleton' },
+  { label: 'Data Quality', to: '/data-quality' },
+  { label: 'Research Assistant', to: '/ai-assistant' },
 ]
 
 function navClass({ isActive }) {
@@ -27,19 +23,10 @@ function navClass({ isActive }) {
 export default function SiteHeader() {
   const [menuOpen, setMenuOpen] = useState(false)
   const { pathname } = useLocation()
-  const navigate = useNavigate()
-  const { user, role, signOut } = useAppAuth()
 
   const itemClass = (item) => ({ isActive }) => navClass({
     isActive: isActive || item.related?.some((path) => pathname === path || pathname.startsWith(path)),
   })
-
-  const visibleNavigation = navigation.filter((item) => !item.roles || item.roles.includes(role))
-
-  async function handleSignOut() {
-    await signOut()
-    navigate('/login')
-  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/95 shadow-lg shadow-black/20 backdrop-blur-xl">
@@ -56,27 +43,12 @@ export default function SiteHeader() {
         </Link>
 
         <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary navigation">
-          {visibleNavigation.map((item) => (
+          {navigation.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end} className={itemClass(item)}>
               {item.label}
             </NavLink>
           ))}
         </nav>
-
-        {user && (
-          <div className="hidden items-center gap-3 lg:flex">
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-400">
-              {role || '...'}
-            </span>
-            <button
-              type="button"
-              onClick={handleSignOut}
-              className="text-sm text-slate-400 transition-colors hover:text-white"
-            >
-              Sign Out
-            </button>
-          </div>
-        )}
 
         <button
           type="button"
@@ -93,7 +65,7 @@ export default function SiteHeader() {
       {menuOpen && (
         <nav id="mobile-navigation" className="border-t border-white/10 px-5 py-3 lg:hidden" aria-label="Mobile navigation">
           <div className="mx-auto grid max-w-7xl gap-1">
-            {visibleNavigation.map((item) => (
+            {navigation.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
@@ -104,15 +76,6 @@ export default function SiteHeader() {
                 {item.label}
               </NavLink>
             ))}
-            {user && (
-              <button
-                type="button"
-                onClick={() => { setMenuOpen(false); handleSignOut(); }}
-                className="mt-2 rounded-md px-3 py-2 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-white/5 hover:text-white"
-              >
-                Sign Out ({role})
-              </button>
-            )}
           </div>
         </nav>
       )}

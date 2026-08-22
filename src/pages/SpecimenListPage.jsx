@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
-import { useAppAuth } from "../context/AppAuthContext";
 
 const TIME_PERIODS = [
   "All", "Mesolithic", "Neolithic", "Bronze Age", "Iron Age",
@@ -14,8 +13,6 @@ const PRESERVATION_STATES = [
 
 export default function SpecimenListPage() {
   const navigate = useNavigate();
-  const { role } = useAppAuth();
-  const canAddSpecimen = role === "admin" || role === "researcher";
   const [specimens, setSpecimens] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -125,17 +122,15 @@ export default function SpecimenListPage() {
               </svg>
               Export CSV
             </button>
-            {canAddSpecimen && (
-              <button
-                onClick={() => navigate("/specimens/add")}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm text-white font-medium transition-colors"
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
-                Add Specimen
-              </button>
-            )}
+            <button
+              onClick={() => navigate("/specimens/add")}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm text-white font-medium transition-colors"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Add Specimen
+            </button>
           </div>
         </div>
 
@@ -187,15 +182,13 @@ export default function SpecimenListPage() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-20 text-white/30">
             <p className="text-lg mb-2">No specimens found</p>
-            <p className="text-sm">Try adjusting your filters{canAddSpecimen ? " or add a new specimen" : ""}</p>
-            {canAddSpecimen && (
-              <button
-                onClick={() => navigate("/specimens/add")}
-                className="mt-4 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm text-white transition-colors"
-              >
-                Add First Specimen
-              </button>
-            )}
+            <p className="text-sm">Try adjusting your filters or add a new specimen</p>
+            <button
+              onClick={() => navigate("/specimens/add")}
+              className="mt-4 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 rounded-xl text-sm text-white transition-colors"
+            >
+              Add First Specimen
+            </button>
           </div>
         ) : (
           <div className="border border-white/10 rounded-2xl overflow-hidden">
