@@ -78,6 +78,9 @@ function AddSitePage() {
       setError('Latitude and longitude must be valid numbers.')
       return
     }
+    // Bounding-box check: rejects coordinates outside Sri Lanka's
+    // lat/lng range so a typo doesn't place a site in the ocean or
+    // another country and silently break the map/clustering later
     if (parseFloat(form.latitude) < 5.9 || parseFloat(form.latitude) > 9.9) {
       setError('Latitude must be between 5.9 and 9.9 (Sri Lanka range).')
       return

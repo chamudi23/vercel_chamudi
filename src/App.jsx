@@ -1,8 +1,6 @@
 /* eslint-disable react/prop-types */
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
-import BonePage from './pages/BonePage'
 import HomePage from './pages/HomePage'
-import BoneDetailPage from './pages/BoneDetailPage'
 import ImageSearchPage from './pages/ImageSearchPage'
 import ImageUploadPage from './pages/ImageUploadPage'
 import ImageDetailPage from './pages/ImageDetailPage'
@@ -60,8 +58,6 @@ function ApplicationRoutes() {
 
           {/* Main OAHRIS Routes */}
           <Route path="/" element={<Guard roles={ANY_ROLE}><HomePage /></Guard>} />
-          <Route path="/bones" element={<Guard roles={ANY_ROLE}><BonePage /></Guard>} />
-          <Route path="/bones/:boneId" element={<Guard roles={ANY_ROLE}><BoneDetailPage /></Guard>} />
 
           {/* Skeletal Image Documentation (Ilshan) — Researcher full, Student view */}
           <Route path="/upload" element={<Guard roles={RESEARCHER}><ImageUploadPage /></Guard>} />

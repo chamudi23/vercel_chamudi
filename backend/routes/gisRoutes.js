@@ -3,6 +3,8 @@ const router = express.Router();
 const supabase = require("../config/supabase");
 
 // GET /api/gis/sites/map
+// Returns every site that has coordinates, with a skeleton_count computed
+// from the related skeletons table — used to draw the main GIS map
 router.get("/sites/map", async (req, res) => {
   const { data: sites, error } = await supabase
     .from("sites")
@@ -22,6 +24,8 @@ router.get("/sites/map", async (req, res) => {
 
 
 // GET /api/gis/sites/temporal
+// Same site list but adds a distinct list of genders found at each site,
+// for time-period-based demographic analysis
 router.get("/sites/temporal", async (req, res) => {
   const { data: sites, error } = await supabase
     .from("sites")
@@ -46,6 +50,8 @@ router.get("/sites/temporal", async (req, res) => {
 
 
 // GET /api/gis/sites/cluster-data
+// Lean version of site data (short field names, no extra joins) shaped
+// for feeding directly into a client-side clustering algorithm like DBSCAN
 router.get("/sites/cluster-data", async (req, res) => {
   const { data: sites, error } = await supabase
     .from("sites")
@@ -72,6 +78,8 @@ router.get("/sites/cluster-data", async (req, res) => {
 
 
 // GET /api/gis/sites/by-district
+// Groups sites by district and computes each district's centroid
+// (average lat/lng) — used for a district-level summary view of the map
 router.get("/sites/by-district", async (req, res) => {
   const { data: sites, error } = await supabase
     .from("sites")
@@ -107,6 +115,8 @@ router.get("/sites/by-district", async (req, res) => {
 
 
 // GET /api/gis/sites/excavation-phases
+// Buckets sites into 4 excavation phases based on keywords/dates found in
+// their free-text time_period field, so the timeline UI can group by phase
 router.get("/sites/excavation-phases", async (req, res) => {
   const { data: sites, error } = await supabase
     .from("sites")
@@ -136,6 +146,9 @@ router.get("/sites/excavation-phases", async (req, res) => {
 
 
 // GET /api/gis/spatial-stats
+// Dashboard summary counts (total mapped, by type, by period, protected,
+// high-risk). Promise.all runs all 5 queries concurrently instead of one
+// after another, so the response is faster.
 router.get("/spatial-stats", async (req, res) => {
   const [
     { count: total_mapped,    error: e1 },

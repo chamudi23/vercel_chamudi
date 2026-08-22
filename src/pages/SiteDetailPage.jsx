@@ -28,13 +28,16 @@ function InfoRow({ label, value }) {
 
 function SiteDetailPage() {
   const { siteId } = useParams()
-  const [site,      setSite]      = useState(null)
-  const [specimens, setSpecimens] = useState([])
-  const [loading,   setLoading]   = useState(true)
-  const [specLoad,  setSpecLoad]  = useState(true)
-  const [error,     setError]     = useState(null)
-  const [activeTab, setActiveTab] = useState('info')
+  const [site,       setSite]       = useState(null)
+  const [specimens,  setSpecimens]  = useState([])
+  const [loading,    setLoading]    = useState(true)
+  const [specLoad,   setSpecLoad]   = useState(true)
+  const [error,      setError]      = useState(null)
+  const [activeTab,  setActiveTab]  = useState('info')
 
+  // Load one site by its id (from the URL param), then look up specimens
+  // linked to that site by matching site_name — used to show findings
+  // for this specific location
   useEffect(() => {
     async function loadSite() {
       try {
@@ -198,6 +201,23 @@ function SiteDetailPage() {
             </div>
           </div>
 
+          {/* Site Photo */}
+          {site.image_url && (
+            <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
+              <h2 className="text-slate-200 font-semibold mb-4 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-orange-400 inline-block" />
+                Site Photo
+              </h2>
+              <a href={site.image_url} target="_blank" rel="noopener noreferrer" className="block group">
+                <img
+                  src={site.image_url}
+                  alt={site.site_name}
+                  className="w-full max-h-96 object-cover rounded-lg border border-slate-700 group-hover:opacity-90 transition-opacity"
+                />
+              </a>
+            </div>
+          )}
+
           {/* Research Notes */}
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-6">
             <h2 className="text-slate-200 font-semibold mb-4 flex items-center gap-2">
@@ -224,7 +244,8 @@ function SiteDetailPage() {
         </div>
       )}
 
-      {/* Tab: Map */}
+      {/* Tab: Map — same Leaflet setup as the main GIS map, but zoomed
+          into this one site's coordinates instead of showing all sites */}
       {activeTab === 'map' && (
         <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-700">
@@ -283,6 +304,7 @@ function SiteDetailPage() {
                   <tr className="border-b border-slate-700">
                     <th className="text-left px-6 py-3 text-slate-400 font-medium">Specimen ID</th>
                     <th className="text-left px-6 py-3 text-slate-400 font-medium">Skeleton Code</th>
+                    <th className="text-left px-6 py-3 text-slate-400 font-medium">Bone Type</th>
                     <th className="text-left px-6 py-3 text-slate-400 font-medium">Time Period</th>
                     <th className="text-left px-6 py-3 text-slate-400 font-medium">Excavation Year</th>
                     <th className="text-left px-6 py-3 text-slate-400 font-medium">Location Stored</th>
@@ -294,6 +316,7 @@ function SiteDetailPage() {
                     <tr key={spec.specimen_id || i} className={`border-b border-slate-700 hover:bg-slate-700 transition-colors ${i % 2 !== 0 ? 'bg-slate-800/50' : ''}`}>
                       <td className="px-6 py-3 text-blue-400 font-mono text-xs">{spec.specimen_id || '—'}</td>
                       <td className="px-6 py-3 text-slate-200 font-medium">{spec.skeleton_code || '—'}</td>
+                      <td className="px-6 py-3 text-slate-400">{spec.bone_type || '—'}</td>
                       <td className="px-6 py-3 text-slate-400">{spec.time_period || '—'}</td>
                       <td className="px-6 py-3 text-slate-400">{spec.excavation_year || '—'}</td>
                       <td className="px-6 py-3 text-slate-400">{spec.location_stored || '—'}</td>
