@@ -50,6 +50,25 @@ import {
  * 1. Anatomy map - ASA analysis type -> CSRM `bone_type` vocabulary
  * ================================================================== */
 
+/**
+ * Aligned with CSRM's own controlled vocabulary — `CONTROLLED_BONE_CATEGORIES`
+ * in src/utils/pp1ImageModule.js, which tags every category with a `section`
+ * and a `region`. Those map onto ASA's six analysis types as:
+ *
+ *   CSRM section            → ASA analysis type
+ *   Skull                   → Skull
+ *   Teeth                   → Teeth
+ *   Upper Limb              → Upper Limb
+ *   Lower Limb              → Lower Limb
+ *   Thorax                  → Thorax
+ *   Pelvis                  → Pelvis
+ *   Vertebral Column        → Thorax (vertebra) / Pelvis (sacrum, coccyx)
+ *   Hands and Feet          → by region: Upper Limb or Lower Limb
+ *
+ * `exclude` prevents a qualified label from also matching the opposite limb:
+ * CSRM distinguishes "Phalanx (Hand)" from "Phalanx (Foot)", so only a bare,
+ * legacy "Phalanx" should match both groups weakly.
+ */
 export const ANALYSIS_BONE_MAP = {
   Skull: {
     primary: ['skull', 'cranium', 'crania', 'calvaria', 'frontal', 'parietal',
@@ -58,18 +77,20 @@ export const ANALYSIS_BONE_MAP = {
   },
   Pelvis: {
     primary: ['pelvis', 'pelvic', 'ilium', 'ischium', 'pubis', 'innominate',
-              'coxal', 'sacrum'],
+              'coxal', 'sacrum', 'coccyx'],
     secondary: ['skeleton assemblage'],
   },
   'Upper Limb': {
     primary: ['humerus', 'radius', 'ulna', 'scapula', 'clavicle',
-              'metacarpal', 'carpal'],
+              'metacarpal', 'carpal', 'phalanx hand'],
     secondary: ['phalanx', 'skeleton assemblage'],
+    exclude: ['phalanx foot'],
   },
   'Lower Limb': {
     primary: ['femur', 'tibia', 'fibula', 'patella', 'calcaneus', 'calcaneum',
-              'talus', 'astragalus', 'metatarsal', 'tarsal'],
+              'talus', 'astragalus', 'metatarsal', 'tarsal', 'phalanx foot'],
     secondary: ['phalanx', 'skeleton assemblage'],
+    exclude: ['phalanx hand', 'metacarpal'],
   },
   Thorax: {
     primary: ['rib', 'sternum', 'costal', 'vertebra', 'thoracic'],
@@ -377,6 +398,8 @@ function scoreBoneGroup(specimenBoneType, analysisType) {
   if (!map) return null
   const bt = norm(specimenBoneType)
   if (!bt) return null
+  // A qualified label belonging to the opposite limb is not a match at all.
+  if ((map.exclude || []).some((t) => bt.includes(t))) return null
   if (map.primary.some((t) => bt.includes(t))) return { score: BONE_GROUP_SCORE.primary, tier: 'primary' }
   if (map.secondary.some((t) => bt.includes(t))) return { score: BONE_GROUP_SCORE.secondary, tier: 'secondary' }
   return null
