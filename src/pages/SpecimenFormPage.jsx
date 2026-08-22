@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
+import { useAppAuth } from "../context/AppAuthContext";
 import {
   PP1_BONE_LABELS,
   allowedSidesForCategory,
@@ -44,6 +45,7 @@ function generateId(prefix) {
 
 export default function SpecimenFormPage() {
   const navigate = useNavigate();
+  const { user } = useAppAuth();
   const [saving, setSaving] = useState(false);
   const [saveDestination, setSaveDestination] = useState("");
   const [errors, setErrors] = useState({});
@@ -337,7 +339,7 @@ export default function SpecimenFormPage() {
     }
 
     // 1. Save specimen
-    const specimenPayload = { ...form, specimen_id: specimenId, skeleton_code: skeletonCode };
+    const specimenPayload = { ...form, specimen_id: specimenId, skeleton_code: skeletonCode, created_by: user?.id ?? null };
 
     const { error: specimenError } = await supabase.from("specimens").insert([specimenPayload]);
     if (specimenError) {

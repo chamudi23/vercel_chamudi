@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import BonePage from './pages/BonePage'
 import HomePage from './pages/HomePage'
@@ -35,52 +36,81 @@ import SkeletalBoneFeatureGuide from './pages/Knowledge/KgcBoneFeatureGuide';
 import SkeletalCourse from './pages/Knowledge/KgcCourse';
 import { AnalysisProvider } from './context/AnalysisContext';
 import { AuthProvider } from './context/AuthContext';
+import { AppAuthProvider } from './context/AppAuthContext';
 import AppLayout from './components/layout/AppLayout';
+import ProtectedRoute from './components/ProtectedRoute';
+import LoginPage from './pages/LoginPage';
+
+// Role sets, so the intent of each route is readable at a glance below.
+const ANY_ROLE = null // any signed-in user (admin, researcher, or student)
+const ADMIN = ['admin']
+const RESEARCHER = ['researcher']
+const RESEARCHER_STUDENT = ['researcher', 'student']
+const ADMIN_RESEARCHER = ['admin', 'researcher']
+
+function Guard({ roles, children }) {
+  return <ProtectedRoute roles={roles}>{children}</ProtectedRoute>
+}
 
 function ApplicationRoutes() {
   return (
     <Routes>
-          {/* Main OAHRIS Routes */}
-          <Route path="/" element={<HomePage />} />
-          <Route path="/bones" element={<BonePage />} />
-          <Route path="/bones/:boneId" element={<BoneDetailPage />} />
-          <Route path="/upload" element={<ImageUploadPage />} />
-          <Route path="/gallery" element={<ImageSearchPage />} />
-          <Route path="/image/:imageId" element={<ImageDetailPage />} />
-          <Route path="/search" element={<ImageSearchPage />} />
-          <Route path="/skeleton" element={<SkeletonViewerPage />} />
-          <Route path="/ai-assistant" element={<AIAssistantPage />} />
-          <Route path="/analysis" element={<AIAssistantPage />} />
-          <Route path="/module" element={<IlshanModulePage />} />
-          <Route path="/image-documentation" element={<IlshanModulePage />} />
-          <Route path="/minuri" element={<MinuriModulePage />} />
-          <Route path="/data-management" element={<MinuriModulePage />} />
-          <Route path="/specimens/add" element={<SpecimenFormPage />} />
-          <Route path="/specimens/import" element={<DataImportPage />} />
-          <Route path="/specimens" element={<SpecimenListPage />} />
-          <Route path="/specimens/:id" element={<SpecimenDetailPage />} />
-          <Route path="/data-quality" element={<DataQualityPage />} />
-          <Route path="/parami" element={<ParamiModulePage />} />
-          <Route path="/spatial-analysis" element={<ParamiModulePage />} />
-          <Route path="/parami/site/:siteId" element={<SiteDetailPage />} />
-          <Route path="/parami/add-site" element={<AddSitePage />} />
-          <Route path="/parami/similar-findings" element={<SimilarFindingsPage />} />
-          <Route path="/parami/add-specimen" element={<AddSpecimenPage />} />
-          <Route path="/parami/home" element={<GISHome />} />
+          <Route path="/login" element={<LoginPage />} />
 
-          {/* Skeletal Module Routes — all flat, no sidebar */}
-          <Route path="/skeletal" element={<SkeletalModulePage />} />
-          <Route path="/skeletal/dashboard" element={<SkeletalDashboard />} />
-          <Route path="/skeletal/analysis/new" element={<SkeletalStep1 />} />
-          <Route path="/skeletal/analysis/step2" element={<SkeletalStep2 />} />
-          <Route path="/skeletal/analysis/step3" element={<SkeletalStep3 />} />
-          <Route path="/skeletal/report" element={<SkeletalReport />} />
-          <Route path="/skeletal/report/:caseId" element={<SkeletalReport />} />
-          <Route path="/skeletal/cases" element={<SkeletalPastAnalysis />} />
-          <Route path="/skeletal/knowledge" element={<SkeletalKnowledgeBase />} />
-          <Route path="/skeletal/knowledge/tutorial" element={<SkeletalNewAnalysisTutorial />} />
-          <Route path="/skeletal/knowledge/guide" element={<SkeletalBoneFeatureGuide />} />
-          <Route path="/skeletal/knowledge/course" element={<SkeletalCourse />} />
+          {/* Main OAHRIS Routes */}
+          <Route path="/" element={<Guard roles={ANY_ROLE}><HomePage /></Guard>} />
+          <Route path="/bones" element={<Guard roles={ANY_ROLE}><BonePage /></Guard>} />
+          <Route path="/bones/:boneId" element={<Guard roles={ANY_ROLE}><BoneDetailPage /></Guard>} />
+
+          {/* Skeletal Image Documentation (Ilshan) — Researcher full, Student view */}
+          <Route path="/upload" element={<Guard roles={RESEARCHER}><ImageUploadPage /></Guard>} />
+          <Route path="/gallery" element={<Guard roles={RESEARCHER_STUDENT}><ImageSearchPage /></Guard>} />
+          <Route path="/image/:imageId" element={<Guard roles={RESEARCHER_STUDENT}><ImageDetailPage /></Guard>} />
+          <Route path="/search" element={<Guard roles={RESEARCHER_STUDENT}><ImageSearchPage /></Guard>} />
+          <Route path="/module" element={<Guard roles={RESEARCHER_STUDENT}><IlshanModulePage /></Guard>} />
+          <Route path="/image-documentation" element={<Guard roles={RESEARCHER_STUDENT}><IlshanModulePage /></Guard>} />
+
+          {/* Skeletal Analysis / AI Assistant (KGC) — Researcher full, Student view */}
+          <Route path="/skeleton" element={<Guard roles={RESEARCHER_STUDENT}><SkeletonViewerPage /></Guard>} />
+          <Route path="/ai-assistant" element={<Guard roles={RESEARCHER}><AIAssistantPage /></Guard>} />
+          <Route path="/analysis" element={<Guard roles={RESEARCHER}><AIAssistantPage /></Guard>} />
+
+          {/* Data Integration & Management (Minuri) — Admin full, Researcher shared
+              (own-record edit only, enforced by RLS + the Specimen Detail page),
+              Student view-only */}
+          <Route path="/minuri" element={<Guard roles={ANY_ROLE}><MinuriModulePage /></Guard>} />
+          <Route path="/data-management" element={<Guard roles={ANY_ROLE}><MinuriModulePage /></Guard>} />
+          <Route path="/specimens/add" element={<Guard roles={ADMIN_RESEARCHER}><SpecimenFormPage /></Guard>} />
+          <Route path="/specimens/import" element={<Guard roles={ADMIN_RESEARCHER}><DataImportPage /></Guard>} />
+          <Route path="/specimens" element={<Guard roles={ANY_ROLE}><SpecimenListPage /></Guard>} />
+          <Route path="/specimens/:id" element={<Guard roles={ANY_ROLE}><SpecimenDetailPage /></Guard>} />
+          <Route path="/data-quality" element={<Guard roles={ANY_ROLE}><DataQualityPage /></Guard>} />
+
+          {/* GIS & Spatial Analysis (Parami) — Researcher full, Student view;
+              Add Site is Admin-only, not part of the Researcher/Student workflow */}
+          <Route path="/parami" element={<Guard roles={RESEARCHER_STUDENT}><ParamiModulePage /></Guard>} />
+          <Route path="/spatial-analysis" element={<Guard roles={RESEARCHER_STUDENT}><ParamiModulePage /></Guard>} />
+          <Route path="/parami/site/:siteId" element={<Guard roles={RESEARCHER_STUDENT}><SiteDetailPage /></Guard>} />
+          <Route path="/parami/add-site" element={<Guard roles={ADMIN}><AddSitePage /></Guard>} />
+          <Route path="/parami/similar-findings" element={<Guard roles={RESEARCHER_STUDENT}><SimilarFindingsPage /></Guard>} />
+          <Route path="/parami/add-specimen" element={<Guard roles={RESEARCHER}><AddSpecimenPage /></Guard>} />
+          <Route path="/parami/home" element={<Guard roles={RESEARCHER_STUDENT}><GISHome /></Guard>} />
+
+          {/* Skeletal Module Routes — all flat, no sidebar. Researcher full,
+              Student can view dashboards/reports/knowledge base but not create
+              new analyses */}
+          <Route path="/skeletal" element={<Guard roles={RESEARCHER_STUDENT}><SkeletalModulePage /></Guard>} />
+          <Route path="/skeletal/dashboard" element={<Guard roles={RESEARCHER_STUDENT}><SkeletalDashboard /></Guard>} />
+          <Route path="/skeletal/analysis/new" element={<Guard roles={RESEARCHER}><SkeletalStep1 /></Guard>} />
+          <Route path="/skeletal/analysis/step2" element={<Guard roles={RESEARCHER}><SkeletalStep2 /></Guard>} />
+          <Route path="/skeletal/analysis/step3" element={<Guard roles={RESEARCHER}><SkeletalStep3 /></Guard>} />
+          <Route path="/skeletal/report" element={<Guard roles={RESEARCHER_STUDENT}><SkeletalReport /></Guard>} />
+          <Route path="/skeletal/report/:caseId" element={<Guard roles={RESEARCHER_STUDENT}><SkeletalReport /></Guard>} />
+          <Route path="/skeletal/cases" element={<Guard roles={RESEARCHER_STUDENT}><SkeletalPastAnalysis /></Guard>} />
+          <Route path="/skeletal/knowledge" element={<Guard roles={RESEARCHER_STUDENT}><SkeletalKnowledgeBase /></Guard>} />
+          <Route path="/skeletal/knowledge/tutorial" element={<Guard roles={RESEARCHER_STUDENT}><SkeletalNewAnalysisTutorial /></Guard>} />
+          <Route path="/skeletal/knowledge/guide" element={<Guard roles={RESEARCHER_STUDENT}><SkeletalBoneFeatureGuide /></Guard>} />
+          <Route path="/skeletal/knowledge/course" element={<Guard roles={RESEARCHER_STUDENT}><SkeletalCourse /></Guard>} />
     </Routes>
   )
 }
@@ -102,13 +132,15 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <AnalysisProvider>
-        <BrowserRouter>
-          <AppContent />
-        </BrowserRouter>
-      </AnalysisProvider>
-    </AuthProvider>
+    <AppAuthProvider>
+      <AuthProvider>
+        <AnalysisProvider>
+          <BrowserRouter>
+            <AppContent />
+          </BrowserRouter>
+        </AnalysisProvider>
+      </AuthProvider>
+    </AppAuthProvider>
   )
 }
 
