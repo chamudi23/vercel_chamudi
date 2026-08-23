@@ -4,6 +4,7 @@ import { RotateCcw, ZoomIn, ZoomOut } from 'lucide-react'
 import {
   CONTROLLED_BONE_CATEGORIES,
   CONTROLLED_BONE_SECTIONS,
+  CUSTOM_SKELETON_REGIONS,
   SKELETON_ORIENTATION_MARKERS,
   SKELETON_SVG_GROUPS,
   categorySideKey,
@@ -96,46 +97,59 @@ function prepareSvg(svgText, view, statusData, selectedKey, showAllCategories) {
   `
   svg.prepend(style)
 
-  Object.entries(SKELETON_SVG_GROUPS[view] || {}).forEach(([key, groupIndexes]) => {
+  const applyRegionState = (element, key, position, { custom = false } = {}) => {
     const statusKeys = skeletonStatusKeysForSvgKey(key)
-    const selectedStatusKey = statusKeys.find((statusKey) => (
-      statusKey === selectedKey && statusData[statusKey]?.status !== 'unknown'
-    ))
+    // A category selected from "All categories" must remain selectable even
+    // when it has no saved record yet. This is especially important for shared
+    // visual regions such as teeth, whose selected status key differs from the
+    // SVG region key.
+    const selectedStatusKey = statusKeys.find((statusKey) => statusKey === selectedKey)
     const firstKnownStatusKey = statusKeys.find((statusKey) => (
       statusData[statusKey]?.status && statusData[statusKey].status !== 'unknown'
     ))
     const interactionKey = selectedStatusKey || firstKnownStatusKey || key
     const record = statusData[interactionKey] || statusData[key]
     const baseStatus = record?.status || 'unknown'
-    if (!showAllCategories && baseStatus === 'unknown') return
+    if (!showAllCategories && baseStatus === 'unknown') return false
 
+    const selected = interactionKey === selectedKey
+    const palette = STATUS_STYLES[baseStatus]
+    const highlighted = baseStatus === 'documented' || selected
+    const parsed = parseCategorySideKey(interactionKey)
+    const sideUnknown = parsed?.side === 'Unknown' && baseStatus !== 'unknown'
+    const label = parsed ? `${parsed.category.label}, ${parsed.side}` : key
+    const conditionText = record?.fragmented ? ', fragmented condition' : ''
+
+    element.setAttribute('id', position === 0 ? key : `${key}_${position + 1}`)
+    element.setAttribute('data-bone-key', interactionKey)
+    element.setAttribute('role', 'button')
+    element.setAttribute('tabindex', '0')
+    element.setAttribute('aria-label', `${label}: ${STATUS_STYLES[baseStatus].label}${conditionText}`)
+    element.style.setProperty('--bone-fill', selected ? 'rgba(56, 189, 248, 0.42)' : custom && baseStatus === 'unknown' ? 'transparent' : sideUnknown ? 'rgba(148, 163, 184, 0.08)' : palette.fill)
+    element.style.setProperty('--bone-stroke', record?.fragmented ? '#ef4444' : highlighted ? '#38bdf8' : custom && baseStatus === 'unknown' ? 'transparent' : palette.stroke)
+    element.style.setProperty('--bone-stroke-width', record?.fragmented || highlighted || sideUnknown ? '1.8px' : '0.8px')
+    element.style.setProperty('--bone-dash', record?.fragmented || sideUnknown ? '3 1.5' : 'none')
+    element.style.setProperty('--bone-filter', highlighted ? 'drop-shadow(0 0 4px rgba(56, 189, 248, 0.95))' : 'none')
+
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title')
+    title.textContent = `${label} - ${STATUS_STYLES[baseStatus].label}${conditionText}`
+    element.prepend(title)
+    return true
+  }
+
+  Object.entries(SKELETON_SVG_GROUPS[view] || {}).forEach(([key, groupIndexes]) => {
     groupIndexes.forEach((groupIndex, position) => {
       const group = groups[groupIndex]
-      if (!group) return
-
-      const selected = interactionKey === selectedKey
-      const palette = STATUS_STYLES[baseStatus]
-      const highlighted = baseStatus === 'documented' || selected
-      const parsed = parseCategorySideKey(interactionKey)
-      const sideUnknown = parsed?.side === 'Unknown' && baseStatus !== 'unknown'
-      const label = parsed ? `${parsed.category.label}, ${parsed.side}` : key
-      const conditionText = record?.fragmented ? ', fragmented condition' : ''
-
-      group.setAttribute('id', position === 0 ? key : `${key}_${position + 1}`)
-      group.setAttribute('data-bone-key', interactionKey)
-      group.setAttribute('role', 'button')
-      group.setAttribute('tabindex', '0')
-      group.setAttribute('aria-label', `${label}: ${STATUS_STYLES[baseStatus].label}${conditionText}`)
-      group.style.setProperty('--bone-fill', sideUnknown ? 'rgba(148, 163, 184, 0.08)' : palette.fill)
-      group.style.setProperty('--bone-stroke', record?.fragmented ? '#ef4444' : highlighted ? '#38bdf8' : palette.stroke)
-      group.style.setProperty('--bone-stroke-width', record?.fragmented || highlighted || sideUnknown ? '1.8px' : '0.8px')
-      group.style.setProperty('--bone-dash', record?.fragmented || sideUnknown ? '3 1.5' : 'none')
-      group.style.setProperty('--bone-filter', highlighted ? 'drop-shadow(0 0 4px rgba(56, 189, 248, 0.95))' : 'none')
-
-      const title = document.createElementNS('http://www.w3.org/2000/svg', 'title')
-      title.textContent = `${label} - ${STATUS_STYLES[baseStatus].label}${conditionText}`
-      group.prepend(title)
+      if (group) applyRegionState(group, key, position)
     })
+  })
+
+  Object.entries(CUSTOM_SKELETON_REGIONS[view] || {}).forEach(([key, region]) => {
+    const overlay = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+    const shape = document.createElementNS('http://www.w3.org/2000/svg', region.type)
+    shape.setAttribute('d', region.d)
+    overlay.append(shape)
+    if (applyRegionState(overlay, key, 0, { custom: true })) svg.append(overlay)
   })
 
   return new XMLSerializer().serializeToString(svg)

@@ -91,7 +91,7 @@ const featureHighlights = [
     accent: 'text-blue-300 bg-blue-400/10 ring-blue-400/20',
   },
   {
-    title: '3D Skeletal Visualization',
+    title: '2D Skeletal Visualization',
     text: 'Interactive skeletal views connect image records with anatomical regions for faster inspection.',
     icon: Layers3,
     accent: 'text-emerald-300 bg-emerald-400/10 ring-emerald-400/20',
