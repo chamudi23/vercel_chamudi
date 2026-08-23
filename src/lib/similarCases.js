@@ -380,6 +380,107 @@ function ageBand(text) {
   return null
 }
 
+/* ------------------------------------------------------------------ *
+ * Age distribution of the candidate pool
+ * ------------------------------------------------------------------ *
+ * Context for a single age estimate: where does this individual sit
+ * relative to the catalogued population of the SAME skeletal element?
+ *
+ * Built from the specimens already fetched for matching, so it costs no
+ * extra query.
+ *
+ * -- Binning rule, and why it is not just "take the midpoint" --------------
+ * CSRM records ages as free text: precise spans ("20-35"), open-ended ones
+ * ("55+"), and bare categories ("Adult"). A naive midpoint mis-handles the
+ * last kind badly — `ageBand()` reads "Adult" as 18-80, whose midpoint is 49,
+ * which would file every adult under 41-50 and invent a spike that is an
+ * artefact of the parser rather than a fact about the assemblage. So:
+ *
+ *   1. range falls entirely inside one band  -> that band   ("55+" -> 51+)
+ *   2. range spans more than VAGUE_SPAN_YEARS -> too vague to place
+ *                                               ("Adult" -> counted, not binned)
+ *   3. otherwise                              -> band containing the midpoint
+ *                                               ("20-35" -> 19-30)
+ *
+ * Nothing is silently dropped. A specimen is always in exactly one of
+ * `counted`, `vague` or `unknown`, and the chart discloses all three.
+ */
+
+/** Wider than this and a record cannot be placed in a ~10-year band. */
+const VAGUE_SPAN_YEARS = 20
+
+export const AGE_BANDS = [
+  { label: '0-18', min: 0, max: 18 },
+  { label: '19-30', min: 19, max: 30 },
+  { label: '31-40', min: 31, max: 40 },
+  { label: '41-50', min: 41, max: 50 },
+  { label: '51+', min: 51, max: 120 },
+]
+
+/**
+ * @param {object[]} specimens        candidate rows (already fetched)
+ * @param {string}   predictedAgeRange  ASA Step-3 `ageRange`, for highlighting
+ * @returns {{bands: object[], counted: number, unknown: number, total: number,
+ *            estimateBands: string[], hasEstimate: boolean}}
+ */
+export function buildAgeDistribution(specimens = [], predictedAgeRange = '') {
+  const counts = new Map(AGE_BANDS.map((b) => [b.label, 0]))
+  let counted = 0
+  let unknown = 0
+  let vague = 0
+
+  for (const s of specimens) {
+    const band = ageBand(s && s.age_estimate)
+    if (!band) {
+      unknown += 1
+      continue
+    }
+
+    // 1. Contained in a single band — unambiguous, regardless of width.
+    let slot = AGE_BANDS.find((b) => band[0] >= b.min && band[1] <= b.max)
+
+    // 2. Too broad to attribute to one band ("Adult", "18-80").
+    if (!slot && band[1] - band[0] > VAGUE_SPAN_YEARS) {
+      vague += 1
+      continue
+    }
+
+    // 3. A real span across two adjacent bands — place by midpoint.
+    if (!slot) {
+      const midpoint = (band[0] + band[1]) / 2
+      slot = AGE_BANDS.find((b) => midpoint >= b.min && midpoint <= b.max)
+    }
+
+    if (!slot) {
+      unknown += 1
+      continue
+    }
+    counts.set(slot.label, counts.get(slot.label) + 1)
+    counted += 1
+  }
+
+  // Which bands does this analysis's own estimate touch? Highlighted rather
+  // than added to the counts — the subject is not part of the reference set.
+  const predicted = ageBand(predictedAgeRange)
+  const estimateBands = predicted
+    ? AGE_BANDS.filter((b) => predicted[0] <= b.max && predicted[1] >= b.min).map((b) => b.label)
+    : []
+
+  return {
+    bands: AGE_BANDS.map((b) => ({
+      ageGroup: b.label,
+      count: counts.get(b.label),
+      isEstimate: estimateBands.includes(b.label),
+    })),
+    counted,
+    unknown,
+    vague,
+    total: specimens.length,
+    estimateBands,
+    hasEstimate: estimateBands.length > 0,
+  }
+}
+
 function bandOverlap(a, b) {
   if (!a || !b) return null
   const lo = Math.max(a[0], b[0])
@@ -598,6 +699,14 @@ export function scoreSpecimen({
     preservation: specimen.preservation_state || null,
     sexEstimate: specimen.sex_estimate || null,
     ageEstimate: specimen.age_estimate || null,
+    // Full source rows for the "View" detail popup. These are ATTACHED, not
+    // re-queried: they are the very rows already fetched to compute the score
+    // above, so opening a case detail issues no further read against CSRM.
+    source: {
+      specimen,
+      measurements: measurementRows || [],
+      skeletalInputs: inputRows || [],
+    },
   }
 }
 
@@ -669,5 +778,7 @@ export async function findSimilarCases({
     error: null,
     scanned: specimens.length,
     analysisType,
+    // Derived from the same `specimens` array — no additional query.
+    ageDistribution: buildAgeDistribution(specimens, predictions && predictions.ageRange),
   }
 }
