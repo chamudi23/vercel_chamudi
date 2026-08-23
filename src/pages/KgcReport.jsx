@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import SkeletalHeader from '../components/KgcSkeletalHeader';
 import KgcSimilarCases from '../components/KgcSimilarCases';
+import KgcAgeDistribution from '../components/KgcAgeDistribution';
 import { useAnalysis } from '../context/AnalysisContext';
 import { getAnalysis } from '../lib/analysisStore';
 import { sendReportEmail } from '../lib/emailReport';
@@ -20,7 +20,7 @@ const labelMap = {
   'fused': 'Fused', 'partially-fused': 'Partially Fused', 'unfused': 'Unfused',
   'gracile': 'Gracile',
   'scalloped': 'Scalloped Edges', 'irregular': 'Irregular / Porous',
-  'deciduous': 'Deciduous (Baby)', 'permanent': 'Permanent', 'mixed': 'Mixed',
+  'Incisors': 'Incisors', 'Cranines': 'Cranines', 'Premolar': 'Premolar', 'Molar': 'Molar',
   'none': 'None', 'mild': 'Mild', 'severe': 'Severe',
   'early': 'Early', 'partial': 'Partial', 'complete': 'Complete',
 };
@@ -69,13 +69,9 @@ export default function Report() {
   const { bonesType, ...measurementFields } = measurements;
   const notFound = Boolean(caseId) && stored === null;
 
-  const mockAgeData = [
-    { ageGroup: '0-18', count: 5 },
-    { ageGroup: '19-30', count: 45 },
-    { ageGroup: '31-40', count: 20 },
-    { ageGroup: '41-50', count: 10 },
-    { ageGroup: '51+', count: 2 },
-  ];
+  // Result of the single catalogue read performed by KgcSimilarCases below;
+  // null until it resolves. Shared so the age chart needs no query of its own.
+  const [catalogue, setCatalogue] = useState(null);
 
   /* ---------------- Build the PDF (shared by download + email) --------- */
   const pdfFileName = () => `Report-${basicInfo.caseId || caseId || 'analysis'}.pdf`;
@@ -300,25 +296,16 @@ export default function Report() {
             measurements={measurements}
             predictions={predictions}
             compact
+            onResult={setCatalogue}
           />
 
-          <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-            <h3 className="text-slate-200 font-semibold mb-4">Age Distribution</h3>
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={mockAgeData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
-                  <XAxis dataKey="ageGroup" stroke="#9CA3AF" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#9CA3AF" fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip
-                    cursor={{ fill: '#374151', opacity: 0.4 }}
-                    contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #374151', borderRadius: '8px', color: '#F3F4F6' }}
-                  />
-                  <Bar dataKey="count" fill="#F97316" radius={[4, 4, 0, 0]} barSize={20} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          {/* Age distribution of the same scanned specimens. Fed from the
+              panel's result above, so the pair costs one catalogue read. */}
+          <KgcAgeDistribution
+            distribution={catalogue?.ageDistribution}
+            analysisType={catalogue?.analysisType || measurements.bonesType || ''}
+            loading={catalogue === null}
+          />
         </div>
       </div>
 
