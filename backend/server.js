@@ -10,9 +10,11 @@ app.use(express.json());
 
 const gisRoutes = require("./routes/gisRoutes");
 const imagesRoutes = require("./routes/images");
+const assistantRoutes = require("./routes/assistant");
 
 app.use("/api/gis", gisRoutes);
 app.use("/api/images", imagesRoutes);
+app.use("/api/assistant", assistantRoutes);
 
 app.get("/", (req, res) => {
   res.send("OAHRIS Backend Running 🚀");

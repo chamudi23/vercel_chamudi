@@ -1,0 +1,4 @@
+const { helpTopics } = require('../knowledge/oahrisHelp')
+const normalize = (value) => String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ')
+function getSystemHelp(query) { const text = normalize(query); if (!text) return { type: 'HELP_NOT_FOUND' }; const words = new Set(text.split(' ')); const scored = helpTopics.map((topic) => { const phrases = [topic.id.replace(/-/g, ' '), topic.title, ...topic.keywords].map(normalize); const score = phrases.reduce((total, phrase) => { const phraseWords = phrase.split(' ').filter(Boolean); return total + (text.includes(phrase) || phraseWords.every((word) => words.has(word)) ? phraseWords.length + 2 : 0) }, 0); return { topic, score } }).sort((a, b) => b.score - a.score); return scored[0]?.score >= 3 ? { type: 'SYSTEM_HELP', topic: scored[0].topic } : { type: 'HELP_NOT_FOUND' } }
+module.exports = { getSystemHelp }
