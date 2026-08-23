@@ -13,12 +13,19 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate();
   const { isAuthenticated, loading, updatePassword } = useAuth();
+  const [params] = useSearchParams();
+
+  // Invitation links carry ?welcome=1 (set by the admin-users Edge Function).
+  // The mechanism is identical — a Supabase session authorises the change —
+  // but someone finishing an invitation has no old password to "reset", and
+  // being told otherwise makes them think they missed a step.
+  const welcome = params.get('welcome') === '1';
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -67,7 +74,9 @@ export default function ResetPasswordPage() {
         <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/[0.03] p-8">
           {done ? (
             <>
-              <h1 className="text-xl font-bold text-white">Password updated</h1>
+              <h1 className="text-xl font-bold text-white">
+                {welcome ? 'Your account is ready' : 'Password updated'}
+              </h1>
               <p className="mt-3 text-sm text-slate-400">
                 Taking you to the research systems…
               </p>
@@ -76,9 +85,13 @@ export default function ResetPasswordPage() {
             <p className="text-sm text-slate-400">Checking your link…</p>
           ) : !isAuthenticated ? (
             <>
-              <h1 className="text-xl font-bold text-white">Link expired</h1>
+              <h1 className="text-xl font-bold text-white">
+                {welcome ? 'Invitation expired' : 'Link expired'}
+              </h1>
               <p className="mt-3 text-sm leading-relaxed text-slate-400">
-                This reset link is no longer valid. Request a new one from the sign-in page.
+                {welcome
+                  ? 'This invitation is no longer valid. Ask an administrator to send you a new one.'
+                  : 'This reset link is no longer valid. Request a new one from the sign-in page.'}
               </p>
               <Link
                 to="/login"
@@ -89,7 +102,15 @@ export default function ResetPasswordPage() {
             </>
           ) : (
             <>
-              <h1 className="text-xl font-bold text-white">Choose a new password</h1>
+              <h1 className="text-xl font-bold text-white">
+                {welcome ? 'Set your password' : 'Choose a new password'}
+              </h1>
+              {welcome && (
+                <p className="mt-3 text-sm leading-relaxed text-slate-400">
+                  Your OAHRIS account has been created. Choose a password to finish setting it
+                  up — you will use it to sign in from now on.
+                </p>
+              )}
               <form onSubmit={submit} className="mt-6 space-y-4">
                 <input
                   type="password"

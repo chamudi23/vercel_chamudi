@@ -169,8 +169,24 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === 'invite') {
+      /**
+       * Land the invitee on the set-password screen, NOT the site root.
+       *
+       * Without an explicit redirectTo, Supabase sends them to the project's
+       * Site URL. The SDK there sees the token in the URL, exchanges it for a
+       * session and the invitee ends up signed in having never chosen a
+       * password — with no way to sign in again once that session expires.
+       *
+       * The origin is taken from the request header rather than the body, so
+       * a caller cannot point invitation links at a site of their choosing.
+       * (Supabase also refuses any redirect not on the project's allow-list.)
+       */
+      const origin = req.headers.get('origin') ?? ''
+      const redirectTo = origin ? `${origin}/reset-password?welcome=1` : undefined
+
       const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
         data: metadata,
+        ...(redirectTo ? { redirectTo } : {}),
       })
       if (error) return json({ error: error.message }, 400)
       await ensureProfile(data.user?.id)

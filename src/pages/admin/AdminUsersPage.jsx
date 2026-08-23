@@ -63,9 +63,16 @@ function InviteDialog({ open, onClose, onDone }) {
     });
     setBusy(false);
     if (err) {
+      // supabase-js raises FunctionsFetchError ("Failed to send a request to
+      // the Edge Function") when the function is missing, unreachable or
+      // blocked by CORS — it never says "Function not found". Name the likely
+      // cause rather than passing that string through to the user.
+      const undeployed =
+        err.name === 'FunctionsFetchError' ||
+        /failed to send a request/i.test(String(err.message));
       setError(
-        String(err.message).includes('Function not found')
-          ? 'The admin-users Edge Function is not deployed. See access_control/README.md step M5.'
+        undeployed
+          ? 'The admin-users Edge Function is not deployed on this project. See access_control/README.md step M5.'
           : err.message
       );
       return;

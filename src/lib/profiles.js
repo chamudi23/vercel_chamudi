@@ -138,9 +138,33 @@ export async function inviteUser({ email, fullName, role, mode = 'invite', passw
   })
 
   if (error) {
-    console.error('[admin] invite failed:', error.message)
-    return { data: null, error }
+    // supabase-js collapses every failure into one of three generic messages
+    // and hides the function's own JSON body inside `context`. Unwrap it, or
+    // the caller only ever sees "non-2xx status code" and cannot tell a
+    // missing SERVICE_ROLE_KEY from a 403.
+    const detail = await edgeErrorDetail(error)
+    console.error('[admin] invite failed:', detail || error.message)
+    return {
+      data: null,
+      error: Object.assign(new Error(detail || error.message), { name: error.name }),
+    }
   }
   if (data?.error) return { data: null, error: new Error(data.error) }
   return { data, error: null }
+}
+
+/**
+ * Pull the real message out of a functions-js error.
+ * `FunctionsHttpError.context` is the unread Response, so the function's
+ * `{ error: "..." }` body is still available; the other error kinds carry
+ * nothing useful and fall back to their own message.
+ */
+async function edgeErrorDetail(error) {
+  try {
+    const body = await error?.context?.json?.()
+    if (body?.error) return body.error
+  } catch {
+    // body absent or not JSON — nothing to add
+  }
+  return null
 }
