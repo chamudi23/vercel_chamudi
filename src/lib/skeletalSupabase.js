@@ -1,20 +1,23 @@
-import { createClient } from '@supabase/supabase-js'
-
 /**
- * Dedicated Supabase client for the Automated Skeletal Analysis module
- * (IT22299802 — Chamudi).
+ * skeletalSupabase.js
+ * ===================
+ * Client for the Automated Skeletal Analysis module's own tables
+ * (`analyses`, `course_progress`).
  *
- * This module keeps ITS data in its own Supabase project
- * (https://jlqnqzlvpljntpnbdaci.supabase.co), where the `analyses` and
- * `course_progress` tables and Google OAuth are configured — separate from
- * the shared app client in src/supabase.js.
+ * This now re-exports `skeletalClient` from supabaseClients.js, which resolves
+ * to either:
+ *   - the legacy Skeletal project (default), or
+ *   - the shared project, once VITE_SKELETAL_CONSOLIDATED=true and
+ *     access_control/03_consolidate_skeletal.sql has been run.
  *
- * Override via env if needed:
- *   VITE_SKELETAL_SUPABASE_URL, VITE_SKELETAL_SUPABASE_ANON_KEY
+ * Authentication is NOT handled here any more. There is one identity provider
+ * for the whole application (`authClient`), because a JWT issued by one
+ * Supabase project is rejected by another. Anything auth-related must go
+ * through context/AuthContext.jsx.
+ *
+ * Every existing `import { supabase } from '../lib/skeletalSupabase'` keeps
+ * working unchanged.
  */
-const url = import.meta.env.VITE_SKELETAL_SUPABASE_URL || 'https://jlqnqzlvpljntpnbdaci.supabase.co'
-const key =
-  import.meta.env.VITE_SKELETAL_SUPABASE_ANON_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpscW5xemx2cGxqbnRwbmJkYWNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3NDE3OTQsImV4cCI6MjA5MzMxNzc5NH0.Ab_eiALqWPd_Ji7KEnacyKgCdKGXgHj_4cm3Azksm3A'
 
-export const supabase = createClient(url, key)
+export { skeletalClient as supabase, skeletalClient as default } from './supabaseClients'
+export { SKELETAL_CONSOLIDATED } from './supabaseClients'

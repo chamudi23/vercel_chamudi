@@ -12,6 +12,48 @@ import { supabase } from '../lib/skeletalSupabase';
  * Returns: { completed, setCompleted, syncing }
  *   setCompleted accepts an array or an updater (prev => next), like useState.
  */
+/** Has this session already proved the identity columns are missing? */
+let identityColumnsMissing = false;
+
+/**
+ * Save progress, stamping the learner's name/email so the admin
+ * learner-progress dashboard can show a person instead of a bare UUID.
+ *
+ * Those two columns are added by kgc_admin_setup.sql. If that migration has
+ * not been run, PostgREST rejects the write with PGRST204 ("column not found
+ * in schema cache") — so fall back to the original payload rather than
+ * letting a learner's progress silently fail to save.
+ */
+async function saveProgress(user, completed) {
+  const base = {
+    user_id: user.id,
+    completed,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (!identityColumnsMissing) {
+    const meta = user.user_metadata || {};
+    const { error } = await supabase.from('course_progress').upsert({
+      ...base,
+      learner_email: user.email || null,
+      learner_name: meta.full_name || meta.name || null,
+    });
+    if (!error) return;
+
+    const missingColumn = error.code === 'PGRST204' || error.code === '42703';
+    if (!missingColumn) {
+      console.error('[course] save failed:', error.message);
+      return;
+    }
+    // Remember, so every later save skips straight to the fallback.
+    identityColumnsMissing = true;
+    console.warn('[course] learner_email/learner_name not present — run kgc_admin_setup.sql to enable the learner-progress dashboard');
+  }
+
+  const { error } = await supabase.from('course_progress').upsert(base);
+  if (error) console.error('[course] save failed:', error.message);
+}
+
 export function useCourseProgress(user) {
   const [completed, setCompletedState] = useState([]);
   const [syncing, setSyncing] = useState(false);
@@ -54,14 +96,7 @@ export function useCourseProgress(user) {
   const setCompleted = (next) => {
     setCompletedState((prev) => {
       const value = typeof next === 'function' ? next(prev) : next;
-      if (user) {
-        supabase
-          .from('course_progress')
-          .upsert({ user_id: user.id, completed: value, updated_at: new Date().toISOString() })
-          .then(({ error }) => {
-            if (error) console.error('[course] save failed:', error.message);
-          });
-      }
+      if (user) saveProgress(user, value);
       return value;
     });
   };

@@ -12,6 +12,10 @@
  *   - if CSRM is unreachable, the panel degrades to a message and the rest
  *     of the ASA workflow is unaffected.
  *
+ * Each row carries a **View** action that opens KgcSimilarCaseDetail with the
+ * full catalogue record. That popup is fed from the rows this component has
+ * already received, so it costs no additional query — see the note there.
+ *
  * Props
  *   basicInfo    ASA Step-1 values (used for the provenance channel)
  *   measurements ASA Step-2 values, incl. `bonesType` (the analysis type)
@@ -20,8 +24,9 @@
  *   compact      narrower layout for the two-column report page
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { findSimilarCases, MAX_RESULTS } from '../lib/similarCases'
+import KgcSimilarCaseDetail from './KgcSimilarCaseDetail'
 
 function MatchBadge({ value }) {
   const tone =
@@ -43,8 +48,18 @@ export default function KgcSimilarCases({
   predictions = {},
   limit = MAX_RESULTS,
   compact = false,
+  onResult,
 }) {
   const [state, setState] = useState({ status: 'loading', cases: [], error: null, scanned: 0, analysisType: '' })
+  /** The case whose detail popup is open — a row already held in `state.cases`. */
+  const [openCase, setOpenCase] = useState(null)
+
+  // Held in a ref so a caller passing an inline arrow does not re-run the
+  // search on every render.
+  const onResultRef = useRef(onResult)
+  useEffect(() => {
+    onResultRef.current = onResult
+  }, [onResult])
 
   const analysisType = measurements.bonesType || basicInfo.bonesType || ''
   // Serialised inputs keep the effect from re-firing on every render.
@@ -53,6 +68,8 @@ export default function KgcSimilarCases({
   useEffect(() => {
     let active = true
     setState((s) => ({ ...s, status: 'loading' }))
+    // A new search invalidates whatever detail was open.
+    setOpenCase(null)
 
     findSimilarCases({ basicInfo, measurements, predictions, limit })
       .then((res) => {
@@ -64,6 +81,10 @@ export default function KgcSimilarCases({
           scanned: res.scanned,
           analysisType: res.analysisType,
         })
+        // Hand the whole result to the parent so siblings (the age
+        // distribution chart) can render from this one fetch instead of
+        // issuing their own.
+        if (onResultRef.current) onResultRef.current(res)
       })
       .catch((err) => {
         if (!active) return
@@ -130,6 +151,9 @@ export default function KgcSimilarCases({
                 <th className={`text-left ${cell} text-slate-400 font-medium`}>Location</th>
                 <th className={`text-left ${cell} text-slate-400 font-medium`}>Date</th>
                 <th className={`text-left ${cell} text-slate-400 font-medium`}>Match</th>
+                <th className={`text-right ${cell} text-slate-400 font-medium`}>
+                  <span className="sr-only">Details</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -137,7 +161,8 @@ export default function KgcSimilarCases({
                 <tr
                   key={r.caseId}
                   title={r.reasons.join(' · ')}
-                  className="border-b border-slate-700 last:border-b-0 hover:bg-slate-700/50 transition-colors"
+                  onClick={() => setOpenCase(r)}
+                  className="border-b border-slate-700 last:border-b-0 hover:bg-slate-700/50 transition-colors cursor-pointer"
                 >
                   <td className={`${cell} text-slate-300`}>
                     <span className="font-mono text-xs text-orange-400">{r.caseId}</span>
@@ -166,11 +191,30 @@ export default function KgcSimilarCases({
                   <td className={cell}>
                     <MatchBadge value={r.match} />
                   </td>
+                  <td className={`${cell} text-right`}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setOpenCase(r)
+                      }}
+                      aria-label={`View full details of case ${r.caseId}`}
+                      className="text-xs font-medium px-3 py-1 rounded-lg border border-slate-600 text-slate-300 hover:border-orange-500/60 hover:text-orange-400 transition-colors whitespace-nowrap"
+                    >
+                      View
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* Full record of one matched specimen. Rendered from the row already in
+          state — opening it triggers no further read of the catalogue. */}
+      {openCase && (
+        <KgcSimilarCaseDetail caseRow={openCase} onClose={() => setOpenCase(null)} />
       )}
     </div>
   )
