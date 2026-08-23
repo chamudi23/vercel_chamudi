@@ -210,6 +210,18 @@ security definer
 set search_path = public
 as $$
 begin
+  -- No auth.uid() means this is not an end-user request: it is the SQL
+  -- editor, a migration, or the service_role key. All of those already have
+  -- unrestricted access, so the guard would add nothing — and without this
+  -- branch the bootstrap in section 7 cannot promote an existing account to
+  -- admin, because there is no admin yet to authorise it.
+  -- A signed-out client cannot reach here: the UPDATE policy is
+  -- `to authenticated`.
+  if auth.uid() is null then
+    new.updated_at := now();
+    return new;
+  end if;
+
   if public.is_admin() then
     new.updated_at := now();
     return new;
@@ -260,26 +272,176 @@ end $$;
 
 
 -- ============================================================================
---  7. SEED THE FIRST ADMIN  <- the one step you must edit
+--  7. SEED THE FIRST ADMINISTRATOR
 --
 --  Chicken-and-egg: the admin UI cannot create the first admin, because only
---  an admin may do so. Bootstrap it here.
+--  an admin may create users. So the account is bootstrapped here.
 --
---  BEFORE running this section:
---    1. Create your own account (sign up once, while signup is still open, or
---       add the user from Authentication -> Users in the dashboard).
---    2. Change the e-mail below to that account.
---    3. Run it, and CONFIRM it returned a row.
---    4. Only THEN disable public signup (README, manual step M3).
+--  SIGN IN WITH
+--      e-mail    admin@oahris.lk
+--      password  admin2026
 --
---  If you disable signup before seeding an admin you will lock yourself out.
+--  There is no "username" — Supabase Auth identifies users by e-mail, so
+--  `admin` alone cannot be a login. Change ADMIN_EMAIL / ADMIN_PASSWORD below
+--  if you want different credentials.
+--
+--  ⚠️  `admin2026` is a weak password for the account that governs access to
+--      every module. Change it after setup, from the Users screen or by
+--      re-running section 7 with a new value.
+--
+--  This block is IDEMPOTENT: run it twice and the second run just resets the
+--  password rather than failing on a duplicate.
+--
+--  Note it creates the account already e-mail-confirmed, so you can sign in
+--  immediately without any confirmation mail — which matters because
+--  Supabase's default SMTP is rate-limited and often does not deliver.
 -- ============================================================================
 
-update public.profiles
-   set role = 'admin', status = 'active', updated_at = now()
- where lower(email) = lower('it22299802@my.sliit.lk');   -- <- CHANGE THIS
+do $$
+declare
+  ADMIN_EMAIL    constant text := 'admin@oahris.lk';   -- <- change if you wish
+  ADMIN_PASSWORD constant text := 'admin2026';         -- <- change if you wish
+  ADMIN_NAME     constant text := 'Administrator';
 
--- Verify — this MUST return exactly your account before you go any further.
-select user_id, email, role, status
-from public.profiles
-where role = 'admin';
+  v_user_id         uuid;
+  v_crypto_schema   text;
+  v_password_hash   text;
+  v_has_provider_id boolean;
+begin
+  ------------------------------------------------------------------
+  -- pgcrypto provides crypt()/gen_salt() for the bcrypt hash that
+  -- GoTrue expects. Supabase installs it into `extensions`, but not
+  -- every project has that on the search_path — so resolve the schema
+  -- and call it dynamically rather than assuming.
+  ------------------------------------------------------------------
+  select n.nspname into v_crypto_schema
+  from pg_extension e
+  join pg_namespace n on n.oid = e.extnamespace
+  where e.extname = 'pgcrypto';
+
+  if v_crypto_schema is null then
+    create extension if not exists pgcrypto with schema extensions;
+    v_crypto_schema := 'extensions';
+  end if;
+
+  execute format('select %I.crypt($1, %I.gen_salt(''bf''))', v_crypto_schema, v_crypto_schema)
+    into v_password_hash
+    using ADMIN_PASSWORD;
+
+  ------------------------------------------------------------------
+  -- Does the account already exist?
+  ------------------------------------------------------------------
+  select id into v_user_id
+  from auth.users
+  where lower(email) = lower(ADMIN_EMAIL);
+
+  if v_user_id is null then
+    v_user_id := gen_random_uuid();
+
+    -- The empty strings are deliberate: several of these columns are
+    -- NOT NULL in GoTrue's schema and reject NULL.
+    insert into auth.users (
+      instance_id, id, aud, role, email, encrypted_password,
+      email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+      created_at, updated_at,
+      confirmation_token, email_change, email_change_token_new, recovery_token
+    ) values (
+      '00000000-0000-0000-0000-000000000000',
+      v_user_id,
+      'authenticated',
+      'authenticated',
+      lower(ADMIN_EMAIL),
+      v_password_hash,
+      now(),                                    -- pre-confirmed
+      '{"provider":"email","providers":["email"]}'::jsonb,
+      -- handle_new_user() reads `role` from here, so the profile is
+      -- created as an admin directly rather than briefly as a student.
+      jsonb_build_object('full_name', ADMIN_NAME, 'role', 'admin'),
+      now(), now(),
+      '', '', '', ''
+    );
+
+    ----------------------------------------------------------------
+    -- A matching auth.identities row is required for password
+    -- sign-in in current GoTrue versions. `provider_id` was added in
+    -- a later release, so branch on whether the column exists.
+    ----------------------------------------------------------------
+    select exists (
+      select 1 from information_schema.columns
+      where table_schema = 'auth'
+        and table_name = 'identities'
+        and column_name = 'provider_id'
+    ) into v_has_provider_id;
+
+    if v_has_provider_id then
+      insert into auth.identities (
+        id, user_id, provider_id, identity_data, provider,
+        last_sign_in_at, created_at, updated_at
+      ) values (
+        gen_random_uuid(), v_user_id, v_user_id::text,
+        jsonb_build_object(
+          'sub', v_user_id::text,
+          'email', lower(ADMIN_EMAIL),
+          'email_verified', true,
+          'phone_verified', false
+        ),
+        'email', now(), now(), now()
+      );
+    else
+      insert into auth.identities (
+        id, user_id, identity_data, provider,
+        last_sign_in_at, created_at, updated_at
+      ) values (
+        gen_random_uuid(), v_user_id,
+        jsonb_build_object(
+          'sub', v_user_id::text,
+          'email', lower(ADMIN_EMAIL),
+          'email_verified', true,
+          'phone_verified', false
+        ),
+        'email', now(), now(), now()
+      );
+    end if;
+
+    raise notice 'Created administrator %', ADMIN_EMAIL;
+  else
+    -- Already there: reset the password so this script is safe to re-run.
+    update auth.users
+       set encrypted_password = v_password_hash,
+           email_confirmed_at = coalesce(email_confirmed_at, now()),
+           updated_at         = now()
+     where id = v_user_id;
+
+    raise notice 'Administrator % already existed — password reset', ADMIN_EMAIL;
+  end if;
+
+  ------------------------------------------------------------------
+  -- Guarantee the profile says admin, whether the trigger created it
+  -- or the account predates this script.
+  ------------------------------------------------------------------
+  insert into public.profiles (user_id, email, full_name, role, status)
+  values (v_user_id, lower(ADMIN_EMAIL), ADMIN_NAME, 'admin', 'active')
+  on conflict (user_id) do update
+    set role       = 'admin',
+        status     = 'active',
+        email      = excluded.email,
+        -- Unqualified table name: ON CONFLICT DO UPDATE does not accept a
+        -- schema-qualified reference to the target table here.
+        full_name  = coalesce(profiles.full_name, excluded.full_name),
+        updated_at = now();
+end $$;
+
+
+-- ----------------------------------------------------------------------------
+-- VERIFY — this MUST return one row before you go any further.
+-- If it is empty, do NOT run 02_rls_lockdown.sql: it will refuse anyway, but
+-- disabling public signup at that point would lock you out entirely.
+-- ----------------------------------------------------------------------------
+select p.user_id,
+       p.email,
+       p.role,
+       p.status,
+       u.email_confirmed_at is not null as can_sign_in
+from public.profiles p
+join auth.users u on u.id = p.user_id
+where p.role = 'admin';

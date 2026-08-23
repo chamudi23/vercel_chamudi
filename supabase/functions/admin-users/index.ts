@@ -127,6 +127,31 @@ Deno.serve(async (req: Request) => {
   /* -------------------------------------------------------------- */
   /* 4. Create the account                                           */
   /* -------------------------------------------------------------- */
+  /**
+   * The handle_new_user() trigger normally creates the profile. Some Supabase
+   * projects do not let `postgres` own a trigger on auth.users, in which case
+   * the trigger will not exist and a new account would have no role at all —
+   * the user would sign in and be told "No role assigned".
+   *
+   * So write the profile explicitly too. The trigger's insert is
+   * ON CONFLICT DO NOTHING, so whichever runs first wins and this is safe
+   * either way.
+   */
+  const ensureProfile = async (userId?: string) => {
+    if (!userId) return
+    const { error } = await admin.from('profiles').upsert(
+      {
+        user_id: userId,
+        email,
+        full_name: fullName || null,
+        role,
+        status: 'active',
+      },
+      { onConflict: 'user_id' },
+    )
+    if (error) console.error('[admin-users] profile upsert failed:', error.message)
+  }
+
   try {
     if (action === 'create_with_password') {
       if (password.length < 8) {
@@ -139,6 +164,7 @@ Deno.serve(async (req: Request) => {
         user_metadata: metadata,
       })
       if (error) return json({ error: error.message }, 400)
+      await ensureProfile(data.user?.id)
       return json({ ok: true, action, user_id: data.user?.id, email })
     }
 
@@ -147,6 +173,7 @@ Deno.serve(async (req: Request) => {
         data: metadata,
       })
       if (error) return json({ error: error.message }, 400)
+      await ensureProfile(data.user?.id)
       return json({ ok: true, action, user_id: data.user?.id, email })
     }
 
