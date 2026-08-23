@@ -16,6 +16,36 @@
 -- ============================================================================
 
 
+-- ============================================================================
+--  0. RECONCILING WITH AN EARLIER ROLE-BASED-ACCESS FEATURE
+--
+--  A previous feature (PR #25, "feature/role-based-access") was deployed to
+--  this database and later reverted from the repository. Its CODE is gone but
+--  its DATABASE OBJECTS remain: public.profiles, handle_new_user(),
+--  current_role(), the on_auth_user_created trigger, and specimens.created_by.
+--
+--  Its profiles table is ALMOST the same as this one, with one incompatibility
+--  that would be dangerous if ignored:
+--
+--      that feature :  status in ('pending', 'approved', 'rejected')  default 'pending'
+--      this project :  status in ('active',  'suspended')             default 'active'
+--
+--  Left alone, this script's admin insert would violate its CHECK constraint,
+--  and — far worse — current_user_role() only treats 'active' as usable, so
+--  every 'approved' user would resolve to NO ROLE. Running the lockdown after
+--  that would deny everyone, including you.
+--
+--  So section 1 does NOT assume a clean database. It:
+--    - adds any missing columns rather than recreating the table;
+--    - widens the status CHECK to accept BOTH vocabularies;
+--    - treats 'active' and 'approved' as equivalent everywhere (section 3).
+--
+--  Nothing is dropped and no row is modified. If you would rather adopt the
+--  approval workflow's vocabulary wholesale, or discard it, do that
+--  deliberately — not as a side effect of running this.
+-- ============================================================================
+
+
 -- ----------------------------------------------------------------------------
 -- 1. Roles
 --    Kept as a CHECK-constrained text column rather than a Postgres enum, so
@@ -34,6 +64,40 @@ create table if not exists public.profiles (
   created_by  uuid references auth.users (id) on delete set null,
   updated_at  timestamptz not null default now()
 );
+
+-- If the table already existed, `create table if not exists` above did
+-- nothing. Bring it up to the shape this project needs, additively.
+alter table public.profiles add column if not exists email       text;
+alter table public.profiles add column if not exists institution text;
+alter table public.profiles add column if not exists created_by  uuid;
+alter table public.profiles add column if not exists updated_at  timestamptz not null default now();
+alter table public.profiles add column if not exists status      text not null default 'active';
+
+-- Widen the status CHECK so both vocabularies are legal. Done by dropping and
+-- recreating whichever CHECK currently governs `status`; existing rows are
+-- untouched and every existing value stays valid, so this cannot fail on data.
+do $$
+declare
+  c record;
+begin
+  for c in
+    select con.conname
+    from pg_constraint con
+    join pg_class rel  on rel.oid = con.conrelid
+    join pg_namespace n on n.oid = rel.relnamespace
+    where n.nspname = 'public'
+      and rel.relname = 'profiles'
+      and con.contype = 'c'
+      and pg_get_constraintdef(con.oid) ilike '%status%'
+  loop
+    execute format('alter table public.profiles drop constraint %I', c.conname);
+    raise notice 'replaced status constraint %', c.conname;
+  end loop;
+
+  alter table public.profiles
+    add constraint profiles_status_check
+    check (status in ('active', 'suspended', 'pending', 'approved', 'rejected'));
+end $$;
 
 comment on table public.profiles is
   'One row per authenticated user. `role` drives every RLS policy in the '
@@ -107,12 +171,15 @@ as $$
   select p.role
   from public.profiles p
   where p.user_id = auth.uid()
-    and p.status = 'active';
+    -- 'active' is this project's vocabulary; 'approved' is the earlier
+    -- approval workflow's. Both mean "may use the system". 'pending',
+    -- 'rejected' and 'suspended' all resolve to NULL, i.e. no role.
+    and p.status in ('active', 'approved');
 $$;
 
 comment on function public.current_user_role() is
-  'Role of the calling user, or NULL when signed out or suspended. '
-  'Call as (select public.current_user_role()) inside policies.';
+  'Role of the calling user, or NULL when signed out, pending, rejected or '
+  'suspended. Call as (select public.current_user_role()) inside policies.';
 
 create or replace function public.is_admin()
 returns boolean

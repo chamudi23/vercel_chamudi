@@ -165,8 +165,14 @@ export function AuthProvider({ children }) {
   /* ---------------------------- derived ---------------------------- */
   const value = useMemo(() => {
     const user = session?.user ?? null;
-    // A suspended account has an account but no effective role.
-    const role = profile?.status === 'active' ? profile.role : null;
+    const status = profile?.status ?? null;
+    // Two status vocabularies coexist in this database: 'active' from this
+    // project, and 'approved' from the earlier approval workflow (PR #25)
+    // whose schema is still deployed. Both mean "may use the system", and
+    // current_user_role() in SQL treats them identically — the two must agree
+    // or a user the database accepts would appear role-less in the UI.
+    const usable = status === 'active' || status === 'approved';
+    const role = usable ? profile.role : null;
 
     return {
       session,
@@ -179,7 +185,11 @@ export function AuthProvider({ children }) {
       authError,
       isAuthenticated: Boolean(user),
       isActive: Boolean(role),
-      isSuspended: profile?.status === 'suspended',
+      status,
+      // Blocked by an administrator, vs still awaiting approval — the guards
+      // show different screens because the user's next step differs.
+      isSuspended: status === 'suspended' || status === 'rejected',
+      isPending: status === 'pending',
       isAdmin: role === 'admin',
       isResearcher: role === 'researcher',
       isStudent: role === 'student',
