@@ -31,3 +31,6 @@ knowledgebase/
 
 # Google OAuth client secret (should never be committed)
 client_secret_*.json
+
+# Supabase CLI working state
+supabase/.temp/

@@ -17,20 +17,22 @@
  * `VITE_SKELETAL_CONSOLIDATED` controls where the Skeletal module reads and
  * writes its own tables (`analyses`, `course_progress`):
  *
- *   unset / false  → the legacy Skeletal project (today's behaviour).
- *                    Login, route gating and the other three modules all work
- *                    normally, but Learning Path progress cannot be saved,
+ *   unset / true   → the shared project. THE DEFAULT, and the live state.
+ *
+ *   false          → the retired Skeletal project. Kept only as an escape
+ *                    hatch: login, route gating and the other three modules
+ *                    still work, but Learning Path progress cannot be saved,
  *                    because the signed-in user does not exist in that
  *                    project's auth.users. useCourseProgress reports this
  *                    rather than failing silently.
  *
- *   true           → the shared project. Requires
- *                    access_control/03_consolidate_skeletal.sql to have been
- *                    run and the data moved. This is the intended end state.
- *
- * Defaulting to false means checking this code out changes nothing until the
- * database migration has actually happened — code never cuts over ahead of
- * data.
+ * This default was `false` while the data still lived in two databases, so
+ * that code never cut over ahead of data. The migration has since been done
+ * and verified — access_control/03_consolidate_skeletal.sql created the
+ * tables here and 04_move_analyses_data.sql moved all 31 saved analyses, with
+ * source and destination digests compared row for row — so consolidated is now
+ * the baseline. A checkout with no .env file at all talks to the shared
+ * project, which is the only project that still holds the data.
  */
 
 import { createClient } from '@supabase/supabase-js'
@@ -69,8 +71,9 @@ const SKELETAL_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpscW5xemx2cGxqbnRwbmJkYWNpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3NDE3OTQsImV4cCI6MjA5MzMxNzc5NH0.Ab_eiALqWPd_Ji7KEnacyKgCdKGXgHj_4cm3Azksm3A'
 
 /** Has the Skeletal data been moved into the shared project? */
+/** Consolidated unless explicitly opted out of — see the note above. */
 export const SKELETAL_CONSOLIDATED =
-  String(import.meta.env.VITE_SKELETAL_CONSOLIDATED || '').toLowerCase() === 'true'
+  String(import.meta.env.VITE_SKELETAL_CONSOLIDATED ?? 'true').toLowerCase() !== 'false'
 
 /**
  * The identity provider and the client for all shared-project data.
