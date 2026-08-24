@@ -11,6 +11,7 @@ import IlshanModulePage from './pages/IlshanModulePage'
 import MinuriModulePage from "./pages/MinuriModulePage";
 import SpecimenFormPage from "./pages/SpecimenFormPage";
 import ParamiModulePage from "./pages/ParamiModulePage";
+import SitesListPage from "./pages/SitesListPage";
 import SpecimenListPage from "./pages/SpecimenListPage";
 import SpecimenDetailPage from "./pages/SpecimenDetailPage";
 import DataImportPage from "./pages/DataImportPage";
@@ -92,6 +93,7 @@ function App() {
           <Route path="/specimens/:id" element={<SpecimenDetailPage />} />
           <Route path="/data-quality" element={<DataQualityPage />} />
           <Route path="/parami" element={<ParamiModulePage />} />
+          <Route path="/parami/sites" element={<SitesListPage />} />
           <Route path="/spatial-analysis" element={<ParamiModulePage />} />
           <Route path="/parami/site/:siteId" element={<SiteDetailPage />} />
           <Route path="/parami/add-site" element={<AddSitePage />} />
