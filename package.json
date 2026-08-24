@@ -8,6 +8,9 @@
     "build": "vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "test:assistant": "node scripts/testAssistantIntent.mjs",
+    "test:orchestrator": "node scripts/testAssistantOrchestrator.cjs",
+    "test:deepseek": "node scripts/testDeepSeekProvider.cjs",
+    "test:conversation": "node scripts/testAssistantConversation.mjs",
     "verify:skeleton": "node scripts/verifySkeletonMappings.mjs",
     "preview": "vite preview"
   },
