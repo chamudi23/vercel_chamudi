@@ -1015,6 +1015,7 @@ function SpecimenFormPage() {
               name="site_name"
               value={form.site_name}
               onChange={handleChange}
+              placeholder="e.g. Pallemalala Prehistoric Site"
               readOnly={skeletonMode === "existing"}
               className={`${inputClass("site_name")} ${skeletonMode === "existing" ? "opacity-65" : ""}`}
             />
@@ -1073,6 +1074,7 @@ function SpecimenFormPage() {
             name="notes"
             value={form.notes}
             onChange={handleChange}
+            placeholder="e.g. Fragmented specimen with minor surface weathering"
             rows={4}
             className={`${inputClass("notes")} resize-none`}
           />
@@ -1159,6 +1161,13 @@ function SpecimenFormPage() {
                       type={field.type === "number" ? "number" : "text"}
                       min={field.type === "number" ? "0" : undefined}
                       step={field.type === "number" ? "0.1" : undefined}
+                      placeholder={
+                        field.type === "number"
+                          ? field.unit === "mm"
+                            ? "e.g. 42.5"
+                            : "e.g. 10"
+                          : `e.g. ${field.label.toLowerCase()} observation`
+                      }
                       value={value}
                       onChange={handleSkeletalInputChange}
                       className={inputClass(field.field)}
@@ -1236,6 +1245,7 @@ function SpecimenFormPage() {
                   <input
                     type="number"
                     min="0"
+                    placeholder="e.g. 42.5"
                     value={row.value}
                     onChange={(event) =>
                       handleMeasurementChange(
@@ -1277,6 +1287,7 @@ function SpecimenFormPage() {
                   </label>
                   <input
                     value={row.notes}
+                    placeholder="e.g. Measured across preserved landmarks"
                     onChange={(event) =>
                       handleMeasurementChange(
                         row.id,
@@ -1315,6 +1326,15 @@ function SpecimenFormPage() {
                   type={type}
                   min={type === "number" ? "0" : void 0}
                   step={name === "depth_found" ? "0.01" : void 0}
+                  placeholder={
+                    name === "excavation_phase"
+                      ? "e.g. Phase 1"
+                      : name === "depth_found"
+                        ? "e.g. 2.5"
+                        : name === "excavator_name"
+                          ? "e.g. Ms. Lakshmi"
+                          : undefined
+                  }
                   value={excavation[name]}
                   onChange={handleExcavationChange}
                   className={`${inputBase} ${errors[name] ? "border-red-500" : ""}`}
@@ -1331,6 +1351,7 @@ function SpecimenFormPage() {
                 name="excavation_notes"
                 value={excavation.excavation_notes}
                 onChange={handleExcavationChange}
+                placeholder="e.g. Found in a stratified burial deposit"
                 rows={3}
                 className={`${inputBase} resize-none`}
               />
@@ -1374,6 +1395,17 @@ function SpecimenFormPage() {
                   name={name}
                   type={name.startsWith("date_range") ? "number" : "text"}
                   min={name.startsWith("date_range") ? "0" : void 0}
+                  placeholder={
+                    name === "date_result"
+                      ? "e.g. 2450 BP"
+                      : name === "date_range_min"
+                        ? "e.g. 2400"
+                        : name === "date_range_max"
+                          ? "e.g. 2500"
+                          : name === "lab_name"
+                            ? "e.g. National Archaeology Lab"
+                            : "e.g. Calibration or interpretation notes"
+                  }
                   value={labDating[name]}
                   onChange={handleLabChange}
                   className={`${inputBase} ${errors[name] || (name.startsWith("date_range") && errors.date_range) ? "border-red-500" : ""}`}
