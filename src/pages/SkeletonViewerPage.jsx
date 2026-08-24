@@ -2,7 +2,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import SkeletonViewer from '../components/SkeletonViewer'
+import SiteLocationMiniMap from '../components/SiteLocationMiniMap'
 import { supabase } from '../supabase'
+import { resolveSpecimenSiteContext } from '../lib/specimenSiteContext'
 import {
   CONTROLLED_BONE_CATEGORIES,
   EXPECTED_CATEGORY_SIDE_KEYS,
@@ -241,6 +243,127 @@ function DetailLine({ label, value }) {
   )
 }
 
+function administrativeLabel(value, suffix) {
+  const cleanValue = String(value || '').trim()
+  if (!cleanValue) return ''
+  return cleanValue.toLowerCase().endsWith(suffix.toLowerCase()) ? cleanValue : `${cleanValue} ${suffix}`
+}
+
+function siteContextMessage(context) {
+  if (context.reason === 'no_specimen') return 'No linked specimen is available for this selection.'
+  if (context.reason === 'no_site') return 'No archaeological site is recorded for this specimen.'
+  if (context.reason === 'unmatched') return 'Site could not be matched safely with the registered archaeological sites.'
+  if (context.status === 'ambiguous') return 'Multiple site records match this specimen. Location requires review.'
+  if (context.status === 'conflict') return 'Site metadata differs from the registered site record. Location requires review.'
+  return 'Site context is not available for this selection.'
+}
+
+function SiteContextDetails({ context, specimenIds = [] }) {
+  const site = context?.site
+  const hasSiteMetadata = site && (context.status === 'resolved' || context.status === 'no_coordinates')
+  const location = hasSiteMetadata
+    ? [administrativeLabel(site.district, 'District'), administrativeLabel(site.province, 'Province')].filter(Boolean).join(' · ')
+    : ''
+
+  if (!hasSiteMetadata) {
+    return (
+      <div className="rounded-md border border-dashed border-white/10 bg-slate-950/40 p-4">
+        <p className="text-sm leading-6 text-white/50">{siteContextMessage(context)}</p>
+        {specimenIds.length > 0 && (
+          <p className="mt-3 text-xs text-white/35">Linked specimen: {specimenIds.join(', ')}</p>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h4 className="text-base font-semibold text-white">{site.site_name}</h4>
+        {location && <p className="mt-1 text-xs text-white/50">{location}</p>}
+        {site.time_period && <p className="mt-1 text-xs font-medium text-cyan-100/70">{site.time_period}</p>}
+      </div>
+
+      {context.status === 'resolved' ? (
+        <SiteLocationMiniMap latitude={site.latitude} longitude={site.longitude} siteName={site.site_name} />
+      ) : (
+        <div className="rounded-md border border-dashed border-white/10 bg-slate-950/40 p-4 text-sm leading-6 text-white/50">
+          Map coordinates are not available for this site.
+        </div>
+      )}
+
+      {specimenIds.length > 0 && (
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.12em] text-white/30">
+            Linked specimen{specimenIds.length === 1 ? '' : 's'}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {specimenIds.map((id) => (
+              <span key={id} className="rounded border border-white/10 bg-white/[0.04] px-2 py-1 font-mono text-[11px] text-white/60">{id}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {site.id && (
+        <Link
+          to={`/parami/site/${encodeURIComponent(site.id)}`}
+          className="inline-flex text-xs font-semibold text-cyan-200 transition hover:text-cyan-100"
+        >
+          Open Site in Spatial Analysis →
+        </Link>
+      )}
+    </div>
+  )
+}
+
+function SiteContextCard({ context, loading, loadError, selectedSpecimenId, onSelectSpecimen }) {
+  const selectedContext = context.status === 'multiple'
+    ? context.contexts.find((item) => item.specimenId === selectedSpecimenId)
+    : context
+
+  return (
+    <aside className="w-full max-w-[360px] rounded-md border border-cyan-300/15 bg-cyan-300/[0.04] p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-cyan-200/65">Site Context</p>
+
+      {loading ? (
+        <p className="mt-4 text-sm text-white/40">Loading registered archaeological sites...</p>
+      ) : loadError ? (
+        <p className="mt-4 rounded-md border border-red-300/20 bg-red-300/10 p-3 text-sm leading-6 text-red-100/80">
+          Registered site data could not be loaded. No location is shown.
+        </p>
+      ) : context.status === 'multiple' ? (
+        <div className="mt-4 space-y-4">
+          <div>
+            <h4 className="text-sm font-semibold text-white">Multiple find locations</h4>
+            <p className="mt-1 text-xs leading-5 text-white/45">Choose a linked specimen before displaying a site location.</p>
+          </div>
+          <label className="block">
+            <span className="mb-1.5 block text-xs text-white/40">Specimen / site</span>
+            <select
+              value={selectedSpecimenId}
+              onChange={(event) => onSelectSpecimen(event.target.value)}
+              className="w-full rounded-md border border-white/10 bg-slate-950 px-3 py-2 text-xs text-white outline-none transition focus:border-cyan-300/60"
+            >
+              <option value="">Select a specimen...</option>
+              {context.contexts.map((item) => (
+                <option key={item.specimenId} value={item.specimenId}>
+                  {item.specimenId} — {item.specimen?.site_name || 'No site recorded'}
+                </option>
+              ))}
+            </select>
+          </label>
+          {selectedContext && <SiteContextDetails context={selectedContext} specimenIds={[selectedContext.specimenId]} />}
+        </div>
+      ) : (
+        <div className="mt-4">
+          <SiteContextDetails context={context} specimenIds={context.specimenIds} />
+        </div>
+      )}
+    </aside>
+  )
+}
+
 export default function SkeletonViewerPage() {
   const [skeletonCodes, setSkeletonCodes] = useState([])
   const [selectedSkeletonCode, setSelectedSkeletonCode] = useState('')
@@ -249,32 +372,46 @@ export default function SkeletonViewerPage() {
   const [measurements, setMeasurements] = useState([])
   const [images, setImages] = useState([])
   const [legacyImages, setLegacyImages] = useState([])
+  const [siteRecords, setSiteRecords] = useState([])
+  const [selectedSiteSpecimenId, setSelectedSiteSpecimenId] = useState('')
   const [loadingCodes, setLoadingCodes] = useState(true)
+  const [loadingSites, setLoadingSites] = useState(true)
   const [loadingCoverage, setLoadingCoverage] = useState(false)
+  const [siteLoadError, setSiteLoadError] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
     let active = true
 
-    async function loadSkeletonCodes() {
+    async function loadReferenceData() {
       setLoadingCodes(true)
-      const { data, error: loadError } = await supabase
-        .from('specimens')
-        .select('skeleton_code')
-        .order('skeleton_code', { ascending: true })
+      setLoadingSites(true)
+      const [codeResult, siteResult] = await Promise.all([
+        supabase
+          .from('specimens')
+          .select('skeleton_code')
+          .order('skeleton_code', { ascending: true }),
+        supabase
+          .from('sites')
+          .select('id, site_name, district, province, time_period, latitude, longitude')
+          .order('site_name', { ascending: true }),
+      ])
 
       if (!active) return
 
-      const codes = [...new Set((data || [])
+      const codes = [...new Set((codeResult.data || [])
         .map((row) => row.skeleton_code?.trim())
         .filter(Boolean))]
 
       setSkeletonCodes(codes)
-      setError(loadError?.message || '')
+      setSiteRecords(siteResult.data || [])
+      setError(codeResult.error?.message || '')
+      setSiteLoadError(siteResult.error?.message || '')
       setLoadingCodes(false)
+      setLoadingSites(false)
     }
 
-    loadSkeletonCodes()
+    loadReferenceData()
     return () => { active = false }
   }, [])
 
@@ -357,15 +494,27 @@ export default function SkeletonViewerPage() {
   const uniqueLegacyValues = useMemo(() => summarizeRecordValues(coverage.legacyValues), [coverage.legacyValues])
   const uniqueUnmappedValues = useMemo(() => summarizeRecordValues(coverage.unmappedValues), [coverage.unmappedValues])
 
-  const selectedRecord = selectedKey
+  const selectedRecord = useMemo(() => (selectedKey
     ? coverage.statusData[selectedKey] || { status: 'unknown', specimenIds: [], images: [], sourceValues: [], conditionValues: [], fragmented: false }
-    : null
+    : null), [coverage.statusData, selectedKey])
   const selectedParts = parseCategorySideKey(selectedKey)
+  const selectedSpecimens = useMemo(() => {
+    const specimenIds = new Set(selectedRecord?.specimenIds || [])
+    return specimens.filter((specimen) => specimenIds.has(specimen.specimen_id))
+  }, [selectedRecord, specimens])
+  const siteContext = useMemo(
+    () => resolveSpecimenSiteContext(selectedSpecimens, siteRecords),
+    [selectedSpecimens, siteRecords],
+  )
   const hasSelection = Boolean(selectedSkeletonCode)
   const uploadedImageCount = images.filter(hasUploadedImage).length
   const handleBoneSelect = (requestedKey) => {
     setSelectedKey((currentKey) => toggleBoneSelection(currentKey, requestedKey))
   }
+
+  useEffect(() => {
+    setSelectedSiteSpecimenId('')
+  }, [selectedKey, selectedSkeletonCode])
 
   const selectClass = 'w-full rounded-md border border-white/10 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none transition focus:border-cyan-300/60 disabled:cursor-not-allowed disabled:opacity-50'
 
@@ -529,30 +678,40 @@ export default function SkeletonViewerPage() {
                   </div>
                 </div>
 
-                <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {selectedRecord.images?.length > 0 ? selectedRecord.images.map((image) => {
-                    const imageSrc = image.image_url || image.file_url
-                    return (
-                      <article key={image.image_id} className="overflow-hidden rounded-md border border-white/10 bg-slate-950">
-                        {imageSrc ? (
-                          <img src={imageSrc} alt={image.bone_name || selectedParts.category.label} className="aspect-[4/3] w-full object-cover" loading="lazy" />
-                        ) : (
-                          <div className="flex aspect-[4/3] items-center justify-center text-sm text-white/35">No thumbnail</div>
-                        )}
-                        <div className="p-3">
-                          <p className="text-sm font-semibold text-white/85">{image.bone_name || selectedParts.category.label}</p>
-                          <p className="mt-1 text-xs text-white/40">{image.image_view || 'View not recorded'}</p>
-                          <p className="mt-1 text-xs text-white/40">Condition: {image.condition || 'Not recorded'}</p>
-                          <p className="mt-2 line-clamp-2 text-xs leading-5 text-white/50">{imageNotes(image) || 'No image notes.'}</p>
-                          <Link to={`/image/${image.image_id}`} className="mt-3 inline-flex text-xs font-semibold text-cyan-200 hover:text-cyan-100">View image detail</Link>
-                        </div>
-                      </article>
-                    )
-                  }) : (
-                    <div className="rounded-md border border-dashed border-white/10 p-4 text-sm text-white/40 sm:col-span-2 xl:col-span-3">
-                      No specimen-linked images for this category and side.
-                    </div>
-                  )}
+                <div className="mt-5 grid items-start justify-start gap-6 xl:grid-cols-[minmax(260px,320px)_minmax(300px,360px)]">
+                  <div className="grid w-full max-w-[320px] min-w-0 gap-3">
+                    {selectedRecord.images?.length > 0 ? selectedRecord.images.map((image) => {
+                      const imageSrc = image.image_url || image.file_url
+                      return (
+                        <article key={image.image_id} className="overflow-hidden rounded-md border border-white/10 bg-slate-950">
+                          {imageSrc ? (
+                            <img src={imageSrc} alt={image.bone_name || selectedParts.category.label} className="aspect-[4/3] w-full object-cover" loading="lazy" />
+                          ) : (
+                            <div className="flex aspect-[4/3] items-center justify-center text-sm text-white/35">No thumbnail</div>
+                          )}
+                          <div className="p-3">
+                            <p className="text-sm font-semibold text-white/85">{image.bone_name || selectedParts.category.label}</p>
+                            <p className="mt-1 text-xs text-white/40">{image.image_view || 'View not recorded'}</p>
+                            <p className="mt-1 text-xs text-white/40">Condition: {image.condition || 'Not recorded'}</p>
+                            <p className="mt-2 line-clamp-2 text-xs leading-5 text-white/50">{imageNotes(image) || 'No image notes.'}</p>
+                            <Link to={`/image/${image.image_id}`} className="mt-3 inline-flex text-xs font-semibold text-cyan-200 hover:text-cyan-100">View image detail</Link>
+                          </div>
+                        </article>
+                      )
+                    }) : (
+                      <div className="rounded-md border border-dashed border-white/10 p-4 text-sm text-white/40">
+                        No specimen-linked images for this category and side.
+                      </div>
+                    )}
+                  </div>
+
+                  <SiteContextCard
+                    context={siteContext}
+                    loading={loadingSites}
+                    loadError={siteLoadError}
+                    selectedSpecimenId={selectedSiteSpecimenId}
+                    onSelectSpecimen={setSelectedSiteSpecimenId}
+                  />
                 </div>
               </>
             )}
