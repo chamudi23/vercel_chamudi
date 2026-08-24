@@ -9,6 +9,7 @@ import IlshanModulePage from './pages/IlshanModulePage'
 import MinuriModulePage from "./pages/MinuriModulePage";
 import SpecimenFormPage from "./pages/SpecimenFormPage";
 import ParamiModulePage from "./pages/ParamiModulePage";
+import SitesListPage from "./pages/SitesListPage";
 import SpecimenListPage from "./pages/SpecimenListPage";
 import SpecimenDetailPage from "./pages/SpecimenDetailPage";
 import DataImportPage from "./pages/DataImportPage";
@@ -104,6 +105,7 @@ function ApplicationRoutes() {
 
       {/* ---------------- GIS Spatial Analysis ------------------------ */}
       <Route path="/parami" element={<Auth><ParamiModulePage /></Auth>} />
+      <Route path="/parami/sites" element={<Auth><SitesListPage /></Auth>} />
       <Route path="/spatial-analysis" element={<Auth><ParamiModulePage /></Auth>} />
       <Route path="/parami/home" element={<Auth><GISHome /></Auth>} />
       <Route path="/parami/site/:siteId" element={<Auth><SiteDetailPage /></Auth>} />

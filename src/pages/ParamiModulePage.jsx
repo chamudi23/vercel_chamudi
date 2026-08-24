@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+/* eslint-disable react/prop-types */
+import { useState, useEffect, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import 'leaflet/dist/leaflet.css'
@@ -42,21 +43,6 @@ function StatCard({ label, value, color = 'blue' }) {
   )
 }
 
-// Simple period guesser from free-text time_period field
-function guessPeriodYear(timePeriod) {
-  if (!timePeriod) return null
-  const t = timePeriod.toLowerCase()
-  if (t.includes('prehistoric') || t.includes('paleolithic') || t.includes('mesolithic')) return -10000
-  if (t.includes('iron age') || t.includes('early historic')) return -500
-  if (t.includes('anuradhapura')) return 300
-  if (t.includes('polonnaruwa')) return 1100
-  if (t.includes('medieval') || t.includes('kandyan')) return 1500
-  if (t.includes('colonial') || t.includes('modern')) return 1800
-  const m = timePeriod.match(/-?\d+/)
-  if (m) return parseInt(m[0])
-  return null
-}
-
 // DBSCAN cluster colours
 const CLUSTER_COLOURS = [
   '#a78bfa', '#fb923c', '#38bdf8', '#f472b6',
@@ -71,10 +57,9 @@ function ParamiModulePage() {
   const [loading,      setLoading]      = useState(true)
   const [error,        setError]        = useState(null)
   const [periodIdx,    setPeriodIdx]    = useState(0)
-  const [showClusters, setShowClusters] = useState(true)
+  const [showClusters, setShowClusters] = useState(false)
   const [eps,          setEps]          = useState(0.3)
   const [minPts,       setMinPts]       = useState(2)
-  const [searchTerm,   setSearchTerm]   = useState('')
   const [activePanel,  setActivePanel]  = useState('temporal')
 
   // Load all sites with coordinates from Supabase, plus a count of
@@ -137,17 +122,8 @@ function ParamiModulePage() {
       })
     }
 
-    if (searchTerm.trim()) {
-      const q = searchTerm.toLowerCase()
-      result = result.filter(s =>
-        (s.site_name && s.site_name.toLowerCase().includes(q)) ||
-        (s.district && s.district.toLowerCase().includes(q)) ||
-        (s.site_type && s.site_type.toLowerCase().includes(q)) ||
-        (s.time_period && s.time_period.toLowerCase().includes(q))
-      )
-    }
     return result
-  }, [sites, periodIdx, searchTerm])
+  }, [sites, periodIdx])
 
   // DBSCAN groups sites that are geographically close together, without
   // needing to know the number of clusters in advance (unlike K-Means).
@@ -173,15 +149,6 @@ function ParamiModulePage() {
     })
     return map
   }, [clusters])
-
-  const riskBadge = (level) => {
-    const map = {
-      High:   'bg-red-900 text-red-300',
-      Medium: 'bg-yellow-900 text-yellow-300',
-      Low:    'bg-emerald-900 text-emerald-300',
-    }
-    return map[level] || 'bg-slate-700 text-slate-400'
-  }
 
   return (
     <div className="max-w-6xl mx-auto p-8">
@@ -473,15 +440,55 @@ function ParamiModulePage() {
                   center={[parseFloat(site.latitude), parseFloat(site.longitude)]}
                   pathOptions={opts}
                 >
-                  {/* Hover: small findings-count box */}
-                  <Tooltip direction="top" offset={[0, -8]} opacity={1}>
-                    <div style={{ fontSize: '12px', lineHeight: 1.4 }}>
-                      <strong>{site.site_name}</strong><br />
-                      {findingsCount} finding{findingsCount === 1 ? '' : 's'} recorded
+                  {/* Hover: image + full site details (same card as the click popup) */}
+                  <Tooltip direction="top" offset={[0, -8]} opacity={1} interactive>
+                    <div style={{ minWidth: '200px', maxWidth: '240px' }}>
+                      {site.image_url ? (
+                        <img
+                          src={site.image_url}
+                          alt={site.site_name}
+                          style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '6px', marginBottom: '8px' }}
+                        />
+                      ) : (
+                        <div style={{ width: '100%', height: '70px', borderRadius: '6px', marginBottom: '8px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '11px' }}>
+                          No photo yet
+                        </div>
+                      )}
+                      <p style={{ fontWeight: 700, marginBottom: '6px', fontSize: '14px' }}>
+                        {site.site_name}
+                      </p>
+                      {showClusters && isInCluster && (
+                        <p style={{ fontSize: '11px', marginBottom: '6px', color: clusterColour, fontWeight: 600 }}>
+                          Cluster {clusterIdx + 1}
+                        </p>
+                      )}
+                      <table style={{ fontSize: '12px', borderCollapse: 'collapse', width: '100%' }}>
+                        <tbody>
+                          {[
+                            ['District',  site.district],
+                            ['Type',      site.site_type],
+                            ['Period',    site.time_period],
+                            ['Risk',      site.risk_level],
+                            ['Findings',  findingsCount],
+                          ].map(([label, val]) => val ? (
+                            <tr key={label}>
+                              <td style={{ color: '#6b7280', paddingRight: '8px', paddingBottom: '2px' }}>{label}</td>
+                              <td style={{ color: '#111827' }}>{val}</td>
+                            </tr>
+                          ) : null)}
+                        </tbody>
+                      </table>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/parami/site/${site.id}`)}
+                        style={{ marginTop: '8px', fontSize: '11px', fontWeight: 600, color: '#2563eb', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                      >
+                        View Full Details →
+                      </button>
                     </div>
                   </Tooltip>
 
-                  {/* Click: image + full site details */}
+                  {/* Click: same card, for touch devices without hover */}
                   <Popup>
                     <div style={{ minWidth: '200px', maxWidth: '240px' }}>
                       {site.image_url ? (
@@ -580,85 +587,20 @@ function ParamiModulePage() {
         )}
       </div>
 
-      {/* Sites table */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden mb-6">
-        <div className="px-6 py-4 border-b border-slate-700 flex items-center justify-between flex-wrap gap-3">
+      {/* Sites list link */}
+      <div className="bg-slate-800 rounded-xl border border-slate-700 p-5 mb-6 flex items-center justify-between flex-wrap gap-3">
+        <div>
           <h3 className="text-slate-200 font-semibold">Mapped Archaeological Sites</h3>
-          <div className="flex items-center gap-3">
-            <input
-              type="text"
-              placeholder="Search by name, district, type..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="bg-slate-700 border border-slate-600 text-slate-200 text-sm rounded-lg px-4 py-2 w-64 focus:outline-none focus:border-blue-500 placeholder-slate-500"
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="text-slate-400 hover:text-slate-200 text-sm transition-colors"
-              >
-                ✕ Clear
-              </button>
-            )}
-            <span className="text-slate-500 text-sm">{filteredSites.length} sites</span>
-          </div>
+          <p className="text-slate-400 text-sm mt-1">
+            {loading ? 'Loading sites...' : `${filteredSites.length} site${filteredSites.length === 1 ? '' : 's'} shown on the map above`}
+          </p>
         </div>
-        {loading ? (
-          <div className="p-6 text-slate-500 text-sm">Loading sites...</div>
-        ) : filteredSites.length === 0 ? (
-          <div className="p-6 text-slate-500 text-sm">No sites match the selected time period.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-700">
-                  <th className="text-left px-6 py-3 text-slate-400 font-medium">Site Name</th>
-                  <th className="text-left px-6 py-3 text-slate-400 font-medium">District</th>
-                  <th className="text-left px-6 py-3 text-slate-400 font-medium">Type</th>
-                  <th className="text-left px-6 py-3 text-slate-400 font-medium">Period</th>
-                  <th className="text-left px-6 py-3 text-slate-400 font-medium">Coordinates</th>
-                  <th className="text-left px-6 py-3 text-slate-400 font-medium">Risk</th>
-                  <th className="text-left px-6 py-3 text-slate-400 font-medium">Cluster</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredSites.map((site, i) => (
-                  <tr key={site.id} className={`border-b border-slate-700 hover:bg-slate-700 transition-colors ${i % 2 !== 0 ? 'bg-slate-800/50' : ''}`}>
-                    <td className="px-6 py-3 text-slate-200 font-medium">
-  <button
-    onClick={() => navigate(`/parami/site/${site.id}`)}
-    className="hover:text-blue-400 transition-colors text-left underline underline-offset-2 decoration-slate-600 hover:decoration-blue-400"
-  >
-    {site.site_name}
-  </button>
-</td>
-                    <td className="px-6 py-3 text-slate-400">{site.district || '—'}</td>
-                    <td className="px-6 py-3 text-slate-400">{site.site_type || '—'}</td>
-                    <td className="px-6 py-3 text-slate-400 max-w-[160px] truncate">{site.time_period || '—'}</td>
-                    <td className="px-6 py-3 text-slate-500 font-mono text-xs">
-                      {parseFloat(site.latitude).toFixed(4)}, {parseFloat(site.longitude).toFixed(4)}
-                    </td>
-                    <td className="px-6 py-3">
-                      {site.risk_level ? (
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${riskBadge(site.risk_level)}`}>
-                          {site.risk_level}
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td className="px-6 py-3">
-                      {siteClusterMap[i] !== undefined ? (
-                        <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: CLUSTER_COLOURS[siteClusterMap[i] % CLUSTER_COLOURS.length] }}>
-                          <span className="w-2 h-2 rounded-full inline-block" style={{ background: CLUSTER_COLOURS[siteClusterMap[i] % CLUSTER_COLOURS.length] }} />
-                          Cluster {siteClusterMap[i] + 1}
-                        </span>
-                      ) : <span className="text-slate-600 text-xs">—</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <Link
+          to="/parami/sites"
+          className="bg-blue-600 hover:bg-blue-500 text-white text-sm px-4 py-2 rounded-lg transition-colors"
+        >
+          View All Mapped Sites →
+        </Link>
       </div>
 
 
