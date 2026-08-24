@@ -27,6 +27,21 @@ async function request(path, filters) {
   return body.data
 }
 
+async function post(path, payload) {
+  const url = `${API_BASE}${path}`
+  let response
+  try {
+    response = await fetch(url, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+  } catch (error) {
+    if (import.meta.env.DEV) console.error('[OAHRIS Assistant] Network request failed.', { url, error })
+    throw new AssistantApiError('NETWORK_ERROR', 'The OAHRIS Assistant service could not be reached.')
+  }
+  const body = await response.json().catch(() => null)
+  if (!body) throw new AssistantApiError('INVALID_RESPONSE', 'The OAHRIS Assistant service returned an invalid response.')
+  if (!response.ok || !body.success) throw new AssistantApiError(body.error?.code || 'ASSISTANT_FAILED', body.error?.message || 'OAHRIS Assistant could not complete the request.')
+  return body.data
+}
+
 export const assistantClient = {
   searchSpecimens: (filters) => request('/specimens', filters),
   getSpecimen: (specimenId) => request(`/specimens/${encodeURIComponent(specimenId)}`),
@@ -34,4 +49,5 @@ export const assistantClient = {
   searchImages: (filters) => request('/images', filters),
   getSkeletonCoverage: (code) => request(`/skeletons/${encodeURIComponent(code)}/coverage`),
   getSystemHelp: (query, currentRoute) => request('/help', { q: query, currentRoute }),
+  respond: (message, currentRoute, context) => post('/respond', { message, currentRoute, context }),
 }
