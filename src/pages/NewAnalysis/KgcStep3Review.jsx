@@ -16,7 +16,7 @@ const labelMap = {
   'fused': 'Fused', 'partially-fused': 'Partially Fused', 'unfused': 'Unfused',
   'gracile': 'Gracile',
   'scalloped': 'Scalloped Edges', 'irregular': 'Irregular / Porous',
-  'deciduous': 'Deciduous (Baby)', 'permanent': 'Permanent', 'mixed': 'Mixed',
+  'deciduous': 'deciduous', 'mixed': 'mixed', 'permanent': 'permanent', 
   'none': 'None', 'mild': 'Mild', 'severe': 'Severe',
   'early': 'Early', 'partial': 'Partial', 'complete': 'Complete',
 };
@@ -28,7 +28,11 @@ function getLabel(val) {
 // Prediction logic based on Bass, W.M. (2005) Human Osteology, 5th ed.
 // Stature formulae: Trotter & Gleser "Mongoloid" male as presented by Bass
 // (closest available Bass formula for South Asian / Sri Lankan populations)
-function computePredictions(measurements) {
+// Exported so the rules can be exercised outside the component — by the
+// sample-data generator (scripts/generateSampleAnalyses.mjs) and by tests.
+// Seeded cases are therefore produced by these exact rules and cannot drift
+// from what the app computes for the same measurements.
+export function computePredictions(measurements) {
   const { bonesType, ...data } = measurements;
   let gender = 'Indeterminate';
   let ageRange = 'Unknown';

@@ -195,6 +195,10 @@ function SpecimenFormPage() {
   const [skeletonSearch, setSkeletonSearch] = useState("");
   const [skeletonRecords, setSkeletonRecords] = useState([]);
   const [loadingSkeletons, setLoadingSkeletons] = useState(true);
+  const [siteRecords, setSiteRecords] = useState([]);
+  const [loadingSites, setLoadingSites] = useState(true);
+  const [storageLocations, setStorageLocations] = useState([]);
+  const [loadingStorageLocations, setLoadingStorageLocations] = useState(true);
   const [siteConflicts, setSiteConflicts] = useState([]);
   const [measurementNotice, setMeasurementNotice] = useState("");
   const [skeletalInputForm, setSkeletalInputForm] = useState({});
@@ -235,6 +239,67 @@ function SpecimenFormPage() {
     lab_name: "",
     result_notes: "",
   });
+
+  // Load the site catalogue separately from specimen records. Site selection
+  // must use the canonical site details maintained in the sites table.
+  useEffect(() => {
+    let active = true;
+
+    async function loadSites() {
+      setLoadingSites(true);
+      const { data, error } = await supabase
+        .from("sites")
+        .select("id, site_name, district, province, time_period")
+        .order("site_name", { ascending: true });
+
+      if (!active) return;
+
+      setSiteRecords(data || []);
+      setErrors((previous) => ({
+        ...previous,
+        loadSites: error?.message || "",
+      }));
+      setLoadingSites(false);
+    }
+
+    loadSites();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Load active storage slots for the dropdown. The selected display label is
+  // saved in specimens.location_stored for compatibility with existing records.
+  useEffect(() => {
+    let active = true;
+
+    async function loadStorageLocations() {
+      setLoadingStorageLocations(true);
+      const { data, error } = await supabase
+        .from("storage_locations")
+        .select("id, location_code, lab_no, shelf_no, display_label")
+        .eq("is_active", true)
+        .order("location_code", { ascending: true })
+        .order("lab_no", { ascending: true })
+        .order("shelf_no", { ascending: true });
+
+      if (!active) return;
+
+      setStorageLocations(data || []);
+      setErrors((previous) => ({
+        ...previous,
+        loadStorageLocations: error?.message || "",
+      }));
+      setLoadingStorageLocations(false);
+    }
+
+    loadStorageLocations();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // These records populate the existing-skeleton list and determine which
   // bone categories and sides are still available for a selected skeleton.
@@ -292,6 +357,22 @@ function SpecimenFormPage() {
           normalize(code).includes(normalize(skeletonSearch)),
       ),
     [skeletonCodes, skeletonSearch],
+  );
+  const siteOptions = useMemo(() => {
+    const uniqueSites = new Map();
+
+    siteRecords.forEach((site) => {
+      const siteName = String(site.site_name || "").trim();
+      if (siteName && !uniqueSites.has(normalize(siteName))) {
+        uniqueSites.set(normalize(siteName), site);
+      }
+    });
+
+    return [...uniqueSites.values()];
+  }, [siteRecords]);
+  const storageLocationOptions = useMemo(
+    () => storageLocations.filter((location) => location.display_label),
+    [storageLocations],
   );
   const categoriesBySection = useMemo(
     () =>
@@ -415,6 +496,23 @@ function SpecimenFormPage() {
       side: "Unknown",
     }));
     resetBoneMeasurements();
+  }
+
+  // Selecting a site fills the related fields from the same database record.
+  // This keeps specimen site metadata consistent with the GIS site catalogue.
+  function selectSite(siteName) {
+    const selectedSite = siteOptions.find(
+      (site) => normalize(site.site_name) === normalize(siteName),
+    );
+
+    setForm((previous) => ({
+      ...previous,
+      site_name: selectedSite?.site_name || "",
+      district: selectedSite?.district || "",
+      province: selectedSite?.province || "",
+      time_period: selectedSite?.time_period || "",
+    }));
+    setErrors((previous) => ({ ...previous, site_name: "" }));
   }
 
   // Central change handler for Step 1 fields, including side recalculation.
@@ -1011,14 +1109,36 @@ function SpecimenFormPage() {
             <label className="mb-1.5 block text-xs uppercase tracking-wider text-white/50">
               Site Name
             </label>
-            <input
-              name="site_name"
-              value={form.site_name}
-              onChange={handleChange}
-              placeholder="e.g. Pallemalala Prehistoric Site"
-              readOnly={skeletonMode === "existing"}
-              className={`${inputClass("site_name")} ${skeletonMode === "existing" ? "opacity-65" : ""}`}
-            />
+            {skeletonMode === "existing" ? (
+              <input
+                name="site_name"
+                value={form.site_name}
+                readOnly
+                className={`${inputClass("site_name")} opacity-65`}
+              />
+            ) : (
+              <select
+                name="site_name"
+                value={form.site_name}
+                onChange={(event) => selectSite(event.target.value)}
+                disabled={loadingSites || siteOptions.length === 0}
+                className={selectClass("site_name")}
+              >
+                <option value="">
+                  {loadingSites
+                    ? "Loading sites..."
+                    : siteOptions.length
+                      ? "Select a site"
+                      : "No sites available"}
+                </option>
+                {siteOptions.map((site) => (
+                  <option key={site.id} value={site.site_name}>
+                    {site.site_name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <FieldError>{errors.site_name}</FieldError>
           </div>
           {[
             ["District", "district", DISTRICTS],
@@ -1032,9 +1152,8 @@ function SpecimenFormPage() {
               <select
                 name={name}
                 value={form[name]}
-                onChange={handleChange}
-                disabled={skeletonMode === "existing"}
-                className={`${selectClass(name)} ${skeletonMode === "existing" ? "opacity-65" : ""}`}
+                disabled
+                className={`${selectClass(name)} opacity-65`}
               >
                 <option value="">Select {label.toLowerCase()}</option>
                 {options.map((option) => (
@@ -1052,12 +1171,32 @@ function SpecimenFormPage() {
     content = (
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {field("Preservation State", "preservation_state", PRESERVATION_STATES)}
-        {field(
-          "Storage Location",
-          "location_stored",
-          null,
-          "e.g. Lab Shelf B-3",
-        )}
+        <div>
+          <label className="mb-1.5 block text-xs uppercase tracking-wider text-white/50">
+            Storage Location
+          </label>
+          <select
+            name="location_stored"
+            value={form.location_stored}
+            onChange={handleChange}
+            disabled={loadingStorageLocations || storageLocationOptions.length === 0}
+            className={selectClass("location_stored")}
+          >
+            <option value="">
+              {loadingStorageLocations
+                ? "Loading storage locations..."
+                : storageLocationOptions.length
+                  ? "Select a storage location"
+                  : "No storage locations available"}
+            </option>
+            {storageLocationOptions.map((location) => (
+              <option key={location.id} value={location.display_label}>
+                {location.display_label}
+              </option>
+            ))}
+          </select>
+          <FieldError>{errors.location_stored}</FieldError>
+        </div>
         <div className="md:col-span-2">
           {field(
             "Burial Context",
@@ -1565,6 +1704,16 @@ function SpecimenFormPage() {
         {errors.loadSkeletons && (
           <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/15 px-5 py-4 text-sm text-amber-200">
             Existing Skeleton Codes could not be loaded: {errors.loadSkeletons}
+          </div>
+        )}
+        {errors.loadSites && (
+          <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/15 px-5 py-4 text-sm text-amber-200">
+            Site names could not be loaded: {errors.loadSites}
+          </div>
+        )}
+        {errors.loadStorageLocations && (
+          <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/15 px-5 py-4 text-sm text-amber-200">
+            Storage locations could not be loaded: {errors.loadStorageLocations}
           </div>
         )}
         <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 sm:p-6">

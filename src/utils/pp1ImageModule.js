@@ -8,22 +8,22 @@ export const CONTROLLED_BONE_CATEGORIES = [
   { code: 'SKULL', label: 'Skull', section: 'Skull', laterality: 'midline', region: 'Cranial', mapSupport: 'full-body-regional' },
   { code: 'MANDIBLE', label: 'Mandible', section: 'Skull', laterality: 'midline', region: 'Cranial', mapSupport: 'full-body-direct', mapViews: ['front'] },
   { code: 'MAXILLA', label: 'Maxilla', section: 'Skull', laterality: 'paired', region: 'Cranial', mapSupport: 'cranial-detail' },
-  { code: 'INCISOR', label: 'Incisor', section: 'Teeth', laterality: 'paired', region: 'Cranial', mapSupport: 'cranial-detail' },
-  { code: 'CANINE', label: 'Canine', section: 'Teeth', laterality: 'paired', region: 'Cranial', mapSupport: 'cranial-detail' },
-  { code: 'PREMOLAR', label: 'Premolar', section: 'Teeth', laterality: 'paired', region: 'Cranial', mapSupport: 'cranial-detail' },
-  { code: 'MOLAR', label: 'Molar', section: 'Teeth', laterality: 'paired', region: 'Cranial', mapSupport: 'cranial-detail' },
+  { code: 'INCISOR', label: 'Incisor', section: 'Teeth', laterality: 'paired', region: 'Cranial', mapSupport: 'full-body-regional', mapViews: ['front'] },
+  { code: 'CANINE', label: 'Canine', section: 'Teeth', laterality: 'paired', region: 'Cranial', mapSupport: 'full-body-regional', mapViews: ['front'] },
+  { code: 'PREMOLAR', label: 'Premolar', section: 'Teeth', laterality: 'paired', region: 'Cranial', mapSupport: 'full-body-regional', mapViews: ['front'] },
+  { code: 'MOLAR', label: 'Molar', section: 'Teeth', laterality: 'paired', region: 'Cranial', mapSupport: 'full-body-regional', mapViews: ['front'] },
   { code: 'CLAVICLE', label: 'Clavicle', section: 'Upper Limb', laterality: 'paired', region: 'Upper Limb', mapSupport: 'full-body-direct', mapViews: ['front'], uniquePerSide: true },
   { code: 'SCAPULA', label: 'Scapula', section: 'Upper Limb', laterality: 'paired', region: 'Upper Limb', mapSupport: 'full-body-direct', mapViews: ['front', 'back'], uniquePerSide: true },
   { code: 'HUMERUS', label: 'Humerus', section: 'Upper Limb', laterality: 'paired', region: 'Upper Limb', mapSupport: 'full-body-direct', uniquePerSide: true },
   { code: 'RADIUS', label: 'Radius', section: 'Upper Limb', laterality: 'paired', region: 'Upper Limb', mapSupport: 'full-body-direct', uniquePerSide: true },
   { code: 'ULNA', label: 'Ulna', section: 'Upper Limb', laterality: 'paired', region: 'Upper Limb', mapSupport: 'full-body-direct', uniquePerSide: true },
-  { code: 'VERTEBRA', label: 'Vertebra', section: 'Vertebral Column', laterality: 'midline', region: 'Thorax', mapSupport: 'none' },
+  { code: 'VERTEBRA', label: 'Vertebra', section: 'Vertebral Column', laterality: 'midline', region: 'Thorax', mapSupport: 'full-body-direct', mapViews: ['front', 'back'] },
   { code: 'SACRUM', label: 'Sacrum', section: 'Vertebral Column', laterality: 'midline', region: 'Pelvis', mapSupport: 'full-body-direct', mapViews: ['front'] },
   { code: 'COCCYX', label: 'Coccyx', section: 'Vertebral Column', laterality: 'midline', region: 'Pelvis', mapSupport: 'full-body-direct', mapViews: ['front'] },
   { code: 'RIB', label: 'Rib', section: 'Thorax', laterality: 'paired', region: 'Thorax', mapSupport: 'full-body-regional', mapViews: ['front'] },
-  { code: 'STERNUM', label: 'Sternum', section: 'Thorax', laterality: 'midline', region: 'Thorax', mapSupport: 'none' },
+  { code: 'STERNUM', label: 'Sternum', section: 'Thorax', laterality: 'midline', region: 'Thorax', mapSupport: 'full-body-direct', mapViews: ['front'] },
   { code: 'PELVIS', label: 'Pelvis', section: 'Pelvis', laterality: 'paired', region: 'Pelvis', mapSupport: 'full-body-regional', mapViews: ['front'], uniquePerSide: true },
-  { code: 'PUBIS', label: 'Pubis', section: 'Pelvis', laterality: 'paired', region: 'Pelvis', mapSupport: 'pelvic-detail' },
+  { code: 'PUBIS', label: 'Pubis', section: 'Pelvis', laterality: 'paired', region: 'Pelvis', mapSupport: 'full-body-direct', mapViews: ['front', 'back'] },
   { code: 'FEMUR', label: 'Femur', section: 'Lower Limb', laterality: 'paired', region: 'Lower Limb', mapSupport: 'full-body-direct', uniquePerSide: true },
   { code: 'PATELLA', label: 'Patella', section: 'Lower Limb', laterality: 'paired', region: 'Lower Limb', mapSupport: 'full-body-direct', mapViews: ['front'], uniquePerSide: true },
   { code: 'TIBIA', label: 'Tibia', section: 'Lower Limb', laterality: 'paired', region: 'Lower Limb', mapSupport: 'full-body-direct', uniquePerSide: true },
@@ -350,8 +350,12 @@ export function toggleBoneSelection(currentKey, requestedKey) {
 const SKELETON_NONSIDED_SVG_GROUPS = {
   front: {
     // Group 137 is a dental row and is deliberately excluded from the skull region.
+    // It is shared by the four canonical tooth categories; no Teeth category is stored.
+    TEETH_UNKNOWN: [137],
     SKULL_MIDLINE: [128, 129, 130, 131, 132, 133, 135],
     MANDIBLE_MIDLINE: [125],
+    // Groups 117 and 70 are the separately isolated cervical and lower vertebral regions.
+    VERTEBRAL_COLUMN_MIDLINE: [117, 70],
     SACRUM_MIDLINE: [68],
     COCCYX_MIDLINE: [67],
     RIB_UNKNOWN: [82],
@@ -361,6 +365,8 @@ const SKELETON_NONSIDED_SVG_GROUPS = {
     // Group 93 contains lower-face group 94. Its remaining child groups provide
     // a posterior skull region without retaining the unsafe mandible proxy.
     SKULL_MIDLINE: [98, 99, 100, 102],
+    // This group contains the posterior vertebral column without the sacrum.
+    VERTEBRAL_COLUMN_MIDLINE: [147],
   },
 }
 
@@ -413,7 +419,47 @@ export const SKELETON_SVG_GROUPS = {
   back: anatomicalSvgGroups('back'),
 }
 
+// These overlays use the source SVG viewBox (0 0 456.056 925.702), so they
+// scale and pan with the skeleton without changing the attributed SVG asset.
+export const CUSTOM_SKELETON_REGIONS = {
+  front: {
+    STERNUM_MIDLINE: {
+      type: 'path',
+      d: 'M204 184 C201 192 202 202 204 208 L204 251 C204 261 207 272 211 280 C213 282 216 282 218 279 C222 270 223 260 223 251 L223 208 C224 198 222 189 219 184 C215 181 208 181 204 184 Z',
+    },
+    // The source artwork has only a broad pelvic group. These are the anterior
+    // pubic rami/body, kept separate from the shared PELVIS_UNKNOWN region.
+    PUBIS_LEFT: {
+      type: 'path',
+      d: 'M211 451 C217 454 222 456 227 455 L238 450 C242 448 245 449 246 452 C247 456 244 459 240 461 L228 468 C222 471 216 469 213 464 L209 456 Z',
+    },
+    PUBIS_RIGHT: {
+      type: 'path',
+      d: 'M205 451 C199 454 194 456 189 455 L178 450 C174 448 171 449 170 452 C169 456 172 459 176 461 L188 468 C194 471 200 469 203 464 L207 456 Z',
+    },
+  },
+  back: {
+    // The posterior artwork exposes only a narrow medial pubic arch. Keeping
+    // these paths small avoids colouring the obturator foramina or ischium.
+    PUBIS_LEFT: {
+      type: 'path',
+      d: 'M165 405 L161 413 L157 417 L151 415 L144 409 C141 407 138 408 137 410 C136 412 137 415 139 417 L148 423 L154 426 L158 423 L162 414 L166 407 Z',
+    },
+    PUBIS_RIGHT: {
+      type: 'path',
+      d: 'M169 405 L173 413 L177 417 L183 415 L190 409 C193 407 196 408 197 410 C198 412 197 415 195 417 L186 423 L180 426 L176 423 L172 414 L168 407 Z',
+    },
+  },
+}
+
 const SKELETON_SVG_STATUS_ALIASES = {
+  TEETH_UNKNOWN: [
+    'INCISOR_LEFT', 'INCISOR_RIGHT', 'INCISOR_UNKNOWN',
+    'CANINE_LEFT', 'CANINE_RIGHT', 'CANINE_UNKNOWN',
+    'PREMOLAR_LEFT', 'PREMOLAR_RIGHT', 'PREMOLAR_UNKNOWN',
+    'MOLAR_LEFT', 'MOLAR_RIGHT', 'MOLAR_UNKNOWN',
+  ],
+  VERTEBRAL_COLUMN_MIDLINE: ['VERTEBRA_MIDLINE'],
   RIB_UNKNOWN: ['RIB_LEFT', 'RIB_RIGHT'],
   PELVIS_UNKNOWN: ['PELVIS_LEFT', 'PELVIS_RIGHT'],
 }

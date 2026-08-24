@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import {
   CONTROLLED_BONE_CATEGORIES,
   CONTROLLED_BONE_SECTIONS,
+  CUSTOM_SKELETON_REGIONS,
   EXPECTED_CATEGORY_SIDE_KEYS,
   SKELETON_ORIENTATION_MARKERS,
   SKELETON_SCREEN_SIDE_GROUPS,
@@ -23,6 +24,8 @@ const expectedMappings = {
   front: {
     SKULL_MIDLINE: [128, 129, 130, 131, 132, 133, 135],
     MANDIBLE_MIDLINE: [125],
+    TEETH_UNKNOWN: [137],
+    VERTEBRAL_COLUMN_MIDLINE: [117, 70],
     SACRUM_MIDLINE: [68],
     COCCYX_MIDLINE: [67],
     RIB_UNKNOWN: [82],
@@ -36,6 +39,7 @@ const expectedMappings = {
   },
   back: {
     SKULL_MIDLINE: [98, 99, 100, 102],
+    VERTEBRAL_COLUMN_MIDLINE: [147],
     HUMERUS_LEFT: [2], HUMERUS_RIGHT: [47],
     RADIUS_LEFT: [45], RADIUS_RIGHT: [49],
     ULNA_LEFT: [44], ULNA_RIGHT: [51],
@@ -49,13 +53,6 @@ const expectedMappings = {
 
 const unsupportedCanonicalCodes = [
   'MAXILLA',
-  'INCISOR',
-  'CANINE',
-  'PREMOLAR',
-  'MOLAR',
-  'VERTEBRA',
-  'STERNUM',
-  'PUBIS',
   'OTHER',
 ]
 
@@ -121,6 +118,47 @@ assert.equal(screenSideForAnatomicalSide('back', 'Unknown'), null)
 assert.deepEqual(skeletonViewsForMode('Both'), ['front', 'back'])
 assert.equal(categorySideKey('Mandible', 'Left'), 'MANDIBLE_MIDLINE')
 assert.equal(categorySideKey('Cranium', 'Right'), 'SKULL_MIDLINE')
+assert.equal(categorySideKey('Sternum', 'Left'), 'STERNUM_MIDLINE')
+assert.equal(supportsFullBodyMap('STERNUM'), true, 'Sternum must be available on the front map')
+assert.equal(CUSTOM_SKELETON_REGIONS.front.STERNUM_MIDLINE?.type, 'path')
+assert.ok(CUSTOM_SKELETON_REGIONS.front.STERNUM_MIDLINE?.d, 'Sternum must define a front SVG overlay path')
+assert.equal(CUSTOM_SKELETON_REGIONS.back.STERNUM_MIDLINE, undefined, 'Sternum must not have a posterior overlay')
+assert.equal(categorySideKey('Pubis', 'Left'), 'PUBIS_LEFT')
+assert.equal(categorySideKey('Pubis', 'Right'), 'PUBIS_RIGHT')
+assert.equal(supportsFullBodyMap('PUBIS'), true, 'Pubis must be available on both full-body views')
+for (const view of ['front', 'back']) {
+  for (const side of ['Left', 'Right']) {
+    const key = `PUBIS_${side.toUpperCase()}`
+    assert.ok(EXPECTED_CATEGORY_SIDE_KEYS.includes(key), `${key} must remain a distinct status key`)
+    assert.equal(CUSTOM_SKELETON_REGIONS[view][key]?.type, 'path', `${view} ${key} must use its custom SVG overlay`)
+    assert.ok(CUSTOM_SKELETON_REGIONS[view][key]?.d, `${view} ${key} must define SVG path coordinates`)
+    assert.equal(SKELETON_SVG_GROUPS[view][key], undefined, `${view} ${key} must not use an unsafe pelvic source group`)
+  }
+}
+assert.notEqual(CUSTOM_SKELETON_REGIONS.front.PUBIS_LEFT.d, CUSTOM_SKELETON_REGIONS.front.PUBIS_RIGHT.d, 'front Pubis sides must remain visually distinct')
+assert.notEqual(CUSTOM_SKELETON_REGIONS.back.PUBIS_LEFT.d, CUSTOM_SKELETON_REGIONS.back.PUBIS_RIGHT.d, 'back Pubis sides must remain visually distinct')
+assert.equal(skeletonStatusKeysForSvgKey('PELVIS_UNKNOWN').includes('PUBIS_LEFT'), false, 'Pubis Left must not alias to the shared pelvis region')
+assert.equal(skeletonStatusKeysForSvgKey('PELVIS_UNKNOWN').includes('PUBIS_RIGHT'), false, 'Pubis Right must not alias to the shared pelvis region')
+assert.deepEqual(SKELETON_SVG_GROUPS.front.PELVIS_UNKNOWN, [61], 'existing shared Pelvis mapping must remain unchanged')
+for (const code of ['INCISOR', 'CANINE', 'PREMOLAR', 'MOLAR']) {
+  assert.equal(supportsFullBodyMap(code), true, `${code} must support the shared front teeth region`)
+  assert.ok(EXPECTED_CATEGORY_SIDE_KEYS.includes(`${code}_LEFT`), `${code} Left must remain a distinct status key`)
+  assert.ok(EXPECTED_CATEGORY_SIDE_KEYS.includes(`${code}_RIGHT`), `${code} Right must remain a distinct status key`)
+}
+assert.deepEqual(SKELETON_SVG_GROUPS.front.TEETH_UNKNOWN, [137])
+assert.equal(SKELETON_SVG_GROUPS.back.TEETH_UNKNOWN, undefined, 'teeth must not have a posterior proxy')
+for (const key of [
+  'INCISOR_LEFT', 'INCISOR_RIGHT', 'INCISOR_UNKNOWN',
+  'CANINE_LEFT', 'CANINE_RIGHT', 'CANINE_UNKNOWN',
+  'PREMOLAR_LEFT', 'PREMOLAR_RIGHT', 'PREMOLAR_UNKNOWN',
+  'MOLAR_LEFT', 'MOLAR_RIGHT', 'MOLAR_UNKNOWN',
+]) {
+  assert.ok(skeletonStatusKeysForSvgKey('TEETH_UNKNOWN').includes(key), `${key} must alias to the shared teeth visual region`)
+}
+assert.equal(supportsFullBodyMap('VERTEBRA'), true, 'Vertebra must be available on the full-body map')
+assert.deepEqual(SKELETON_SVG_GROUPS.front.VERTEBRAL_COLUMN_MIDLINE, [117, 70])
+assert.deepEqual(SKELETON_SVG_GROUPS.back.VERTEBRAL_COLUMN_MIDLINE, [147])
+assert.ok(skeletonStatusKeysForSvgKey('VERTEBRAL_COLUMN_MIDLINE').includes('VERTEBRA_MIDLINE'))
 assert.ok(skeletonStatusKeysForSvgKey('RIB_UNKNOWN').includes('RIB_LEFT'))
 assert.ok(skeletonStatusKeysForSvgKey('PELVIS_UNKNOWN').includes('PELVIS_RIGHT'))
 
@@ -130,9 +168,11 @@ for (const category of ['SKULL_MIDLINE', 'METATARSAL_LEFT', 'METATARSAL_RIGHT', 
 assert.equal(SKELETON_SVG_GROUPS.back.MANDIBLE_MIDLINE, undefined, 'posterior lower-face proxy must not be used for Mandible')
 assert.equal(SKELETON_SVG_GROUPS.back.PATELLA_LEFT, undefined, 'posterior SVG must not colour the femur as a patella proxy')
 assert.equal(SKELETON_SVG_GROUPS.back.PATELLA_RIGHT, undefined, 'posterior SVG must not colour the femur as a patella proxy')
+assert.equal(SKELETON_SVG_GROUPS.front.STERNUM_MIDLINE, undefined, 'Sternum must not use an unsafe source SVG group')
+assert.equal(SKELETON_SVG_GROUPS.back.STERNUM_MIDLINE, undefined, 'posterior SVG must not use a sternum proxy')
 assert.equal(SKELETON_SVG_GROUPS.front.HYOID_MIDLINE, undefined, 'suspect anterior Hyoid group must not be used')
 for (const view of ['front', 'back']) {
-  for (const prefix of ['TALUS_', 'CALCANEUS_', 'OTHER_TARSAL_', 'CARPAL_', 'VERTEBRA_', 'STERNUM_', 'PUBIS_', 'OTHER_']) {
+  for (const prefix of ['TALUS_', 'CALCANEUS_', 'OTHER_TARSAL_', 'CARPAL_', 'STERNUM_', 'PUBIS_', 'OTHER_']) {
     assert.equal(Object.keys(SKELETON_SVG_GROUPS[view]).some((key) => key.startsWith(prefix)), false, `${view} must not map ${prefix}`)
   }
 }
@@ -165,6 +205,10 @@ for (const [view, mappings] of Object.entries(expectedMappings)) {
   const groupCount = [...source.matchAll(/<g(?:\s|>)/g)].length
 
   for (const [key, indexes] of Object.entries(SKELETON_SVG_GROUPS[view])) {
+    if (key === 'TEETH_UNKNOWN' || key === 'VERTEBRAL_COLUMN_MIDLINE') {
+      assert.deepEqual(indexes, expectedMappings[view][key], `${key} must remain mapped to its verified SVG groups`)
+      continue
+    }
     const parsedCode = key.slice(0, key.lastIndexOf('_'))
     const mappedCategory = getCategoryByCode(parsedCode)
     assert.ok(mappedCategory, `${view} ${key} must reference a canonical category`)
@@ -188,4 +232,4 @@ for (const [view, mappings] of Object.entries(expectedMappings)) {
   }
 }
 
-console.log('Verified 28 canonical categories, legacy compatibility, unsupported states, and safe front/back mappings.')
+console.log('Verified 28 canonical categories, legacy compatibility, and safe front/back mappings including shared teeth and vertebra regions.')

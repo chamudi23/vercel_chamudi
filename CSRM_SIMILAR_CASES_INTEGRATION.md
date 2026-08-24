@@ -29,6 +29,7 @@ matched to the analysis type and measurements the analyst actually entered.
 | [src/lib/specimenRegistry.js](src/lib/specimenRegistry.js) | Read-only data-access layer. The **only** place CSRM table/column names appear. |
 | [src/lib/similarCases.js](src/lib/similarCases.js) | Mapping + scoring engine. Pure functions, no I/O beyond the registry. |
 | [src/components/KgcSimilarCases.jsx](src/components/KgcSimilarCases.jsx) | The panel itself — loading / empty / error / results states. |
+| [src/components/KgcSimilarCaseDetail.jsx](src/components/KgcSimilarCaseDetail.jsx) | The **View** popup: one matched specimen's full catalogue record, its measurements, its morphology and the per-channel evidence behind the score. Renders from data the panel already holds — see §5. |
 
 ### 1.2 Files modified (all ASA-side, presentation only)
 
@@ -55,7 +56,8 @@ files — verifiable with:
 
 ```bash
 grep -nE "\.(insert|update|upsert|delete|rpc)\(" \
-  src/lib/specimenRegistry.js src/lib/similarCases.js src/components/KgcSimilarCases.jsx
+  src/lib/specimenRegistry.js src/lib/similarCases.js \
+  src/components/KgcSimilarCases.jsx src/components/KgcSimilarCaseDetail.jsx
 # (no output)
 ```
 
@@ -283,6 +285,19 @@ Three queries per panel render — no N+1:
 ```
 
 Steps 2 and 3 run concurrently. Scoring is then pure in-memory work.
+
+**The "View" popup adds no fourth query.** Those three reads already return
+everything a detail view needs, so `scoreSpecimen()` attaches the rows it just
+used to the case it returns:
+
+```js
+source: { specimen, measurements: measurementRows, skeletalInputs: inputRows }
+```
+
+`KgcSimilarCaseDetail` renders straight off that object. Opening, closing and
+reopening a case is pure presentation over data the page is already holding —
+the read path above is unchanged, and a case can still be inspected after CSRM
+has gone offline.
 
 ### 5.1 Failure behaviour
 

@@ -13,11 +13,18 @@ import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import SkeletalHeader from '../../components/KgcSkeletalHeader';
 import { useAnalysis } from '../../context/AnalysisContext';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Step1BasicInfo() {
   const navigate = useNavigate();
   const { currentCaseId, setBasicInfo, startNewAnalysis } = useAnalysis();
+  const { user, profile } = useAuth();
   const { register, handleSubmit, formState: { errors } } = useForm();
+
+  // The investigator is whoever is signed in — taken from the account rather
+  // than typed, so a report cannot be filed under someone else's name. Same
+  // resolution order as the site header, so the two never disagree.
+  const investigator = profile?.full_name || user?.email?.split('@')[0] || '';
 
   // Generate a fresh case ID when starting a new analysis
   useEffect(() => {
@@ -25,7 +32,9 @@ export default function Step1BasicInfo() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onSubmit = (data) => {
-    setBasicInfo(data);
+    // userName is not a form field, so attach it here — the same way the
+    // context attaches the generated caseId.
+    setBasicInfo({ ...data, userName: investigator });
     navigate(`/skeletal/analysis/step2?bonesType=${encodeURIComponent(data.bonesType)}`);
   };
 
@@ -58,7 +67,18 @@ export default function Step1BasicInfo() {
                   className="w-full bg-slate-950 border border-slate-600 rounded-lg px-4 py-2 text-emerald-400 font-mono font-semibold tracking-wide cursor-not-allowed focus:outline-none"
                 />
               </div>
-              <div><label className="text-slate-400 text-sm mb-1.5 block">User Name</label><input className={ic(errors.userName)} placeholder="Chamudi Gayeshika" {...register('userName', { required: 'Required' })} /></div>
+              <div>
+                <label className="text-slate-400 text-sm mb-1.5 block">
+                  User Name <span className="text-emerald-400 text-xs ml-1">(from your account)</span>
+                </label>
+                <input
+                  readOnly
+                  value={investigator}
+                  placeholder="Loading your account…"
+                  title="Taken from the signed-in account and recorded as the investigator"
+                  className="w-full bg-slate-950 border border-slate-600 rounded-lg px-4 py-2 text-emerald-400 font-mono font-semibold tracking-wide cursor-not-allowed focus:outline-none"
+                />
+              </div>
               <div><label className="text-slate-400 text-sm mb-1.5 block">Bones Type</label><select className={ic(errors.bonesType)} {...register('bonesType', { required: 'Required' })}><option value="">Select Bone Type</option><option value="Skull">Skull</option><option value="Pelvis">Pelvis</option><option value="Upper Limb">Upper Limb</option><option value="Lower Limb">Lower Limb</option><option value="Thorax">Thorax</option><option value="Teeth">Teeth</option></select>{errors.bonesType && <span className="text-red-400 text-xs mt-1">{errors.bonesType.message}</span>}</div>
               <div><label className="text-slate-400 text-sm mb-1.5 block">Location</label><input className={ic(errors.location)} placeholder="Kottawa" {...register('location', { required: 'Required' })} /></div>
               <div><label className="text-slate-400 text-sm mb-1.5 block">Date Found</label><input type="date" style={{ colorScheme: 'dark' }} className={ic(errors.dateFound)} {...register('dateFound', { required: 'Required' })} /></div>
