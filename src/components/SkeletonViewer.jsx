@@ -3,11 +3,16 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { RotateCcw, ZoomIn, ZoomOut } from 'lucide-react'
 import {
   CONTROLLED_BONE_CATEGORIES,
+  CONTROLLED_BONE_SECTIONS,
+  CUSTOM_SKELETON_REGIONS,
   SKELETON_ORIENTATION_MARKERS,
   SKELETON_SVG_GROUPS,
   categorySideKey,
   categorySides,
   parseCategorySideKey,
+  skeletonStatusKeysForSvgKey,
+  skeletonViewsForMode,
+  supportsFullBodyMap,
 } from '../utils/pp1ImageModule'
 
 const VIEW_OPTIONS = ['Front', 'Back', 'Both']
@@ -23,9 +28,9 @@ const SVG_SOURCES = {
 const STATUS_STYLES = {
   documented: {
     label: 'Documented',
-    fill: 'rgba(16, 185, 129, 0.72)',
-    stroke: '#047857',
-    badge: 'border-emerald-400/35 bg-emerald-400/15 text-emerald-100',
+    fill: 'rgba(56, 189, 248, 0.08)',
+    stroke: '#38bdf8',
+    badge: 'border-sky-300/40 bg-sky-300/15 text-sky-50',
   },
   present_no_image: {
     label: 'Present, no image',
@@ -92,45 +97,59 @@ function prepareSvg(svgText, view, statusData, selectedKey, showAllCategories) {
   `
   svg.prepend(style)
 
-  Object.entries(SKELETON_SVG_GROUPS[view] || {}).forEach(([key, groupIndexes]) => {
-    const mappedParts = parseCategorySideKey(key)
-    const unknownKey = mappedParts ? categorySideKey(mappedParts.category.code, 'Unknown') : ''
-    const directRecord = statusData[key]
-    const unknownSideRecord = statusData[unknownKey]
-    const useUnknownSideRecord = directRecord?.status === 'unknown'
-      && unknownSideRecord?.status
-      && unknownSideRecord.status !== 'unknown'
-    const interactionKey = useUnknownSideRecord ? unknownKey : key
-    const record = useUnknownSideRecord ? unknownSideRecord : directRecord
+  const applyRegionState = (element, key, position, { custom = false } = {}) => {
+    const statusKeys = skeletonStatusKeysForSvgKey(key)
+    // A category selected from "All categories" must remain selectable even
+    // when it has no saved record yet. This is especially important for shared
+    // visual regions such as teeth, whose selected status key differs from the
+    // SVG region key.
+    const selectedStatusKey = statusKeys.find((statusKey) => statusKey === selectedKey)
+    const firstKnownStatusKey = statusKeys.find((statusKey) => (
+      statusData[statusKey]?.status && statusData[statusKey].status !== 'unknown'
+    ))
+    const interactionKey = selectedStatusKey || firstKnownStatusKey || key
+    const record = statusData[interactionKey] || statusData[key]
     const baseStatus = record?.status || 'unknown'
-    if (!showAllCategories && baseStatus === 'unknown') return
+    if (!showAllCategories && baseStatus === 'unknown') return false
 
+    const selected = interactionKey === selectedKey
+    const palette = STATUS_STYLES[baseStatus]
+    const highlighted = baseStatus === 'documented' || selected
+    const parsed = parseCategorySideKey(interactionKey)
+    const sideUnknown = parsed?.side === 'Unknown' && baseStatus !== 'unknown'
+    const label = parsed ? `${parsed.category.label}, ${parsed.side}` : key
+    const conditionText = record?.fragmented ? ', fragmented condition' : ''
+
+    element.setAttribute('id', position === 0 ? key : `${key}_${position + 1}`)
+    element.setAttribute('data-bone-key', interactionKey)
+    element.setAttribute('role', 'button')
+    element.setAttribute('tabindex', '0')
+    element.setAttribute('aria-label', `${label}: ${STATUS_STYLES[baseStatus].label}${conditionText}`)
+    element.style.setProperty('--bone-fill', selected ? 'rgba(56, 189, 248, 0.42)' : custom && baseStatus === 'unknown' ? 'transparent' : sideUnknown ? 'rgba(148, 163, 184, 0.08)' : palette.fill)
+    element.style.setProperty('--bone-stroke', record?.fragmented ? '#ef4444' : highlighted ? '#38bdf8' : custom && baseStatus === 'unknown' ? 'transparent' : palette.stroke)
+    element.style.setProperty('--bone-stroke-width', record?.fragmented || highlighted || sideUnknown ? '1.8px' : '0.8px')
+    element.style.setProperty('--bone-dash', record?.fragmented || sideUnknown ? '3 1.5' : 'none')
+    element.style.setProperty('--bone-filter', highlighted ? 'drop-shadow(0 0 4px rgba(56, 189, 248, 0.95))' : 'none')
+
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title')
+    title.textContent = `${label} - ${STATUS_STYLES[baseStatus].label}${conditionText}`
+    element.prepend(title)
+    return true
+  }
+
+  Object.entries(SKELETON_SVG_GROUPS[view] || {}).forEach(([key, groupIndexes]) => {
     groupIndexes.forEach((groupIndex, position) => {
       const group = groups[groupIndex]
-      if (!group) return
-
-      const selected = interactionKey === selectedKey
-      const palette = STATUS_STYLES[baseStatus]
-      const parsed = parseCategorySideKey(interactionKey)
-      const sideUnknown = parsed?.side === 'Unknown' && baseStatus !== 'unknown'
-      const label = parsed ? `${parsed.category.label}, ${parsed.side}` : key
-      const conditionText = record?.fragmented ? ', fragmented condition' : ''
-
-      group.setAttribute('id', position === 0 ? key : `${key}_${position + 1}`)
-      group.setAttribute('data-bone-key', interactionKey)
-      group.setAttribute('role', 'button')
-      group.setAttribute('tabindex', '0')
-      group.setAttribute('aria-label', `${label}: ${STATUS_STYLES[baseStatus].label}${conditionText}`)
-      group.style.setProperty('--bone-fill', sideUnknown ? 'rgba(148, 163, 184, 0.08)' : palette.fill)
-      group.style.setProperty('--bone-stroke', record?.fragmented ? '#ef4444' : selected ? '#38bdf8' : palette.stroke)
-      group.style.setProperty('--bone-stroke-width', record?.fragmented || selected || sideUnknown ? '1.8px' : '0.8px')
-      group.style.setProperty('--bone-dash', record?.fragmented || sideUnknown ? '3 1.5' : 'none')
-      group.style.setProperty('--bone-filter', selected ? 'drop-shadow(0 0 4px rgba(56, 189, 248, 0.95))' : 'none')
-
-      const title = document.createElementNS('http://www.w3.org/2000/svg', 'title')
-      title.textContent = `${label} - ${STATUS_STYLES[baseStatus].label}${conditionText}`
-      group.prepend(title)
+      if (group) applyRegionState(group, key, position)
     })
+  })
+
+  Object.entries(CUSTOM_SKELETON_REGIONS[view] || {}).forEach(([key, region]) => {
+    const overlay = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+    const shape = document.createElementNS('http://www.w3.org/2000/svg', region.type)
+    shape.setAttribute('d', region.d)
+    overlay.append(shape)
+    if (applyRegionState(overlay, key, 0, { custom: true })) svg.append(overlay)
   })
 
   return new XMLSerializer().serializeToString(svg)
@@ -300,9 +319,13 @@ function InteractiveSvg({ view, statusData, selectedKey, showAllCategories, onSe
             return
           }
           const key = findBoneKey(event.target)
-          if (key) onSelect(key)
+          onSelect(key || '')
         }}
         onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            onSelect('')
+            return
+          }
           if (event.key !== 'Enter' && event.key !== ' ') return
           const key = findBoneKey(event.target)
           if (!key) return
@@ -357,7 +380,14 @@ export default function SkeletonViewer({ statusData = {}, selectedKey = '', onSe
     })
   }, [availableCategoryCodes, categoryMode, search])
 
-  const views = viewMode === 'Both' ? ['front', 'back'] : [viewMode.toLowerCase()]
+  const visibleSections = useMemo(() => CONTROLLED_BONE_SECTIONS
+    .map((section) => ({
+      section,
+      categories: visibleCategories.filter((category) => category.section === section),
+    }))
+    .filter((group) => group.categories.length > 0), [visibleCategories])
+
+  const views = skeletonViewsForMode(viewMode)
   const showAllCategories = categoryMode === 'all'
 
   return (
@@ -383,12 +413,7 @@ export default function SkeletonViewer({ statusData = {}, selectedKey = '', onSe
           <div className="inline-flex w-fit rounded-md border border-white/10 bg-slate-950 p-1" aria-label="Bone category filter">
             <button
               type="button"
-              onClick={() => {
-                setCategoryMode('available')
-                if (statusData[selectedKey]?.status === 'unknown' || !statusData[selectedKey]) {
-                  onSelect(availableKeys[0] || '')
-                }
-              }}
+              onClick={() => setCategoryMode('available')}
               className={`rounded px-3 py-1.5 text-xs font-semibold transition ${categoryMode === 'available' ? 'bg-white text-slate-950' : 'text-white/55 hover:text-white'}`}
               aria-pressed={categoryMode === 'available'}
             >
@@ -400,7 +425,7 @@ export default function SkeletonViewer({ statusData = {}, selectedKey = '', onSe
               className={`rounded px-3 py-1.5 text-xs font-semibold transition ${categoryMode === 'all' ? 'bg-white text-slate-950' : 'text-white/55 hover:text-white'}`}
               aria-pressed={categoryMode === 'all'}
             >
-              All categories (28)
+              All categories ({CONTROLLED_BONE_CATEGORIES.length})
             </button>
           </div>
         </div>
@@ -423,7 +448,9 @@ export default function SkeletonViewer({ statusData = {}, selectedKey = '', onSe
       <section className="border-t border-white/10 pt-5" aria-label="Accessible bone category list">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-white">{categoryMode === 'available' ? 'Available bones' : 'All 28 bone categories'}</h3>
+            <h3 className="text-sm font-semibold text-white">
+              {categoryMode === 'available' ? 'Available skeletal elements' : `All ${CONTROLLED_BONE_CATEGORIES.length} skeletal elements`}
+            </h3>
             <p className="mt-1 text-xs text-white/40">
               {categoryMode === 'available'
                 ? 'Categories found reliably in saved specimen or measurement records.'
@@ -442,43 +469,58 @@ export default function SkeletonViewer({ statusData = {}, selectedKey = '', onSe
           </label>
         </div>
 
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {visibleCategories.map((category) => {
-            const sides = categoryMode === 'available'
-              ? categorySides(category).filter((side) => {
-                const record = statusData[categorySideKey(category.code, side)]
-                return record && record.status !== 'unknown'
-              })
-              : categorySides(category)
-            const fragmented = sides.some((side) => statusData[categorySideKey(category.code, side)]?.fragmented)
+        <div className="mt-4 space-y-5">
+          {visibleSections.map(({ section, categories }) => (
+            <section key={section} aria-labelledby={`skeleton-section-${section.replace(/\s+/g, '-').toLowerCase()}`}>
+              <h4 id={`skeleton-section-${section.replace(/\s+/g, '-').toLowerCase()}`} className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-100/55">
+                {section}
+              </h4>
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {categories.map((category) => {
+                  const sides = categoryMode === 'available'
+                    ? categorySides(category).filter((side) => {
+                      const record = statusData[categorySideKey(category.code, side)]
+                      return record && record.status !== 'unknown'
+                    })
+                    : categorySides(category)
+                  const fragmented = sides.some((side) => statusData[categorySideKey(category.code, side)]?.fragmented)
+                  const mapSupported = supportsFullBodyMap(category.code)
 
-            return (
-              <div key={category.code} className="flex min-h-16 items-center justify-between gap-3 rounded-md border border-white/10 bg-slate-950/60 px-3 py-2">
-                <div className="min-w-0">
-                  <span className="text-sm font-medium text-white/80">{category.label}</span>
-                  {fragmented && <span className="mt-1 block text-[11px] font-semibold text-red-300">Fragmented</span>}
-                </div>
-                <div className="flex shrink-0 flex-wrap justify-end gap-1">
-                  {sides.map((side) => {
-                    const key = categorySideKey(category.code, side)
-                    const status = statusData[key]?.status || 'unknown'
-                    return (
-                      <button
-                        key={side}
-                        type="button"
-                        onClick={() => onSelect(key)}
-                        className={statusButtonClass(status, key === selectedKey)}
-                        aria-pressed={key === selectedKey}
-                        title={`${category.label}, ${side}: ${STATUS_STYLES[status].label}${statusData[key]?.fragmented ? ', fragmented condition' : ''}`}
-                      >
-                        {side === 'Unknown' ? 'Side: Unknown' : side}
-                      </button>
-                    )
-                  })}
-                </div>
+                  return (
+                    <div key={category.code} className="flex min-h-20 items-center justify-between gap-3 rounded-md border border-white/10 bg-slate-950/60 px-3 py-2">
+                      <div className="min-w-0">
+                        <span className="text-sm font-medium text-white/80">{category.label}</span>
+                        {!mapSupported && (
+                          <span className="mt-1 block text-[11px] leading-4 text-violet-200/65">
+                            Not available on the current full-body anatomical map.
+                          </span>
+                        )}
+                        {fragmented && <span className="mt-1 block text-[11px] font-semibold text-red-300">Fragmented</span>}
+                      </div>
+                      <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                        {sides.map((side) => {
+                          const key = categorySideKey(category.code, side)
+                          const status = statusData[key]?.status || 'unknown'
+                          return (
+                            <button
+                              key={side}
+                              type="button"
+                              onClick={() => onSelect(key)}
+                              className={statusButtonClass(status, key === selectedKey)}
+                              aria-pressed={key === selectedKey}
+                              title={`${category.label}, ${side}: ${STATUS_STYLES[status].label}${mapSupported ? '' : '; not available on the current full-body anatomical map'}${statusData[key]?.fragmented ? ', fragmented condition' : ''}`}
+                            >
+                              {side === 'Unknown' ? (category.laterality === 'none' ? 'Not applicable' : 'Side: Unknown') : side}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-            )
-          })}
+            </section>
+          ))}
         </div>
 
         {visibleCategories.length === 0 && (

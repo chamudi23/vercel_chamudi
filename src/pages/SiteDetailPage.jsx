@@ -110,7 +110,7 @@ function SiteDetailPage() {
       {/* Header */}
       <div className="mb-8">
         <p className="text-blue-400 text-xs font-medium uppercase tracking-widest mb-2">
-          IT22889874 — Site Detail View
+          Archaeological Site Details
         </p>
         <div className="flex items-start justify-between flex-wrap gap-4">
           <div>
@@ -304,6 +304,7 @@ function SiteDetailPage() {
                   <tr className="border-b border-slate-700">
                     <th className="text-left px-6 py-3 text-slate-400 font-medium">Specimen ID</th>
                     <th className="text-left px-6 py-3 text-slate-400 font-medium">Skeleton Code</th>
+                    <th className="text-left px-6 py-3 text-slate-400 font-medium">Bone Type</th>
                     <th className="text-left px-6 py-3 text-slate-400 font-medium">Time Period</th>
                     <th className="text-left px-6 py-3 text-slate-400 font-medium">Excavation Year</th>
                     <th className="text-left px-6 py-3 text-slate-400 font-medium">Location Stored</th>
@@ -315,6 +316,7 @@ function SiteDetailPage() {
                     <tr key={spec.specimen_id || i} className={`border-b border-slate-700 hover:bg-slate-700 transition-colors ${i % 2 !== 0 ? 'bg-slate-800/50' : ''}`}>
                       <td className="px-6 py-3 text-blue-400 font-mono text-xs">{spec.specimen_id || '—'}</td>
                       <td className="px-6 py-3 text-slate-200 font-medium">{spec.skeleton_code || '—'}</td>
+                      <td className="px-6 py-3 text-slate-400">{spec.bone_type || '—'}</td>
                       <td className="px-6 py-3 text-slate-400">{spec.time_period || '—'}</td>
                       <td className="px-6 py-3 text-slate-400">{spec.excavation_year || '—'}</td>
                       <td className="px-6 py-3 text-slate-400">{spec.location_stored || '—'}</td>
@@ -335,7 +337,6 @@ function SiteDetailPage() {
         <Link to="/parami" className="text-slate-400 hover:text-slate-200 text-sm transition-colors">
           ← Back to GIS Map
         </Link>
-        <p className="text-slate-600 text-xs">IT22889874 — Parami's GIS Module</p>
       </div>
 
     </div>

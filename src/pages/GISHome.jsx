@@ -1,6 +1,6 @@
 /* eslint-disable react/prop-types */
 import { Link } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, MapPin, Search } from 'lucide-react'
+import { ArrowRight, MapPin, Search } from 'lucide-react'
 
 const imageUrls = {
   hero:
@@ -110,7 +110,7 @@ function GISHome() {
               <div className="max-w-3xl">
                 <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-purple-400/20 bg-purple-400/10 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-purple-300">
                   <span className="h-2 w-2 rounded-full bg-purple-400 shadow-[0_0_18px_rgba(192,132,252,0.9)]" />
-                  IT22889874 &middot; GIS &amp; Spatial Analysis
+                  GIS &amp; Spatial Analysis
                 </p>
                 <h1 className="max-w-3xl text-4xl font-bold leading-tight tracking-normal text-white md:text-5xl">
                   GIS &amp; Spatial{' '}
@@ -124,16 +124,6 @@ function GISHome() {
             </div>
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.18em] text-white/30">
-            <Link to="/" className="inline-flex items-center gap-2 transition hover:text-purple-300">
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Back to Home
-            </Link>
-            <span>/</span>
-            <span>Modules</span>
-            <span>/</span>
-            <span className="text-white/45">GIS &amp; Spatial Analysis</span>
-          </div>
         </div>
       </section>
 
@@ -174,12 +164,6 @@ function GISHome() {
         </div>
       </section>
 
-      <footer className="border-t border-white/10 px-5 py-8 sm:px-8">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2 text-xs text-white/20 md:flex-row md:items-center md:justify-between">
-          <p>OAHRIS - IT4010 Research Project &middot; SLIIT &middot; 2026</p>
-          <p>GIS &amp; Spatial Analysis Module &middot; IT22889874 &middot; Parami K K J</p>
-        </div>
-      </footer>
     </main>
   )
 }

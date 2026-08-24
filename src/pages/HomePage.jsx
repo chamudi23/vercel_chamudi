@@ -6,7 +6,6 @@ import {
   Brain,
   Camera,
   ChevronDown,
-  Cpu,
   Database,
   Image as ImageIcon,
   Layers3,
@@ -29,8 +28,6 @@ const imageUrls = {
     'https://images.unsplash.com/photo-1748609160056-7b95f30041f0?auto=format&fit=crop&q=80&w=1600',
 }
 
-const techBadges = ['React + Vite', 'Supabase PostgreSQL', 'Tailwind CSS']
-
 const modules = [
   {
     title: 'Data Integration & Management',
@@ -50,7 +47,7 @@ const modules = [
     description:
       'GIS tools to map skeletal find locations and archaeological sites. Supports spatial and temporal interpretation of osteoarchaeological records across Sri Lanka.',
     icon: Map,
-    link: '/parami',
+    link: '/parami/home',
     image: imageUrls.sriLankaRuins,
     tags: ['Site Mapping', 'Spatial Queries', 'Temporal Analysis'],
     iconClass: 'bg-purple-400/10 text-purple-300 ring-purple-400/25',
@@ -72,13 +69,13 @@ const modules = [
     hoverClass: 'hover:border-emerald-400/50 hover:shadow-emerald-500/20',
   },
   {
-    title: 'Automated Skeletal Analysis',
+    title: 'Skeletal Analysis',
     description:
-      'Automated skeletal analysis system for biological profile prediction and data visualization to support interpretation of osteoarchaeological specimen records.',
+      'Guided skeletal assessment workflows and clear data visualizations that support the interpretation of osteoarchaeological specimen records.',
     icon: Brain,
     link: '/skeletal',
     image: imageUrls.analytics,
-    tags: ['Bio Profile', 'Prediction', 'Dashboards'],
+    tags: ['Assessment', 'Documentation', 'Dashboards'],
     iconClass: 'bg-orange-400/10 text-orange-300 ring-orange-400/25',
     tagClass: 'border-orange-400/20 bg-orange-400/10 text-orange-100',
     linkClass: 'text-orange-300',
@@ -94,15 +91,15 @@ const featureHighlights = [
     accent: 'text-blue-300 bg-blue-400/10 ring-blue-400/20',
   },
   {
-    title: '3D Skeletal Visualization',
+    title: '2D Skeletal Visualization',
     text: 'Interactive skeletal views connect image records with anatomical regions for faster inspection.',
     icon: Layers3,
     accent: 'text-emerald-300 bg-emerald-400/10 ring-emerald-400/20',
   },
   {
-    title: 'AI-Powered Analysis',
-    text: 'Prediction workflows and dashboards support biological profile interpretation from curated records.',
-    icon: Cpu,
+    title: 'Structured Analysis',
+    text: 'Guided workflows and dashboards support consistent interpretation of curated skeletal records.',
+    icon: Brain,
     accent: 'text-orange-300 bg-orange-400/10 ring-orange-400/20',
   },
 ]
@@ -230,7 +227,7 @@ function ModuleCard({ module, index }) {
               module.linkClass,
             ].join(' ')}
           >
-            <span>Open Module</span>
+            <span>Open Workspace</span>
             <ArrowRight className="h-4 w-4" />
           </div>
         </div>
@@ -276,10 +273,7 @@ function GalleryCard({ item, index }) {
 }
 
 function HomePage() {
-  const statsRef = useRef(null)
   const [heroOffset, setHeroOffset] = useState(0)
-  const [statsVisible, setStatsVisible] = useState(false)
-  const [counts, setCounts] = useState({ modules: 0, specimens: 0, year: 0 })
 
   useEffect(() => {
     let frameId = null
@@ -307,62 +301,6 @@ function HomePage() {
     }
   }, [])
 
-  useEffect(() => {
-    const element = statsRef.current
-
-    if (!element) {
-      return undefined
-    }
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setStatsVisible(true)
-          observer.unobserve(entry.target)
-        }
-      },
-      { threshold: 0.35 },
-    )
-
-    observer.observe(element)
-
-    return () => observer.disconnect()
-  }, [])
-
-  useEffect(() => {
-    if (!statsVisible) {
-      return undefined
-    }
-
-    let animationFrame = null
-    const duration = 1400
-    const start = performance.now()
-    const easeOut = (value) => 1 - Math.pow(1 - value, 3)
-
-    const tick = (now) => {
-      const progress = Math.min((now - start) / duration, 1)
-      const easedProgress = easeOut(progress)
-
-      setCounts({
-        modules: Math.round(4 * easedProgress),
-        specimens: Math.max(1, Math.round(1 * easedProgress)),
-        year: Math.round(2026 * easedProgress),
-      })
-
-      if (progress < 1) {
-        animationFrame = window.requestAnimationFrame(tick)
-      }
-    }
-
-    animationFrame = window.requestAnimationFrame(tick)
-
-    return () => {
-      if (animationFrame) {
-        window.cancelAnimationFrame(animationFrame)
-      }
-    }
-  }, [statsVisible])
-
   const scrollToSection = (sectionId) => (event) => {
     event.preventDefault()
     document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -383,49 +321,31 @@ function HomePage() {
 
         <div className="relative z-10 mx-auto w-full max-w-5xl text-center">
           <Reveal immediate>
-            <p className="mx-auto mb-5 max-w-full text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200/80 sm:tracking-[0.34em]">
-              SLIIT - IT4010 RESEARCH PROJECT 2026
-            </p>
             <h1 className="mx-auto max-w-4xl break-words text-3xl font-bold leading-[1.08] tracking-normal text-white sm:text-5xl md:text-6xl">
               Osteoarchaeological Research{' '}
               <span className="text-emerald-400">Information System</span>
             </h1>
             <p className="mx-auto mt-6 max-w-3xl break-words text-sm leading-7 text-white/70 sm:text-base md:text-lg">
-              A centralized platform for managing skeletal specimen records, spatial analysis, image documentation, and automated biological profile prediction for Sri Lankan osteoarchaeological research.
+              A centralized platform for managing skeletal specimen records, measurements, image documentation, and interactive anatomical exploration.
             </p>
-          </Reveal>
-
-          <Reveal delay={120} immediate>
-            <div className="mt-8 flex flex-wrap justify-center gap-3">
-              {techBadges.map((badge) => (
-                <span
-                  key={badge}
-                  className="rounded-full border border-white/10 bg-white/[0.07] px-4 py-2 text-xs font-medium text-white/75 backdrop-blur-md"
-                >
-                  {badge}
-                </span>
-              ))}
-            </div>
           </Reveal>
 
           <Reveal delay={220} immediate>
             <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <a
-                href="#modules"
-                onClick={scrollToSection('modules')}
+              <Link
+                to="/specimens"
                 className="inline-flex w-full max-w-xs items-center justify-center gap-2 rounded-full bg-emerald-500 px-6 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-emerald-500/25 transition hover:bg-emerald-400 sm:w-auto"
               >
-                <span>Explore Modules</span>
+                <span>Browse Specimen Records</span>
                 <ArrowRight className="h-4 w-4" />
-              </a>
-              <a
-                href="#gallery"
-                onClick={scrollToSection('gallery')}
+              </Link>
+              <Link
+                to="/gallery"
                 className="inline-flex w-full max-w-xs items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-6 py-3 text-sm font-semibold text-white backdrop-blur-md transition hover:border-emerald-300/50 hover:bg-white/[0.08] sm:w-auto"
               >
                 <ImageIcon className="h-4 w-4" />
-                <span>View Gallery</span>
-              </a>
+                <span>View Image Library</span>
+              </Link>
             </div>
           </Reveal>
         </div>
@@ -468,29 +388,6 @@ function HomePage() {
         </div>
       </section>
 
-      <section ref={statsRef} className="px-5 py-16 sm:px-8">
-        <div className="mx-auto max-w-6xl rounded-lg border border-white/10 bg-white/[0.03]">
-          <div className="grid grid-cols-2 divide-x divide-y divide-white/10 md:grid-cols-4 md:divide-y-0">
-            <div className="p-6 text-center">
-              <p className="text-4xl font-bold text-blue-300">{counts.modules}</p>
-              <p className="mt-2 text-sm text-white/50">System Modules</p>
-            </div>
-            <div className="p-6 text-center">
-              <p className="text-4xl font-bold text-emerald-300">SK{counts.specimens}+</p>
-              <p className="mt-2 text-sm text-white/50">Specimens Indexed</p>
-            </div>
-            <div className="p-6 text-center">
-              <p className="text-4xl font-bold text-purple-300">{counts.year}</p>
-              <p className="mt-2 text-sm text-white/50">Research Year</p>
-            </div>
-            <div className="p-6 text-center">
-              <p className="text-3xl font-bold text-orange-300 md:text-4xl">Sri Lanka</p>
-              <p className="mt-2 text-sm text-white/50">Research Focus</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <section id="gallery" className="px-5 pb-20 sm:px-8">
         <div className="mx-auto max-w-6xl">
           <Reveal className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
@@ -515,12 +412,6 @@ function HomePage() {
         </div>
       </section>
 
-      <footer className="border-t border-white/10 px-5 py-8 sm:px-8">
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 text-sm text-white/45 md:flex-row md:items-center md:justify-between">
-          <p>OAHRIS - IT4010 Research Project &middot; SLIIT &middot; 2026</p>
-          <p>Group TIM - Technology Integration and Management</p>
-        </div>
-      </footer>
     </main>
   )
 }

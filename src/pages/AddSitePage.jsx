@@ -134,7 +134,7 @@ function AddSitePage() {
       <div className="mb-8 flex items-start justify-between">
         <div>
           <p className="text-blue-400 text-xs font-medium uppercase tracking-widest mb-2">
-            IT22889874 — Parami's Module
+            Spatial Records
           </p>
           <h2 className="text-2xl font-bold text-slate-100">Add Archaeological Site</h2>
           <p className="text-slate-400 text-sm mt-1">
@@ -153,7 +153,7 @@ function AddSitePage() {
             <span className="text-emerald-400 text-xl">✅</span>
             <div>
               <p className="text-emerald-200 font-semibold">Site added successfully!</p>
-              <p className="text-emerald-400 text-sm">The site has been saved to the database.</p>
+              <p className="text-emerald-400 text-sm">The site record was saved successfully.</p>
             </div>
           </div>
           <div className="flex gap-3">

@@ -11,14 +11,29 @@ import {
   REGION_OPTIONS,
   imageNotes,
   normalize,
+  regionForBoneCategory,
 } from '../utils/pp1ImageModule'
 
 const ALL = 'All'
 
 function skeletonIdFor(image) {
-  if (!image.specimen_id) return { label: 'Unlinked image', value: '' }
+  if (!image.specimen_id) return { label: 'Unlinked legacy image', value: '' }
   if (!image.specimen?.skeleton_code?.trim()) return { label: 'Skeleton ID not assigned', value: '' }
   return { label: image.specimen.skeleton_code.trim(), value: image.specimen.skeleton_code.trim() }
+}
+
+function boneCategoryFor(image) {
+  return image.specimen_id
+    ? (image.specimen?.bone_type || image.specimen?.measurements?.find((measurement) => measurement.bone_type)?.bone_type || '')
+    : (image.bone_name || '')
+}
+
+function sideFor(image) {
+  return image.specimen_id ? (image.specimen?.side || '') : (image.side || '')
+}
+
+function regionFor(image) {
+  return image.specimen_id ? regionForBoneCategory(boneCategoryFor(image)) : (image.skeleton_region || '')
 }
 
 function DetailLine({ label, value }) {
@@ -55,7 +70,7 @@ export default function ImageSearchPage() {
 
     const { data, error: loadError } = await supabase
       .from('bone_images')
-      .select('*, specimen:specimens!bone_images_specimen_id_fkey(specimen_id, skeleton_code), image_retrieval_tags(tag_id, tag_name)')
+      .select('*, specimen:specimens!bone_images_specimen_id_fkey(specimen_id, skeleton_code, bone_type, side, measurements(bone_type)), image_retrieval_tags(tag_id, tag_name)')
       .order('uploaded_at', { ascending: false })
 
     setImages(data || [])
@@ -70,13 +85,14 @@ export default function ImageSearchPage() {
   const filteredImages = useMemo(() => {
     const q = normalize(search)
 
-    return images.filter((image) => {
+    const matchingImages = images.filter((image) => {
       const tags = image.image_retrieval_tags?.map((tag) => tag.tag_name).join(' ') || ''
       const searchable = [
-        image.bone_name,
+        boneCategoryFor(image),
+        sideFor(image),
         skeletonIdFor(image).value,
         image.condition,
-        image.skeleton_region,
+        regionFor(image),
         image.image_view,
         image.view_angle,
         image.image_type,
@@ -85,11 +101,25 @@ export default function ImageSearchPage() {
       ].map(normalize).join(' ')
 
       const matchesSearch = !q || searchable.includes(q)
-      const matchesFilters = Object.entries(filters).every(([field, value]) =>
-        value === ALL || image[field] === value || (field === 'image_view' && image.view_angle === value),
-      )
+      const matchesFilters = Object.entries(filters).every(([field, value]) => {
+        if (value === ALL) return true
+        if (field === 'bone_name') return boneCategoryFor(image) === value
+        if (field === 'skeleton_region') return regionFor(image) === value
+        return image[field] === value || (field === 'image_view' && image.view_angle === value)
+      })
 
       return matchesSearch && matchesFilters
+    })
+
+    // Keep records with an uploaded image at the top of the gallery. Metadata-only
+    // records remain available below them, ordered by their upload date as usual.
+    return matchingImages.sort((first, second) => {
+      const firstHasImage = Boolean(first.image_url || first.file_url)
+      const secondHasImage = Boolean(second.image_url || second.file_url)
+
+      if (firstHasImage !== secondHasImage) return firstHasImage ? -1 : 1
+
+      return new Date(second.uploaded_at || 0) - new Date(first.uploaded_at || 0)
     })
   }, [filters, images, search])
 
@@ -222,7 +252,7 @@ export default function ImageSearchPage() {
                     {imageSrc ? (
                       <img
                         src={imageSrc}
-                        alt={image.bone_name || 'Skeletal image'}
+                        alt={boneCategoryFor(image) || 'Skeletal image'}
                         className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                         loading="lazy"
                       />
@@ -234,7 +264,7 @@ export default function ImageSearchPage() {
                   </div>
                   <div className="space-y-3 p-4">
                     <div>
-                      <h2 className="text-lg font-semibold text-white">{image.bone_name || 'Unlabelled bone'}</h2>
+                      <h2 className="text-lg font-semibold text-white">{boneCategoryFor(image) || 'Unlabelled bone'}</h2>
                       <p className={`mt-1 text-xs ${image.specimen_id ? 'text-white/40' : 'text-amber-300/75'}`}>
                         {skeletonId.label}
                       </p>
@@ -243,10 +273,10 @@ export default function ImageSearchPage() {
                     <div className="grid grid-cols-2 gap-2">
                       <DetailLine label="Skeleton ID" value={skeletonId.value} />
                       <DetailLine label="Specimen" value={image.specimen_id} />
-                      <DetailLine label="Side" value={image.side} />
+                      <DetailLine label="Side" value={sideFor(image)} />
                       <DetailLine label="Condition" value={image.condition} />
                       <DetailLine label="View" value={image.image_view || image.view_angle} />
-                      <DetailLine label="Region" value={image.skeleton_region} />
+                      <DetailLine label="Region" value={regionFor(image)} />
                       <DetailLine label="Type" value={image.image_type} />
                     </div>
 

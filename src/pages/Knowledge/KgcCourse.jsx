@@ -4,6 +4,7 @@ import SkeletalHeader from '../../components/KgcSkeletalHeader';
 import { COURSE, COURSE_STEPS, PASS_RATIO } from './kgcCourseData';
 import { useAuth } from '../../context/AuthContext';
 import { useCourseProgress } from '../../hooks/useCourseProgress';
+import { useIsCourseAdmin } from '../../hooks/useIsCourseAdmin';
 
 /* ------------------------------------------------------------------ */
 /*  Lesson block renderer                                              */
@@ -251,6 +252,7 @@ export default function KgcCourse() {
   const navigate = useNavigate();
   const { user, loading: authLoading, signInWithGoogle, signOut } = useAuth();
   const { completed, setCompleted, syncing } = useCourseProgress(user);
+  const isAdmin = useIsCourseAdmin(user);
   const [currentId, setCurrentId] = useState(null);
   const [showComplete, setShowComplete] = useState(false);
   const [guest, setGuest] = useState(false);
@@ -339,6 +341,15 @@ export default function KgcCourse() {
             Back to Knowledge Base
           </button>
           <div className="flex items-center gap-3">
+            {isAdmin && (
+              <button
+                onClick={() => navigate('/skeletal/admin/learners')}
+                className="text-xs px-3 py-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 transition-colors"
+                title="Learning Path enrollment & completion tracking"
+              >
+                Learner Progress
+              </button>
+            )}
             <UserChip user={user} guest={guest} syncing={syncing} onSignOut={signOut} onSignIn={signInWithGoogle} />
             <div className="w-32 h-2 rounded-full bg-white/10 overflow-hidden">
               <div className="h-full bg-gradient-to-r from-orange-500 to-emerald-500 transition-all duration-500" style={{ width: `${pct}%` }} />

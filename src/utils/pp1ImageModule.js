@@ -5,40 +5,74 @@ export function normalize(value) {
 export const CONTROLLED_SIDE_VALUES = ['Left', 'Right', 'Midline', 'Unknown']
 
 export const CONTROLLED_BONE_CATEGORIES = [
-  { code: 'CRANIUM', label: 'Cranium', laterality: 'midline' },
-  { code: 'MANDIBLE', label: 'Mandible', laterality: 'midline' },
-  { code: 'HYOID', label: 'Hyoid', laterality: 'midline' },
-  { code: 'CERVICAL_VERTEBRA', label: 'Cervical Vertebra', laterality: 'midline' },
-  { code: 'THORACIC_VERTEBRA', label: 'Thoracic Vertebra', laterality: 'midline' },
-  { code: 'LUMBAR_VERTEBRA', label: 'Lumbar Vertebra', laterality: 'midline' },
-  { code: 'SACRUM', label: 'Sacrum', laterality: 'midline' },
-  { code: 'COCCYX', label: 'Coccyx', laterality: 'midline' },
-  { code: 'STERNUM', label: 'Sternum', laterality: 'midline' },
-  { code: 'RIB', label: 'Rib', laterality: 'paired' },
-  { code: 'CLAVICLE', label: 'Clavicle', laterality: 'paired' },
-  { code: 'SCAPULA', label: 'Scapula', laterality: 'paired' },
-  { code: 'HUMERUS', label: 'Humerus', laterality: 'paired' },
-  { code: 'RADIUS', label: 'Radius', laterality: 'paired' },
-  { code: 'ULNA', label: 'Ulna', laterality: 'paired' },
-  { code: 'CARPAL', label: 'Carpal', laterality: 'paired' },
-  { code: 'METACARPAL', label: 'Metacarpal', laterality: 'paired' },
-  { code: 'HAND_PHALANX', label: 'Hand Phalanx', laterality: 'paired' },
-  { code: 'OS_COXA', label: 'Os Coxa', laterality: 'paired' },
-  { code: 'FEMUR', label: 'Femur', laterality: 'paired' },
-  { code: 'PATELLA', label: 'Patella', laterality: 'paired' },
-  { code: 'TIBIA', label: 'Tibia', laterality: 'paired' },
-  { code: 'FIBULA', label: 'Fibula', laterality: 'paired' },
-  { code: 'TALUS', label: 'Talus', laterality: 'paired' },
-  { code: 'CALCANEUS', label: 'Calcaneus', laterality: 'paired' },
-  { code: 'OTHER_TARSAL', label: 'Other Tarsal', laterality: 'paired' },
-  { code: 'METATARSAL', label: 'Metatarsal', laterality: 'paired' },
-  { code: 'FOOT_PHALANX', label: 'Foot Phalanx', laterality: 'paired' },
+  { code: 'SKULL', label: 'Skull', section: 'Skull', laterality: 'midline', region: 'Cranial', mapSupport: 'full-body-regional' },
+  { code: 'MANDIBLE', label: 'Mandible', section: 'Skull', laterality: 'midline', region: 'Cranial', mapSupport: 'full-body-direct', mapViews: ['front'] },
+  { code: 'MAXILLA', label: 'Maxilla', section: 'Skull', laterality: 'paired', region: 'Cranial', mapSupport: 'cranial-detail' },
+  { code: 'INCISOR', label: 'Incisor', section: 'Teeth', laterality: 'paired', region: 'Cranial', mapSupport: 'full-body-regional', mapViews: ['front'] },
+  { code: 'CANINE', label: 'Canine', section: 'Teeth', laterality: 'paired', region: 'Cranial', mapSupport: 'full-body-regional', mapViews: ['front'] },
+  { code: 'PREMOLAR', label: 'Premolar', section: 'Teeth', laterality: 'paired', region: 'Cranial', mapSupport: 'full-body-regional', mapViews: ['front'] },
+  { code: 'MOLAR', label: 'Molar', section: 'Teeth', laterality: 'paired', region: 'Cranial', mapSupport: 'full-body-regional', mapViews: ['front'] },
+  { code: 'CLAVICLE', label: 'Clavicle', section: 'Upper Limb', laterality: 'paired', region: 'Upper Limb', mapSupport: 'full-body-direct', mapViews: ['front'], uniquePerSide: true },
+  { code: 'SCAPULA', label: 'Scapula', section: 'Upper Limb', laterality: 'paired', region: 'Upper Limb', mapSupport: 'full-body-direct', mapViews: ['front', 'back'], uniquePerSide: true },
+  { code: 'HUMERUS', label: 'Humerus', section: 'Upper Limb', laterality: 'paired', region: 'Upper Limb', mapSupport: 'full-body-direct', uniquePerSide: true },
+  { code: 'RADIUS', label: 'Radius', section: 'Upper Limb', laterality: 'paired', region: 'Upper Limb', mapSupport: 'full-body-direct', uniquePerSide: true },
+  { code: 'ULNA', label: 'Ulna', section: 'Upper Limb', laterality: 'paired', region: 'Upper Limb', mapSupport: 'full-body-direct', uniquePerSide: true },
+  { code: 'VERTEBRA', label: 'Vertebra', section: 'Vertebral Column', laterality: 'midline', region: 'Thorax', mapSupport: 'full-body-direct', mapViews: ['front', 'back'] },
+  { code: 'SACRUM', label: 'Sacrum', section: 'Vertebral Column', laterality: 'midline', region: 'Pelvis', mapSupport: 'full-body-direct', mapViews: ['front'] },
+  { code: 'COCCYX', label: 'Coccyx', section: 'Vertebral Column', laterality: 'midline', region: 'Pelvis', mapSupport: 'full-body-direct', mapViews: ['front'] },
+  { code: 'RIB', label: 'Rib', section: 'Thorax', laterality: 'paired', region: 'Thorax', mapSupport: 'full-body-regional', mapViews: ['front'] },
+  { code: 'STERNUM', label: 'Sternum', section: 'Thorax', laterality: 'midline', region: 'Thorax', mapSupport: 'full-body-direct', mapViews: ['front'] },
+  { code: 'PELVIS', label: 'Pelvis', section: 'Pelvis', laterality: 'paired', region: 'Pelvis', mapSupport: 'full-body-regional', mapViews: ['front'], uniquePerSide: true },
+  { code: 'PUBIS', label: 'Pubis', section: 'Pelvis', laterality: 'paired', region: 'Pelvis', mapSupport: 'full-body-direct', mapViews: ['front', 'back'] },
+  { code: 'FEMUR', label: 'Femur', section: 'Lower Limb', laterality: 'paired', region: 'Lower Limb', mapSupport: 'full-body-direct', uniquePerSide: true },
+  { code: 'PATELLA', label: 'Patella', section: 'Lower Limb', laterality: 'paired', region: 'Lower Limb', mapSupport: 'full-body-direct', mapViews: ['front'], uniquePerSide: true },
+  { code: 'TIBIA', label: 'Tibia', section: 'Lower Limb', laterality: 'paired', region: 'Lower Limb', mapSupport: 'full-body-direct', uniquePerSide: true },
+  { code: 'FIBULA', label: 'Fibula', section: 'Lower Limb', laterality: 'paired', region: 'Lower Limb', mapSupport: 'full-body-direct', uniquePerSide: true },
+  { code: 'METACARPAL', label: 'Metacarpal', section: 'Hands and Feet', laterality: 'paired', region: 'Upper Limb', mapSupport: 'full-body-regional', mapViews: ['front'] },
+  { code: 'METATARSAL', label: 'Metatarsal', section: 'Hands and Feet', laterality: 'paired', region: 'Foot', mapSupport: 'full-body-regional' },
+  { code: 'HAND_PHALANX', label: 'Phalanx (Hand)', section: 'Hands and Feet', laterality: 'paired', region: 'Upper Limb', mapSupport: 'full-body-regional', mapViews: ['front'] },
+  { code: 'FOOT_PHALANX', label: 'Phalanx (Foot)', section: 'Hands and Feet', laterality: 'paired', region: 'Foot', mapSupport: 'full-body-regional' },
+  { code: 'OTHER', label: 'Other', section: 'Unidentified', laterality: 'none', region: 'Unknown', mapSupport: 'none' },
+]
+
+export const CONTROLLED_BONE_SECTIONS = [
+  'Skull',
+  'Teeth',
+  'Upper Limb',
+  'Vertebral Column',
+  'Thorax',
+  'Pelvis',
+  'Lower Limb',
+  'Hands and Feet',
+  'Unidentified',
 ]
 
 export const PP1_BONE_LABELS = CONTROLLED_BONE_CATEGORIES.map((category) => category.label)
 
-// Keep clear legacy choices visible in older pages while the database is migrated gradually.
-export const PP1_BONE_OPTIONS = [...PP1_BONE_LABELS, 'Skull', 'Pelvis', 'Vertebra', 'Other']
+export const LEGACY_BONE_CATEGORIES = [
+  { code: 'CERVICAL_VERTEBRA', label: 'Cervical Vertebra', canonicalCode: 'VERTEBRA', kind: 'legacy-subtype' },
+  { code: 'THORACIC_VERTEBRA', label: 'Thoracic Vertebra', canonicalCode: 'VERTEBRA', kind: 'legacy-subtype' },
+  { code: 'LUMBAR_VERTEBRA', label: 'Lumbar Vertebra', canonicalCode: 'VERTEBRA', kind: 'legacy-subtype' },
+  { code: 'HYOID', label: 'Hyoid', kind: 'legacy-removed' },
+  { code: 'CARPAL', label: 'Carpal', kind: 'legacy-removed' },
+  { code: 'TALUS', label: 'Talus', kind: 'legacy-removed' },
+  { code: 'CALCANEUS', label: 'Calcaneus', kind: 'legacy-removed' },
+  { code: 'OTHER_TARSAL', label: 'Other Tarsal', kind: 'legacy-removed' },
+  { code: 'TOOTH', label: 'Tooth', kind: 'ambiguous-legacy' },
+  { code: 'TEETH', label: 'Teeth', kind: 'ambiguous-legacy' },
+  { code: 'PHALANX', label: 'Phalanx', kind: 'ambiguous-legacy' },
+]
+
+// Search screens can still find saved legacy records, while data-entry screens use
+// PP1_BONE_LABELS and therefore expose only the canonical catalogue.
+export const PP1_BONE_OPTIONS = [...new Set([
+  ...PP1_BONE_LABELS,
+  'Cranium',
+  'Hand Phalanx',
+  'Foot Phalanx',
+  'Os Coxa',
+  ...LEGACY_BONE_CATEGORIES.map((category) => category.label),
+])]
 
 export const SIDE_OPTIONS = CONTROLLED_SIDE_VALUES
 
@@ -81,17 +115,24 @@ export const IMAGE_TYPE_OPTIONS = [
 const CATEGORY_BY_CODE = new Map(CONTROLLED_BONE_CATEGORIES.map((category) => [category.code, category]))
 const CATEGORY_BY_LABEL = new Map(CONTROLLED_BONE_CATEGORIES.map((category) => [normalize(category.label), category]))
 
-const LEGACY_CATEGORY_ALIASES = new Map([
-  ['skull', 'CRANIUM'],
-  ['cranium', 'CRANIUM'],
+const LEGACY_CATEGORY_BY_LABEL = new Map(LEGACY_BONE_CATEGORIES.map((category) => [normalize(category.label), category]))
+
+const SAFE_CATEGORY_ALIASES = new Map([
+  ['skull', 'SKULL'],
+  ['cranium', 'SKULL'],
+  ['maxilla', 'MAXILLA'],
+  ['maxillary bone', 'MAXILLA'],
   ['mandible', 'MANDIBLE'],
-  ['hyoid', 'HYOID'],
-  ['cervical vertebra', 'CERVICAL_VERTEBRA'],
-  ['cervical vertebrae', 'CERVICAL_VERTEBRA'],
-  ['thoracic vertebra', 'THORACIC_VERTEBRA'],
-  ['thoracic vertebrae', 'THORACIC_VERTEBRA'],
-  ['lumbar vertebra', 'LUMBAR_VERTEBRA'],
-  ['lumbar vertebrae', 'LUMBAR_VERTEBRA'],
+  ['incisor', 'INCISOR'],
+  ['incisor tooth', 'INCISOR'],
+  ['canine', 'CANINE'],
+  ['canine tooth', 'CANINE'],
+  ['molar', 'MOLAR'],
+  ['molar tooth', 'MOLAR'],
+  ['premolar', 'PREMOLAR'],
+  ['premolar tooth', 'PREMOLAR'],
+  ['vertebra', 'VERTEBRA'],
+  ['vertebrae', 'VERTEBRA'],
   ['sacrum', 'SACRUM'],
   ['coccyx', 'COCCYX'],
   ['sternum', 'STERNUM'],
@@ -102,50 +143,87 @@ const LEGACY_CATEGORY_ALIASES = new Map([
   ['humerus', 'HUMERUS'],
   ['radius', 'RADIUS'],
   ['ulna', 'ULNA'],
-  ['carpal', 'CARPAL'],
-  ['carpals', 'CARPAL'],
   ['metacarpal', 'METACARPAL'],
   ['metacarpals', 'METACARPAL'],
   ['phalanx (hand)', 'HAND_PHALANX'],
   ['phalanx proximal (hand)', 'HAND_PHALANX'],
   ['hand phalanx', 'HAND_PHALANX'],
   ['hand phalanges', 'HAND_PHALANX'],
-  ['pelvis', 'OS_COXA'],
-  ['os coxa', 'OS_COXA'],
+  ['pelvis', 'PELVIS'],
+  ['os coxa', 'PELVIS'],
+  ['pubis', 'PUBIS'],
   ['femur', 'FEMUR'],
   ['patella', 'PATELLA'],
   ['tibia', 'TIBIA'],
   ['fibula', 'FIBULA'],
-  ['talus', 'TALUS'],
-  ['astragalus', 'TALUS'],
-  ['calcaneus', 'CALCANEUS'],
-  ['calcaneum', 'CALCANEUS'],
-  ['other tarsal', 'OTHER_TARSAL'],
-  ['other tarsals', 'OTHER_TARSAL'],
   ['metatarsal', 'METATARSAL'],
   ['metatarsals', 'METATARSAL'],
   ['phalanx (foot)', 'FOOT_PHALANX'],
   ['phalanx proximal (foot)', 'FOOT_PHALANX'],
   ['foot phalanx', 'FOOT_PHALANX'],
   ['foot phalanges', 'FOOT_PHALANX'],
+  ['pedal phalanx', 'FOOT_PHALANX'],
+  ['other', 'OTHER'],
+])
+
+const LEGACY_CATEGORY_ALIASES = new Map([
+  ['cervical vertebra', 'Cervical Vertebra'],
+  ['cervical vertebrae', 'Cervical Vertebra'],
+  ['thoracic vertebra', 'Thoracic Vertebra'],
+  ['thoracic vertebrae', 'Thoracic Vertebra'],
+  ['lumbar vertebra', 'Lumbar Vertebra'],
+  ['lumbar vertebrae', 'Lumbar Vertebra'],
+  ['hyoid', 'Hyoid'],
+  ['carpal', 'Carpal'],
+  ['carpals', 'Carpal'],
+  ['talus', 'Talus'],
+  ['astragalus', 'Talus'],
+  ['calcaneus', 'Calcaneus'],
+  ['calcaneum', 'Calcaneus'],
+  ['other tarsal', 'Other Tarsal'],
+  ['other tarsals', 'Other Tarsal'],
+  ['tooth', 'Tooth'],
+  ['teeth', 'Teeth'],
+  ['phalanx', 'Phalanx'],
 ])
 
 export function getCategoryByCode(code) {
   return CATEGORY_BY_CODE.get(String(code || '').toUpperCase()) || null
 }
 
-export function normalizeBoneCategory(value) {
+export function resolveBoneCategory(value) {
+  const rawValue = String(value || '').trim()
   const original = normalize(value)
-  if (!original) return null
+  if (!original) return { kind: 'empty', rawValue, category: null, legacyCategory: null }
 
   const withoutClearQualifier = original
-    .replace(/\s*\((left|right|proximal end|distal end)\)\s*$/, '')
+    .replace(/\s*\((left|right|upper|lower|proximal end|distal end)\)\s*$/, '')
     .replace(/\s+(1st|2nd|3rd|4th|5th)\s*$/, '')
-  const code = LEGACY_CATEGORY_ALIASES.get(original)
-    || LEGACY_CATEGORY_ALIASES.get(withoutClearQualifier)
-    || CATEGORY_BY_LABEL.get(original)?.code
 
-  return code ? getCategoryByCode(code) : null
+  const canonical = CATEGORY_BY_LABEL.get(original)
+  if (canonical) return { kind: 'canonical', rawValue, category: canonical, legacyCategory: null }
+
+  const safeCode = SAFE_CATEGORY_ALIASES.get(original) || SAFE_CATEGORY_ALIASES.get(withoutClearQualifier)
+  if (safeCode) {
+    return { kind: 'safe-alias', rawValue, category: getCategoryByCode(safeCode), legacyCategory: null }
+  }
+
+  const legacyLabel = LEGACY_CATEGORY_ALIASES.get(original) || LEGACY_CATEGORY_ALIASES.get(withoutClearQualifier)
+  const legacyCategory = legacyLabel ? LEGACY_CATEGORY_BY_LABEL.get(normalize(legacyLabel)) : null
+  if (legacyCategory) {
+    return {
+      kind: legacyCategory.kind,
+      rawValue,
+      category: legacyCategory.canonicalCode ? getCategoryByCode(legacyCategory.canonicalCode) : null,
+      legacyCategory,
+    }
+  }
+
+  return { kind: 'unknown', rawValue, category: null, legacyCategory: null }
+}
+
+export function normalizeBoneCategory(value) {
+  return resolveBoneCategory(value).category
 }
 
 export function normalizeSide(value) {
@@ -164,11 +242,12 @@ export function legacySideFromBoneName(value) {
 export function categorySideKey(categoryOrCode, side) {
   const category = getCategoryByCode(categoryOrCode) || normalizeBoneCategory(categoryOrCode)
   if (!category) return ''
-  const normalizedSide = normalizeSide(side)
-  const controlledSide = category.laterality === 'midline'
+  const normalizedSide = category.laterality === 'midline'
     ? 'Midline'
-    : normalizedSide === 'Midline' ? 'Unknown' : normalizedSide
-  return `${category.code}_${controlledSide.toUpperCase()}`
+    : category.laterality === 'none'
+      ? 'Unknown'
+      : normalizeSide(side)
+  return `${category.code}_${normalizedSide.toUpperCase()}`
 }
 
 export function parseCategorySideKey(key) {
@@ -179,8 +258,58 @@ export function parseCategorySideKey(key) {
 }
 
 export function categorySides(category, includeUnknown = true) {
-  const sides = category.laterality === 'midline' ? ['Midline'] : ['Left', 'Right']
-  return includeUnknown ? [...sides, 'Unknown'] : sides
+  if (category.laterality === 'midline') return ['Midline']
+  if (category.laterality === 'none') return ['Unknown']
+  return includeUnknown ? ['Left', 'Right', 'Unknown'] : ['Left', 'Right']
+}
+
+export function supportsFullBodyMap(categoryOrCode) {
+  const category = getCategoryByCode(categoryOrCode) || normalizeBoneCategory(categoryOrCode)
+  return Boolean(category?.mapSupport?.startsWith('full-body-'))
+}
+
+export function regionForBoneCategory(value) {
+  return normalizeBoneCategory(value)?.region || 'Unknown'
+}
+
+export function allowedSidesForCategory(value) {
+  const category = normalizeBoneCategory(value)
+  return category ? categorySides(category, true) : []
+}
+
+export function validateCategorySide(categoryValue, sideValue) {
+  const category = normalizeBoneCategory(categoryValue)
+  if (!category) return 'Select a valid bone category.'
+  const side = normalizeSide(sideValue)
+  const allowedSides = categorySides(category, true)
+  if (allowedSides.includes(side)) return ''
+  return category.laterality === 'midline'
+    ? `${category.label} must use Midline.`
+    : `${category.label} must use Left, Right, or Unknown.`
+}
+
+export function specimenCategoryValues(record) {
+  if (String(record?.bone_type || '').trim()) return [record.bone_type]
+  return (record?.measurements || [])
+    .map((measurement) => measurement.bone_type)
+    .filter((value) => String(value || '').trim())
+}
+
+export function findDuplicateSpecimen(records, { skeletonCode, boneCategory, side, excludeSpecimenId = '' }) {
+  const skeletonKey = normalize(skeletonCode)
+  const requestedCategory = normalizeBoneCategory(boneCategory)
+  const requestedKey = categorySideKey(boneCategory, side)
+  if (!skeletonKey || !requestedCategory?.uniquePerSide || !requestedKey) return null
+
+  return (records || []).find((record) => {
+    if (record.specimen_id === excludeSpecimenId || normalize(record.skeleton_code) !== skeletonKey) return false
+    return specimenCategoryValues(record).some((value) => {
+      const category = normalizeBoneCategory(value)
+      const rawSide = String(record.side || '').trim()
+      const resolvedSide = rawSide ? normalizeSide(rawSide) : legacySideFromBoneName(value)
+      return category && categorySideKey(category.code, resolvedSide) === requestedKey
+    })
+  }) || null
 }
 
 export const EXPECTED_CATEGORY_SIDE_KEYS = CONTROLLED_BONE_CATEGORIES.flatMap((category) => (
@@ -197,65 +326,151 @@ export const SKELETON_ORIENTATION_MARKERS = {
   back: { left: 'L', right: 'R' },
 }
 
+export function screenSideForAnatomicalSide(view, side) {
+  const normalizedSide = normalizeSide(side)
+  if (normalizedSide !== 'Left' && normalizedSide !== 'Right') return null
+  if (view === 'front') return normalizedSide === 'Left' ? 'right' : 'left'
+  if (view === 'back') return normalizedSide.toLowerCase()
+  return null
+}
+
+export function skeletonViewsForMode(mode) {
+  if (mode === 'Both') return ['front', 'back']
+  const view = normalize(mode)
+  return view === 'front' || view === 'back' ? [view] : []
+}
+
+export function toggleBoneSelection(currentKey, requestedKey) {
+  if (!requestedKey || currentKey === requestedKey) return ''
+  return requestedKey
+}
+
 // These group indexes refer to unmodified source groups in the two attributed SVG files.
 // Only groups that were visually checked against the source drawing are included.
-export const SKELETON_SVG_GROUPS = {
+const SKELETON_NONSIDED_SVG_GROUPS = {
   front: {
-    CRANIUM_MIDLINE: [128, 129, 130, 131, 132, 133, 135, 137],
+    // Group 137 is a dental row and is deliberately excluded from the skull region.
+    // It is shared by the four canonical tooth categories; no Teeth category is stored.
+    TEETH_UNKNOWN: [137],
+    SKULL_MIDLINE: [128, 129, 130, 131, 132, 133, 135],
     MANDIBLE_MIDLINE: [125],
-    HYOID_MIDLINE: [127],
-    CERVICAL_VERTEBRA_MIDLINE: [117],
-    LUMBAR_VERTEBRA_MIDLINE: [72],
+    // Groups 117 and 70 are the separately isolated cervical and lower vertebral regions.
+    VERTEBRAL_COLUMN_MIDLINE: [117, 70],
     SACRUM_MIDLINE: [68],
     COCCYX_MIDLINE: [67],
     RIB_UNKNOWN: [82],
-    CLAVICLE_LEFT: [142],
-    CLAVICLE_RIGHT: [141],
-    SCAPULA_LEFT: [64],
-    SCAPULA_RIGHT: [65],
-    HUMERUS_LEFT: [144],
-    HUMERUS_RIGHT: [150],
-    RADIUS_LEFT: [147],
-    RADIUS_RIGHT: [154],
-    ULNA_LEFT: [148],
-    ULNA_RIGHT: [155],
-    CARPAL_LEFT: [177],
-    CARPAL_RIGHT: [197, 198, 199, 201, 213, 214, 215, 216, 220],
-    METACARPAL_LEFT: [167, 168, 175, 188, 189, 191, 193],
-    METACARPAL_RIGHT: [217, 221, 222, 223, 224],
-    HAND_PHALANX_LEFT: [157, 158, 159, 160, 162, 165, 170, 171, 172, 173, 174, 190, 194, 195],
-    HAND_PHALANX_RIGHT: [204, 205, 206, 207, 208, 209, 210, 211, 212, 218, 219],
-    OS_COXA_UNKNOWN: [61],
-    FEMUR_LEFT: [59],
-    FEMUR_RIGHT: [55],
-    PATELLA_LEFT: [228],
-    PATELLA_RIGHT: [227],
-    TIBIA_LEFT: [226],
-    TIBIA_RIGHT: [53],
-    FIBULA_LEFT: [225],
-    FIBULA_RIGHT: [52],
-    OTHER_TARSAL_LEFT: [30, 31, 32, 33, 34],
-    OTHER_TARSAL_RIGHT: [4, 5, 6, 7, 8],
-    METATARSAL_LEFT: [36, 37, 38, 39, 40],
-    METATARSAL_RIGHT: [10, 11, 12, 13, 14],
-    FOOT_PHALANX_LEFT: [41],
-    FOOT_PHALANX_RIGHT: [15],
+    PELVIS_UNKNOWN: [61],
   },
   back: {
-    CRANIUM_MIDLINE: [93],
-    HUMERUS_LEFT: [47],
-    HUMERUS_RIGHT: [2],
-    RADIUS_LEFT: [49],
-    RADIUS_RIGHT: [45],
-    ULNA_LEFT: [51],
-    ULNA_RIGHT: [44],
-    FEMUR_LEFT: [87],
-    FEMUR_RIGHT: [84],
-    TIBIA_LEFT: [205],
-    TIBIA_RIGHT: [201],
-    FIBULA_LEFT: [208],
-    FIBULA_RIGHT: [204],
+    // Group 93 contains lower-face group 94. Its remaining child groups provide
+    // a posterior skull region without retaining the unsafe mandible proxy.
+    SKULL_MIDLINE: [98, 99, 100, 102],
+    // This group contains the posterior vertebral column without the sacrum.
+    VERTEBRAL_COLUMN_MIDLINE: [147],
   },
+}
+
+// Paired source groups are recorded by their literal screen position. Anatomical
+// laterality is resolved separately because a front-facing skeleton is mirrored.
+export const SKELETON_SCREEN_SIDE_GROUPS = {
+  front: {
+    CLAVICLE: { left: [141], right: [142] },
+    SCAPULA: { left: [65], right: [64] },
+    HUMERUS: { left: [150], right: [144] },
+    RADIUS: { left: [154], right: [147] },
+    ULNA: { left: [155], right: [148] },
+    METACARPAL: { left: [217, 221, 222, 223, 224], right: [167, 168, 175, 188, 189, 191, 193] },
+    HAND_PHALANX: { left: [204, 205, 206, 207, 208, 209, 210, 211, 212, 218, 219], right: [157, 158, 159, 160, 162, 165, 170, 171, 172, 173, 174, 190, 194, 195] },
+    FEMUR: { left: [55], right: [59] },
+    PATELLA: { left: [227], right: [228] },
+    TIBIA: { left: [53], right: [226] },
+    FIBULA: { left: [52], right: [225] },
+    METATARSAL: { left: [10, 11, 12, 13, 14], right: [36, 37, 38, 39, 40] },
+    FOOT_PHALANX: { left: [15], right: [41] },
+  },
+  back: {
+    SCAPULA: { left: [136], right: [137] },
+    HUMERUS: { left: [2], right: [47] },
+    RADIUS: { left: [45], right: [49] },
+    ULNA: { left: [44], right: [51] },
+    FEMUR: { left: [84], right: [87] },
+    // Patella is intentionally omitted: it is anterior and the posterior SVG
+    // has no isolated patella shape. Mapping its parent would colour the femur.
+    TIBIA: { left: [201], right: [205] },
+    FIBULA: { left: [204], right: [208] },
+    METATARSAL: { left: [229, 230, 231], right: [217, 218, 219] },
+    FOOT_PHALANX: { left: [232], right: [220] },
+  },
+}
+
+function anatomicalSvgGroups(view) {
+  const mappings = { ...(SKELETON_NONSIDED_SVG_GROUPS[view] || {}) }
+  Object.entries(SKELETON_SCREEN_SIDE_GROUPS[view] || {}).forEach(([categoryCode, screenGroups]) => {
+    for (const side of ['Left', 'Right']) {
+      const screenSide = screenSideForAnatomicalSide(view, side)
+      mappings[`${categoryCode}_${side.toUpperCase()}`] = screenGroups[screenSide]
+    }
+  })
+  return mappings
+}
+
+export const SKELETON_SVG_GROUPS = {
+  front: anatomicalSvgGroups('front'),
+  back: anatomicalSvgGroups('back'),
+}
+
+// These overlays use the source SVG viewBox (0 0 456.056 925.702), so they
+// scale and pan with the skeleton without changing the attributed SVG asset.
+export const CUSTOM_SKELETON_REGIONS = {
+  front: {
+    STERNUM_MIDLINE: {
+      type: 'path',
+      d: 'M204 184 C201 192 202 202 204 208 L204 251 C204 261 207 272 211 280 C213 282 216 282 218 279 C222 270 223 260 223 251 L223 208 C224 198 222 189 219 184 C215 181 208 181 204 184 Z',
+    },
+    // The source artwork has only a broad pelvic group. These are the anterior
+    // pubic rami/body, kept separate from the shared PELVIS_UNKNOWN region.
+    PUBIS_LEFT: {
+      type: 'path',
+      d: 'M211 451 C217 454 222 456 227 455 L238 450 C242 448 245 449 246 452 C247 456 244 459 240 461 L228 468 C222 471 216 469 213 464 L209 456 Z',
+    },
+    PUBIS_RIGHT: {
+      type: 'path',
+      d: 'M205 451 C199 454 194 456 189 455 L178 450 C174 448 171 449 170 452 C169 456 172 459 176 461 L188 468 C194 471 200 469 203 464 L207 456 Z',
+    },
+  },
+  back: {
+    // The posterior artwork exposes only a narrow medial pubic arch. Keeping
+    // these paths small avoids colouring the obturator foramina or ischium.
+    PUBIS_LEFT: {
+      type: 'path',
+      d: 'M165 405 L161 413 L157 417 L151 415 L144 409 C141 407 138 408 137 410 C136 412 137 415 139 417 L148 423 L154 426 L158 423 L162 414 L166 407 Z',
+    },
+    PUBIS_RIGHT: {
+      type: 'path',
+      d: 'M169 405 L173 413 L177 417 L183 415 L190 409 C193 407 196 408 197 410 C198 412 197 415 195 417 L186 423 L180 426 L176 423 L172 414 L168 407 Z',
+    },
+  },
+}
+
+const SKELETON_SVG_STATUS_ALIASES = {
+  TEETH_UNKNOWN: [
+    'INCISOR_LEFT', 'INCISOR_RIGHT', 'INCISOR_UNKNOWN',
+    'CANINE_LEFT', 'CANINE_RIGHT', 'CANINE_UNKNOWN',
+    'PREMOLAR_LEFT', 'PREMOLAR_RIGHT', 'PREMOLAR_UNKNOWN',
+    'MOLAR_LEFT', 'MOLAR_RIGHT', 'MOLAR_UNKNOWN',
+  ],
+  VERTEBRAL_COLUMN_MIDLINE: ['VERTEBRA_MIDLINE'],
+  RIB_UNKNOWN: ['RIB_LEFT', 'RIB_RIGHT'],
+  PELVIS_UNKNOWN: ['PELVIS_LEFT', 'PELVIS_RIGHT'],
+}
+
+export function skeletonStatusKeysForSvgKey(svgKey) {
+  const keys = [svgKey, ...(SKELETON_SVG_STATUS_ALIASES[svgKey] || [])]
+  const parsed = parseCategorySideKey(svgKey)
+  if (parsed && (parsed.side === 'Left' || parsed.side === 'Right')) {
+    keys.push(categorySideKey(parsed.category.code, 'Unknown'))
+  }
+  return [...new Set(keys)]
 }
 
 export const SPECIMEN_SELECT = `

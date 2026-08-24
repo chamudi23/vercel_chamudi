@@ -22,6 +22,7 @@
 import { useForm } from 'react-hook-form';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import SkeletalHeader from '../../components/KgcSkeletalHeader';
+import KgcGuideCarousel from '../../components/KgcGuideCarousel';
 import { useAnalysis } from '../../context/AnalysisContext';
 
 // Measurement configurations per bone type based on osteoarchaeological analysis
@@ -98,7 +99,7 @@ const measurementConfig = {
     predicts: { teethType: 'Age', dentalWear: 'Age', eruptionStage: 'Age' },
     fields: [
       { key: 'teethType', label: 'Teeth Type', type: 'select', options: [
-        { l: 'Deciduous (Baby)', v: 'deciduous' }, { l: 'Permanent', v: 'permanent' }, { l: 'Mixed', v: 'mixed' }
+        { l: 'deciduous', v: 'deciduous' }, { l: 'mixed', v: 'mixed' }, { l: 'permanent', v: 'permanent' },
       ]},
       { key: 'dentalWear', label: 'Dental Wear', type: 'select', options: [
         { l: 'None', v: 'none' }, { l: 'Mild', v: 'mild' }, { l: 'Moderate', v: 'moderate' }, { l: 'Severe', v: 'severe' }
@@ -190,11 +191,14 @@ export default function Step2Measurements() {
             <div className="border-t border-slate-700 pt-6">
               <h4 className="text-slate-200 font-medium mb-3">Guide For {bonesType} Measurements</h4>
 
+              {/* Artwork for this bone type: the whole-element overview, then
+                  one slide per measurement field, paged on demand. */}
+              <div className="mb-6">
+                <KgcGuideCarousel boneType={bonesType} fields={config.fields} />
+              </div>
+
               {bonesType === 'Skull' && (
                 <div className="space-y-4">
-                  <div className="rounded-lg overflow-hidden border border-slate-700">
-                    <img src="/guides/skull_guide.png" alt="Skull Measurement Guide" className="w-full object-contain bg-slate-950" />
-                  </div>
                   <div className="bg-slate-900 p-5 rounded-lg border border-slate-700">
                     <p className="text-orange-400 text-sm font-semibold mb-3">Step-by-Step Measurement Guide</p>
                     <div className="space-y-3">
@@ -209,9 +213,6 @@ export default function Step2Measurements() {
 
               {bonesType === 'Pelvis' && (
                 <div className="space-y-4">
-                  <div className="rounded-lg overflow-hidden border border-slate-700">
-                    <img src="/guides/pelvis_guide.png" alt="Pelvis Measurement Guide" className="w-full object-contain bg-slate-950" />
-                  </div>
                   <div className="bg-slate-900 p-5 rounded-lg border border-slate-700">
                     <p className="text-orange-400 text-sm font-semibold mb-3">Step-by-Step Measurement Guide</p>
                     <div className="space-y-3">
@@ -228,7 +229,7 @@ export default function Step2Measurements() {
                   {bonesType === 'Lower Limb' && 'Measure femur maximum length and head diameter with calipers. Check growth plate fusion status at the distal and proximal ends of the femur.'}
                   {bonesType === 'Upper Limb' && 'Measure humerus maximum length with an osteometric board. Assess bone robusticity by examining muscle attachment sites and cortical bone thickness.'}
                   {bonesType === 'Thorax' && 'Examine rib sternal end morphology for age indicators. Measure sternum length from manubrium to xiphoid process.'}
-                  {bonesType === 'Teeth' && 'Identify teeth as deciduous, permanent, or mixed dentition. Assess dental wear on occlusal surfaces and eruption stage of third molars.'}
+                  {bonesType === 'Teeth' && 'Identify teeth as Incisors, Cranines, Premolar, or Molar. Assess dental wear on occlusal surfaces and eruption stage of third molars.'}
                 </div>
               )}
             </div>
