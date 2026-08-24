@@ -11,6 +11,12 @@ import {
   validateCategorySide,
 } from "../utils/pp1ImageModule";
 import {
+  buildSkeletalInputPayload,
+  buildSpecimenDimensionPayload,
+  getRelevantSkeletalInputFields,
+  keepRelevantSkeletalValues,
+} from "../utils/skeletalInputFields";
+import {
   DATING_METHODS,
   DISTRICTS,
   hasMetadataValue,
@@ -29,6 +35,7 @@ const MEASUREMENT_TYPES = [
 
 const UNITS = ["mm","cm","m"];
 const SHAPE_CATEGORIES = ["rounded","dome-shaped","curved","flat","triangular","cylindrical","bowl-shaped","U-shaped","S-shaped","irregular","block-shaped","ring-shaped","oval","other"];
+const SEX_ESTIMATE_OPTIONS = ["Male", "Female", "Unknown"];
 
 function generateId(prefix) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -104,6 +111,8 @@ export default function SpecimenDetailPage() {
   const [measurements, setMeasurements] = useState([]);
   const [excavation, setExcavation] = useState(null);
   const [labDating, setLabDating] = useState(null);
+  const [skeletalInput, setSkeletalInput] = useState(null);
+  const [skeletalInputDraft, setSkeletalInputDraft] = useState({});
   const [qualityLogs, setQualityLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -179,6 +188,14 @@ export default function SpecimenDetailPage() {
     setLabDating(labData || null);
     setLabDatingDraft(relatedDraft(labData, LAB_DATING_FIELDS));
 
+    const { data: skeletalInputData } = await supabase
+      .from("skeletal_inputs")
+      .select("*")
+      .eq("specimen_id", specData.specimen_id)
+      .maybeSingle();
+    setSkeletalInput(skeletalInputData || null);
+    setSkeletalInputDraft(skeletalInputData ? { ...skeletalInputData } : {});
+
     const { data: logData } = await supabase
       .from("data_quality_log")
       .select("*")
@@ -194,6 +211,7 @@ export default function SpecimenDetailPage() {
     if (name === "bone_type") {
       const nextSides = allowedSidesForCategory(value);
       setEditForm((prev) => ({ ...prev, bone_type: value, side: nextSides.includes(prev.side) ? prev.side : (nextSides[0] || "Unknown") }));
+      setSkeletalInputDraft((prev) => keepRelevantSkeletalValues(value, { ...prev }));
       setSaveError("");
       setDuplicateSpecimenId("");
       return;
@@ -230,6 +248,7 @@ export default function SpecimenDetailPage() {
     });
     setExcavationDraft(relatedDraft(excavation, EXCAVATION_FIELDS));
     setLabDatingDraft(relatedDraft(labDating, LAB_DATING_FIELDS));
+    setSkeletalInputDraft({ ...(skeletalInput || {}) });
     setSaveError("");
     setDuplicateSpecimenId("");
     setMeasurementDrafts(Object.fromEntries(measurements.map((measurement) => [measurement.measurement_id, {
@@ -247,6 +266,7 @@ export default function SpecimenDetailPage() {
     setEditForm(specimen);
     setExcavationDraft(relatedDraft(excavation, EXCAVATION_FIELDS));
     setLabDatingDraft(relatedDraft(labDating, LAB_DATING_FIELDS));
+    setSkeletalInputDraft({ ...(skeletalInput || {}) });
     setSaveError("");
     setDuplicateSpecimenId("");
     setDeletedMeasurementIds([]);
@@ -282,9 +302,31 @@ export default function SpecimenDetailPage() {
       return;
     }
 
+    const relevantBoneFields = getRelevantSkeletalInputFields(editForm.bone_type);
+    const nextSkeletalInputPayload = buildSkeletalInputPayload(editForm.bone_type, skeletalInputDraft);
+    const mergedSkeletalRow = {
+      ...(skeletalInput || {}),
+      ...keepRelevantSkeletalValues(editForm.bone_type, skeletalInput || {}),
+      ...nextSkeletalInputPayload,
+      specimen_id: id,
+    };
+
     setSaving(true);
     setSaveError("");
     setDuplicateSpecimenId("");
+    const { data: authUserData, error: authUserError } = await supabase.auth.getUser();
+    if (authUserError || !authUserData?.user?.id) {
+      setSaving(false);
+      setSaveError("Your sign-in session is missing or expired. Please sign in again.");
+      return;
+    }
+    const createdBy = authUserData.user.id;
+    const specimenDimensionPayload = buildSpecimenDimensionPayload(
+      measurements.map((measurement) => ({
+        ...measurementDrafts[measurement.measurement_id],
+        measurement_type: measurementDrafts[measurement.measurement_id]?.measurement_type,
+      })),
+    );
     const { data: specimenRows, error: duplicateCheckError } = await supabase
       .from("specimens")
       .select("specimen_id, skeleton_code, bone_type, side, measurements(bone_type)");
@@ -319,6 +361,10 @@ export default function SpecimenDetailPage() {
         location_stored: editForm.location_stored,
         burial_context: editForm.burial_context,
         notes: editForm.notes,
+        age_estimate: editForm.age_estimate,
+        sex_estimate: editForm.sex_estimate,
+        height_estimate: optionalNumber(editForm.height_estimate),
+        ...specimenDimensionPayload,
       })
       .eq("specimen_id", id);
 
@@ -333,6 +379,7 @@ export default function SpecimenDetailPage() {
         depth_found: optionalNumber(excavationDraft.depth_found),
         excavator_name: excavationDraft.excavator_name || null,
         excavation_notes: excavationDraft.excavation_notes || null,
+        created_by: createdBy,
       };
       if (excavation) {
         ({ error: excavationError } = await supabase.from("excavation_records").update(excavationPayload).eq("excavation_id", excavation.excavation_id));
@@ -356,14 +403,32 @@ export default function SpecimenDetailPage() {
       }
     }
 
+    let skeletalInputError = null;
     if (!specimenError && !excavationError && !labDatingError) {
+      const skeletalRowToSave = relevantBoneFields.length
+        ? { ...keepRelevantSkeletalValues(editForm.bone_type, mergedSkeletalRow), ...nextSkeletalInputPayload, specimen_id: id, created_by: createdBy }
+        : undefined;
+
+      if (skeletalInput && skeletalRowToSave) {
+        ({ error: skeletalInputError } = await supabase
+          .from("skeletal_inputs")
+          .update(skeletalRowToSave)
+          .eq("specimen_id", id));
+      } else if (skeletalRowToSave) {
+        ({ error: skeletalInputError } = await supabase
+          .from("skeletal_inputs")
+          .insert([{ input_id: generateId("SI"), ...skeletalRowToSave }]));
+      }
+    }
+
+    if (!specimenError && !excavationError && !labDatingError && !skeletalInputError) {
       const deleteResults = await Promise.all(deletedMeasurementIds.map((measurementId) => (
         supabase.from("measurements").delete().eq("measurement_id", measurementId)
       )));
       measurementError = deleteResults.find((result) => result.error)?.error || null;
     }
 
-    if (!specimenError && !excavationError && !labDatingError && !measurementError) {
+    if (!specimenError && !excavationError && !labDatingError && !measurementError && !skeletalInputError) {
       const results = await Promise.all(measurements.map((measurement) => {
         const draft = measurementDrafts[measurement.measurement_id];
         return supabase
@@ -381,13 +446,13 @@ export default function SpecimenDetailPage() {
     }
 
     setSaving(false);
-    if (!specimenError && !excavationError && !labDatingError && !measurementError) {
+    if (!specimenError && !excavationError && !labDatingError && !measurementError && !skeletalInputError) {
       setSaveSuccess(true);
       setEditing(false);
       await fetchAll();
       setTimeout(() => setSaveSuccess(false), 3000);
     } else {
-      setSaveError("Error saving: " + (specimenError || excavationError || labDatingError || measurementError).message);
+      setSaveError("Error saving: " + (specimenError || excavationError || labDatingError || measurementError || skeletalInputError)?.message || "An unknown error occurred.");
     }
   }
 
@@ -721,6 +786,16 @@ export default function SpecimenDetailPage() {
               </div>
               <div><label className={labelClass}>Storage Location</label><input name="location_stored" value={editForm.location_stored || ""} onChange={handleEditChange} className={inputClass} /></div>
               <div className="md:col-span-2"><label className={labelClass}>Burial Context</label><input name="burial_context" value={editForm.burial_context || ""} onChange={handleEditChange} className={inputClass} /></div>
+              <div className="md:col-span-2 mt-2 border-t border-white/10 pt-5"><p className="text-xs uppercase tracking-widest text-white/30">Biological Profile</p></div>
+              <div><label className={labelClass}>Age Estimate</label><input name="age_estimate" value={editForm.age_estimate || ""} onChange={handleEditChange} placeholder="e.g. 30-45 years" className={inputClass} /></div>
+              <div>
+                <label className={labelClass}>Sex Estimate</label>
+                <select name="sex_estimate" value={editForm.sex_estimate || ""} onChange={handleEditChange} className={selectClass}>
+                  <option value="">Select sex estimate</option>
+                  {SEX_ESTIMATE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                </select>
+              </div>
+              <div><label className={labelClass}>Height Estimate (cm)</label><input name="height_estimate" type="number" min="0" step="0.1" value={editForm.height_estimate ?? ""} onChange={handleEditChange} placeholder="e.g. 168.5" className={inputClass} /></div>
               <div className="md:col-span-2"><label className={labelClass}>Notes</label><textarea name="notes" value={editForm.notes || ""} onChange={handleEditChange} rows={3} className={inputClass + " resize-none"} /></div>
             </div>
           ) : (
@@ -728,10 +803,48 @@ export default function SpecimenDetailPage() {
               <MetadataValue label="Preservation State" value={specimen.preservation_state} />
               <MetadataValue label="Storage Location" value={specimen.location_stored} />
               <MetadataValue label="Burial Context" value={specimen.burial_context} className="md:col-span-2" />
+              <MetadataValue label="Age Estimate" value={specimen.age_estimate} />
+              <MetadataValue label="Sex Estimate" value={specimen.sex_estimate} />
+              <MetadataValue label="Height Estimate (cm)" value={specimen.height_estimate} />
               <MetadataValue label="Notes" value={specimen.notes} className="md:col-span-2" />
             </div>
           )}
         </div>
+
+        {editing && getRelevantSkeletalInputFields(editForm.bone_type).length > 0 && (
+          <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6">
+            <p className="text-xs text-white/30 uppercase tracking-widest mb-5">Bone-specific Observations</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {getRelevantSkeletalInputFields(editForm.bone_type).map((field) => {
+                const value = skeletalInputDraft[field.field] ?? "";
+                if (field.type === "select") {
+                  return (
+                    <div key={field.field}>
+                      <label className={labelClass}>{field.label}</label>
+                      <select value={value} onChange={(event) => setSkeletalInputDraft((previous) => ({ ...previous, [field.field]: event.target.value }))} className={selectClass}>
+                        <option value="">Select {field.label.toLowerCase()}</option>
+                        {field.options.map((option) => <option key={option} value={option}>{option}</option>)}
+                      </select>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={field.field}>
+                    <label className={labelClass}>{field.label}</label>
+                    <input
+                      type={field.type === "number" ? "number" : "text"}
+                      min={field.type === "number" ? "0" : undefined}
+                      step={field.type === "number" ? "0.1" : undefined}
+                      value={value}
+                      onChange={(event) => setSkeletalInputDraft((previous) => ({ ...previous, [field.field]: event.target.value }))}
+                      className={inputClass}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Attached Images */}
         <div ref={attachmentSectionRef} className="scroll-mt-24 rounded-2xl border border-white/10 bg-white/[0.03] p-6">

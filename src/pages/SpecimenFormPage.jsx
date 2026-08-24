@@ -14,6 +14,12 @@ import {
   validateCategorySide,
 } from "../utils/pp1ImageModule";
 import {
+  buildSkeletalInputPayload,
+  buildSpecimenDimensionPayload,
+  getRelevantSkeletalInputFields,
+  keepRelevantSkeletalValues,
+} from "../utils/skeletalInputFields";
+import {
   DATING_METHODS,
   DISTRICTS,
   optionalNumber,
@@ -47,6 +53,7 @@ const STEPS = [
   "Excavation & Dating",
   "Review & Save",
 ];
+const SEX_ESTIMATE_OPTIONS = ["Male", "Female", "Unknown"];
 const inputBase =
   "w-full rounded-xl border border-white/10 bg-[#0f1a14] px-4 py-2.5 text-sm text-white placeholder-white/25 transition-colors focus:border-emerald-500 focus:outline-none";
 
@@ -190,6 +197,7 @@ function SpecimenFormPage() {
   const [loadingSkeletons, setLoadingSkeletons] = useState(true);
   const [siteConflicts, setSiteConflicts] = useState([]);
   const [measurementNotice, setMeasurementNotice] = useState("");
+  const [skeletalInputForm, setSkeletalInputForm] = useState({});
   const [form, setForm] = useState({
     specimen_id: generateSpecimenId(),
     skeleton_code: "",
@@ -203,8 +211,15 @@ function SpecimenFormPage() {
     location_stored: "",
     burial_context: "",
     notes: "",
+    age_estimate: "",
+    sex_estimate: "",
+    height_estimate: "",
   });
   const [measurements, setMeasurements] = useState([emptyMeasurement()]);
+  const relevantSkeletalFields = useMemo(
+    () => getRelevantSkeletalInputFields(form.bone_type),
+    [form.bone_type],
+  );
   const [excavation, setExcavation] = useState({
     excavation_date: "",
     excavation_phase: "",
@@ -425,6 +440,7 @@ function SpecimenFormPage() {
           ? previous.side
           : nextSides[0] || "Unknown",
       }));
+      setSkeletalInputForm((previous) => keepRelevantSkeletalValues(value, previous));
       setErrors((previous) => ({
         ...previous,
         bone_type: "",
@@ -471,6 +487,11 @@ function SpecimenFormPage() {
       ),
     );
     setErrors((previous) => ({ ...previous, measurements: "" }));
+  }
+
+  function handleSkeletalInputChange(event) {
+    const { name, value } = event.target;
+    setSkeletalInputForm((previous) => ({ ...previous, [name]: value }));
   }
 
   // Navigation validates only the current step; saving validates the whole form.
@@ -559,8 +580,22 @@ function SpecimenFormPage() {
     setSaving(true);
     setSaveDestination(attachImage ? "attachment" : "record");
     setErrors({});
+    const { data: authUserData, error: authUserError } = await supabase.auth.getUser();
+    if (authUserError || !authUserData?.user?.id) {
+      setErrors({ submit: "Your sign-in session is missing or expired. Please sign in again." });
+      setSaving(false);
+      return;
+    }
+    const createdBy = authUserData.user.id;
     const specimenId = form.specimen_id.trim();
     const skeletonCode = form.skeleton_code.trim();
+    const validMeasurements = measurements.filter(
+      (row) =>
+        row.measurement_type &&
+        row.value !== "" &&
+        Number.isFinite(Number(row.value)),
+    );
+    const specimenDimensionPayload = buildSpecimenDimensionPayload(validMeasurements);
     const { data: existingId, error: idCheckError } = await supabase
       .from("specimens")
       .select("specimen_id")
@@ -617,19 +652,68 @@ function SpecimenFormPage() {
     const { error: specimenError } = await supabase
       .from("specimens")
       .insert([
-        { ...form, specimen_id: specimenId, skeleton_code: skeletonCode },
+        {
+          ...form,
+          ...specimenDimensionPayload,
+          specimen_id: specimenId,
+          skeleton_code: skeletonCode,
+          age_estimate: form.age_estimate || null,
+          sex_estimate: form.sex_estimate || null,
+          height_estimate: optionalNumber(form.height_estimate),
+        },
       ]);
     if (specimenError) {
       setErrors({ submit: specimenError.message });
       setSaving(false);
       return;
     }
-    const validMeasurements = measurements.filter(
-      (row) =>
-        row.measurement_type &&
-        row.value !== "" &&
-        Number.isFinite(Number(row.value)),
+    const skeletalInputPayload = buildSkeletalInputPayload(
+      form.bone_type,
+      skeletalInputForm,
     );
+    if (Object.keys(skeletalInputPayload).length) {
+      const { data: existingSkeletalInput, error: skeletonLookupError } =
+        await supabase
+          .from("skeletal_inputs")
+          .select("*")
+          .eq("specimen_id", specimenId)
+          .maybeSingle();
+      if (skeletonLookupError) {
+        setErrors({ submit: `Skeletal input error: ${skeletonLookupError.message}` });
+        setSaving(false);
+        return;
+      }
+      if (existingSkeletalInput) {
+        const mergedRow = {
+          ...keepRelevantSkeletalValues(form.bone_type, existingSkeletalInput),
+          ...skeletalInputPayload,
+          specimen_id: specimenId,
+        };
+        const { error: skeletalInputError } = await supabase
+          .from("skeletal_inputs")
+          .update(mergedRow)
+          .eq("specimen_id", specimenId);
+        if (skeletalInputError) {
+          setErrors({ submit: `Skeletal input error: ${skeletalInputError.message}` });
+          setSaving(false);
+          return;
+        }
+      } else {
+        const { error: skeletalInputError } = await supabase
+          .from("skeletal_inputs")
+          .insert([{
+            input_id: generateId("SI"),
+            specimen_id: specimenId,
+            created_by: createdBy,
+            ...skeletalInputPayload,
+          }]);
+        if (skeletalInputError) {
+          setErrors({ submit: `Skeletal input error: ${skeletalInputError.message}` });
+          setSaving(false);
+          return;
+        }
+      }
+    }
     if (validMeasurements.length) {
       const payload = validMeasurements.map((row) => ({
         measurement_id: row.id,
@@ -656,6 +740,7 @@ function SpecimenFormPage() {
         depth_found: optionalNumber(excavation.depth_found),
         excavator_name: excavation.excavator_name,
         excavation_notes: excavation.excavation_notes,
+        created_by: createdBy,
       };
       const { error } = await supabase
         .from("excavation_records")
@@ -992,6 +1077,24 @@ function SpecimenFormPage() {
             className={`${inputClass("notes")} resize-none`}
           />
         </div>
+        <div className="md:col-span-2 mt-2 border-t border-white/10 pt-5">
+          <p className="mb-3 text-xs uppercase tracking-widest text-white/30">Biological Profile</p>
+        </div>
+        {field("Age Estimate", "age_estimate", null, "e.g. 30-45 years")}
+        {field("Sex Estimate", "sex_estimate", SEX_ESTIMATE_OPTIONS)}
+        <div>
+          <label className="mb-1.5 block text-xs uppercase tracking-wider text-white/50">Height Estimate (cm)</label>
+          <input
+            name="height_estimate"
+            type="number"
+            min="0"
+            step="0.1"
+            value={form.height_estimate}
+            onChange={handleChange}
+            placeholder="e.g. 168.5"
+            className={inputClass("height_estimate")}
+          />
+        </div>
       </div>
     );
   if (currentStep === 4)
@@ -1015,6 +1118,56 @@ function SpecimenFormPage() {
         </div>
         {measurementNotice && (
           <p className="mb-4 text-xs text-amber-300">{measurementNotice}</p>
+        )}
+        {relevantSkeletalFields.length > 0 && (
+          <div className="mb-5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+            <p className="mb-3 text-xs uppercase tracking-[0.2em] text-emerald-300/80">
+              Bone-specific observations
+            </p>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {relevantSkeletalFields.map((field) => {
+                const value = skeletalInputForm[field.field] ?? "";
+                if (field.type === "select") {
+                  return (
+                    <div key={field.field}>
+                      <label className="mb-1.5 block text-xs uppercase tracking-wider text-white/50">
+                        {field.label}
+                      </label>
+                      <select
+                        name={field.field}
+                        value={value}
+                        onChange={handleSkeletalInputChange}
+                        className={selectClass(field.field)}
+                      >
+                        <option value="">Select {field.label.toLowerCase()}</option>
+                        {field.options.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={field.field}>
+                    <label className="mb-1.5 block text-xs uppercase tracking-wider text-white/50">
+                      {field.label}
+                    </label>
+                    <input
+                      name={field.field}
+                      type={field.type === "number" ? "number" : "text"}
+                      min={field.type === "number" ? "0" : undefined}
+                      step={field.type === "number" ? "0.1" : undefined}
+                      value={value}
+                      onChange={handleSkeletalInputChange}
+                      className={inputClass(field.field)}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
         <FieldError>{errors.measurements}</FieldError>
         <div className="space-y-3">
@@ -1270,6 +1423,9 @@ function SpecimenFormPage() {
           />
           <ReviewField label="Storage Location" value={form.location_stored} />
           <ReviewField label="Burial Context" value={form.burial_context} />
+          <ReviewField label="Age Estimate" value={form.age_estimate} />
+          <ReviewField label="Sex Estimate" value={form.sex_estimate} />
+          <ReviewField label="Height Estimate (cm)" value={form.height_estimate} />
           <ReviewField label="Notes" value={form.notes} />
         </ReviewSection>
         <ReviewSection title="Measurements" onEdit={() => setCurrentStep(4)}>
