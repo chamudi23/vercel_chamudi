@@ -176,12 +176,6 @@ function ParamiModulePage() {
 
       </div>
 
-      {error && (
-        <div className="bg-red-900 border border-red-700 rounded-xl p-4 mb-6 text-red-200 text-sm">
-          Failed to load data: {error}
-        </div>
-      )}
-
       {/* Stats */}
       {loading ? (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
