@@ -8,12 +8,19 @@ const {
   ORCHESTRATION_LIMITS,
   findPolicyRejection,
 } = require('../policies/assistantSystemPolicy')
+const {
+  ACCESS_DENIED_MESSAGE,
+  canUseAssistantTool,
+  canUseHelpTopic,
+  normalizeRole,
+} = require('../policies/assistantPermissions')
 
-const EMPTY_PRESENTATION = Object.freeze({ specimens: [], images: [], measurements: [], coverage: null, helpTopic: null })
+const EMPTY_PRESENTATION = Object.freeze({ specimens: [], images: [], measurements: [], sites: [], site: null, specimenContext: null, imageDetail: null, skeletalAnalysis: null, dataQuality: null, coverage: null, helpTopic: null })
 const DETERMINISTIC_PROVIDER = Object.freeze({ name: 'deterministic' })
+const SERVER_SUMMARY_TOOLS = new Set(['search_sites', 'get_site', 'get_specimen_context', 'get_image', 'get_skeletal_analysis_result', 'get_specimen_data_quality'])
 
 function presentation(overrides = {}) {
-  return { specimens: [], images: [], measurements: [], coverage: null, helpTopic: null, ...overrides }
+  return { specimens: [], images: [], measurements: [], sites: [], site: null, specimenContext: null, imageDetail: null, skeletalAnalysis: null, dataQuality: null, coverage: null, helpTopic: null, ...overrides }
 }
 
 function meta(provider, overrides = {}) {
@@ -81,6 +88,12 @@ function buildSources(toolName, result) {
   }
   if (result.specimen?.specimenId) addSource(sources, seen, { type: 'specimen', id: result.specimen.specimenId, route: `/specimens/${encodeURIComponent(result.specimen.specimenId)}` })
   if (result.type === 'COVERAGE_RESULT' && result.skeletonCode) addSource(sources, seen, { type: 'skeleton', id: result.skeletonCode, route: '/skeleton' })
+  if (result.type === 'SITE_RESULTS') for (const site of result.records || []) if (site.siteId) addSource(sources, seen, { type: 'site', id: site.siteId, route: `/parami/site/${encodeURIComponent(site.siteId)}` })
+  if (result.type === 'SITE_RESULT' && result.site?.siteId) addSource(sources, seen, { type: 'site', id: result.site.siteId, route: `/parami/site/${encodeURIComponent(result.site.siteId)}` })
+  if (result.type === 'SPECIMEN_CONTEXT' && result.specimen?.specimenId) addSource(sources, seen, { type: 'specimen', id: result.specimen.specimenId, route: `/specimens/${encodeURIComponent(result.specimen.specimenId)}` })
+  if (result.type === 'IMAGE_RESULT' && result.image?.imageId) addSource(sources, seen, { type: 'image', id: result.image.imageId, route: `/image/${encodeURIComponent(result.image.imageId)}` })
+  if (result.type === 'SKELETAL_ANALYSIS_RESULT' && result.analysis?.caseId) addSource(sources, seen, { type: 'skeletal-analysis', id: result.analysis.caseId, route: `/skeletal/report/${encodeURIComponent(result.analysis.caseId)}` })
+  if (result.type === 'DATA_QUALITY_RESULT' && result.specimenId) addSource(sources, seen, { type: 'specimen-data-quality', id: result.specimenId, route: `/specimens/${encodeURIComponent(result.specimenId)}` })
   if (result.type === 'SYSTEM_HELP' && result.topic?.id) {
     const trustedRoute = result.topic.routes?.find((route) => typeof route.path === 'string' && route.path.startsWith('/'))?.path || '/ai-assistant'
     addSource(sources, seen, { type: 'help', id: result.topic.id, route: trustedRoute })
@@ -94,6 +107,12 @@ function buildPresentation(result) {
   if (result.type === 'MEASUREMENT_RESULTS') return presentation({ specimens: result.specimen ? [result.specimen] : [], measurements: result.records || [] })
   if (result.type === 'COVERAGE_RESULT') return presentation({ coverage: result })
   if (result.type === 'SYSTEM_HELP') return presentation({ helpTopic: result.topic || null })
+  if (result.type === 'SITE_RESULTS') return presentation({ sites: result.records || [] })
+  if (result.type === 'SITE_RESULT') return presentation({ site: result })
+  if (result.type === 'SPECIMEN_CONTEXT') return presentation({ specimenContext: result })
+  if (result.type === 'IMAGE_RESULT') return presentation({ imageDetail: result.image || null })
+  if (result.type === 'SKELETAL_ANALYSIS_RESULT') return presentation({ skeletalAnalysis: result.analysis || null })
+  if (result.type === 'DATA_QUALITY_RESULT') return presentation({ dataQuality: result })
   return presentation()
 }
 
@@ -103,15 +122,27 @@ function hasNoResult(result) {
 
 function notFoundAnswer(toolName, result) {
   if (result.type === 'HELP_NOT_FOUND') return "I don't have verified OAHRIS guidance for that workflow yet."
-  if (result.type === 'NOT_FOUND') return `No matching OAHRIS ${result.resource || 'record'} was found.`
   if (toolName === 'search_images') return 'No matching OAHRIS image records were found.'
   if (toolName === 'get_measurements') return 'No recorded OAHRIS measurements were found for that specimen.'
+  if (toolName === 'search_sites') return 'No matching OAHRIS site records were found.'
+  if (toolName === 'get_site') return `No matching OAHRIS site was found for ${result.identifier || 'that identifier'}.`
+  if (toolName === 'get_specimen_context') return `No stored excavation or dating context was found for ${result.identifier || 'that specimen'}.`
+  if (toolName === 'get_image') return `No stored OAHRIS image was found for ${result.identifier || 'that identifier'}.`
+  if (toolName === 'get_skeletal_analysis_result') return `No stored skeletal analysis was found for case ${result.identifier || 'that identifier'}.`
+  if (toolName === 'get_specimen_data_quality') return `No OAHRIS specimen was found for data-quality check ${result.identifier || 'that identifier'}.`
+  if (result.type === 'NOT_FOUND') return `No matching OAHRIS ${result.resource || 'record'} was found.`
   return 'No matching OAHRIS specimen records were found.'
 }
 
 function deterministicAnswer(toolName, result) {
   if (result.type === 'SYSTEM_HELP') return result.topic?.summary || 'Verified OAHRIS guidance was retrieved.'
   if (result.type === 'COVERAGE_RESULT') return `Coverage retrieved for ${result.skeletonCode}.`
+  if (result.type === 'SITE_RESULTS') return `${(result.records || []).length} matching archaeological site record${result.records?.length === 1 ? '' : 's'} found.`
+  if (result.type === 'SITE_RESULT') return result.status === 'ambiguous' ? 'More than one stored site has that exact name, so no site was guessed.' : `Stored site record retrieved for ${result.site?.siteName || 'the requested site'}.`
+  if (result.type === 'SPECIMEN_CONTEXT') return `Stored excavation and dating context retrieved for ${result.specimen?.specimenId}.`
+  if (result.type === 'IMAGE_RESULT') return `Stored image detail retrieved for ${result.image?.imageId}.`
+  if (result.type === 'SKELETAL_ANALYSIS_RESULT') return `Recorded result produced by the Skeletal Analysis module retrieved for ${result.analysis?.caseId}.`
+  if (result.type === 'DATA_QUALITY_RESULT') return `Current completeness and stored measurement-analysis logs retrieved for ${result.specimenId}.`
   const count = Array.isArray(result.records) ? result.records.length : 0
   if (toolName === 'search_images') return `${count} matching image record${count === 1 ? '' : 's'} found.`
   if (toolName === 'get_measurements') return `${count} measurement record${count === 1 ? '' : 's'} found.`
@@ -129,13 +160,17 @@ function providerCall(work) {
 function createAssistantOrchestrator({ provider = createAssistantProvider(), toolRegistry = createAssistantToolRegistry() } = {}) {
   const activeProvider = assertAssistantProvider(provider)
   return {
-    async respond({ message, currentRoute, context } = {}) {
+    async respond({ message, currentRoute, context, user, toolContext } = {}) {
       const normalizedMessage = typeof message === 'string' ? message.trim() : ''
       if (!normalizedMessage || normalizedMessage.length > ORCHESTRATION_LIMITS.maxUserMessageLength) {
         return safeResponse('ERROR', 'A message between 1 and 1000 characters is required.', activeProvider, { meta: { code: 'INVALID_MESSAGE' } })
       }
       if (currentRoute !== undefined && currentRoute !== null && !ALLOWED_CURRENT_ROUTES.includes(currentRoute)) {
         return safeResponse('ERROR', 'The current OAHRIS route is not supported.', activeProvider, { meta: { code: 'INVALID_CURRENT_ROUTE' } })
+      }
+      const trustedRole = normalizeRole(user?.role)
+      if (!user?.id || !trustedRole) {
+        return safeResponse('ACCESS_DENIED', ACCESS_DENIED_MESSAGE, DETERMINISTIC_PROVIDER, { meta: { code: 'ACCESS_DENIED' } })
       }
       let normalizedContext
       try { normalizedContext = normalizeConversationContext(context) } catch (error) {
@@ -175,19 +210,25 @@ function createAssistantOrchestrator({ provider = createAssistantProvider(), too
       try { args = toolRegistry.validate(toolCall.name, toolCall.arguments) } catch (error) {
         return safeResponse('POLICY_REJECTION', 'The assistant tool request contained invalid arguments.', activeProvider, { meta: { code: error.code || 'INVALID_TOOL_ARGUMENTS' } })
       }
+      if (!canUseAssistantTool(trustedRole, toolCall.name)) {
+        return safeResponse('ACCESS_DENIED', ACCESS_DENIED_MESSAGE, DETERMINISTIC_PROVIDER, { meta: { code: 'ACCESS_DENIED', tool: toolCall.name } })
+      }
 
       let toolResult
-      try { toolResult = boundedCopy(await toolRegistry.execute(toolCall.name, args)) } catch (_) {
+      try { toolResult = boundedCopy(await toolRegistry.execute(toolCall.name, args, toolContext)) } catch (_) {
         return safeResponse('ERROR', 'The requested OAHRIS records could not be retrieved.', activeProvider, { meta: { code: 'TOOL_EXECUTION_FAILED', tool: toolCall.name } })
       }
       if (!toolResult || typeof toolResult !== 'object' || typeof toolResult.type !== 'string') return safeResponse('ERROR', 'The OAHRIS service returned an invalid result.', activeProvider, { meta: { code: 'INVALID_TOOL_RESULT', tool: toolCall.name } })
+      if (toolResult.type === 'SYSTEM_HELP' && !canUseHelpTopic(trustedRole, toolResult.topic)) {
+        return safeResponse('ACCESS_DENIED', 'This workflow requires additional OAHRIS permissions.', DETERMINISTIC_PROVIDER, { meta: { code: 'ACCESS_DENIED', tool: toolCall.name } })
+      }
 
       const responseProvider = deterministic ? DETERMINISTIC_PROVIDER : activeProvider
       const groundedMeta = { tool: toolCall.name, grounded: true }
       const serverPresentation = buildPresentation(toolResult)
       const serverSources = buildSources(toolCall.name, toolResult)
       if (hasNoResult(toolResult)) return safeResponse('NOT_FOUND', notFoundAnswer(toolCall.name, toolResult), responseProvider, { presentation: serverPresentation, sources: serverSources, meta: groundedMeta })
-      if (deterministic) return safeResponse(toolCall.name === 'get_system_help' ? 'SYSTEM_HELP' : 'GROUNDED_ANSWER', deterministicAnswer(toolCall.name, toolResult), DETERMINISTIC_PROVIDER, { presentation: serverPresentation, sources: serverSources, meta: groundedMeta })
+      if (deterministic || SERVER_SUMMARY_TOOLS.has(toolCall.name)) return safeResponse(toolCall.name === 'get_system_help' ? 'SYSTEM_HELP' : 'GROUNDED_ANSWER', deterministicAnswer(toolCall.name, toolResult), DETERMINISTIC_PROVIDER, { presentation: serverPresentation, sources: serverSources, meta: groundedMeta })
 
       let synthesis
       try {

@@ -14,11 +14,16 @@ const cases = [
   ['show laboratory images from SK-002', 'IMAGE_RESULTS'], ['diagnose pathology for SK001', 'UNSUPPORTED_QUERY'],
   ['what is in the database', 'UNSUPPORTED_QUERY'],
   ['what is the age of SK001', 'UNSUPPORTED_QUERY'],
+  ['show excavation context for SK-977', 'SPECIMEN_CONTEXT'],
+  ['show laboratory dating for SK-977', 'SPECIMEN_CONTEXT'],
+  ['show stored skeletal analysis case KGC-123', 'SKELETAL_ANALYSIS_RESULT'],
+  ['find sites from Anuradhapura period', 'SITE_RESULTS'],
 ]
 for (const [prompt, type] of cases) assert.equal(parseAssistantIntent(prompt).type, type, prompt)
 const image = parseAssistantIntent('show images of left femur')
 assert.deepEqual(image.filters, { boneType: 'Femur', side: 'Left', condition: '', imageView: '', imageType: '' })
 assert.deepEqual(parseAssistantIntent('find specimen SK001').filters, { specimenId: 'SK001' })
+assert.deepEqual(parseAssistantIntent('find sites from Anuradhapura period').filters, { timePeriod: 'Anuradhapura' })
 assert.equal('filters' in parseAssistantIntent('what is in the database'), false)
 assert.match(parseAssistantIntent('what is the age of SK001').message, /only retrieves recorded OAHRIS data/i)
 for (const [prompt, id] of [['how do I add a specimen', 'add-specimen'], ['where can I upload an image', 'upload-image'], ['how do I add measurements', 'add-measurements'], ['how do I search images', 'search-images'], ['how do I use the skeleton viewer', 'skeleton-viewer'], ['what does image documentation coverage mean', 'skeleton-coverage'], ['what can the research assistant do', 'research-assistant']]) { const intent = parseAssistantIntent(prompt); assert.equal(intent.type, 'SYSTEM_HELP'); assert.equal(getSystemHelp(intent.query).topic.id, id) }

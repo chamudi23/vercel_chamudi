@@ -12,6 +12,9 @@
     "test:deepseek": "node scripts/testDeepSeekProvider.cjs",
     "test:conversation": "node scripts/testAssistantConversation.mjs",
     "test:whole-system-help": "node scripts/testWholeSystemHelp.mjs",
+    "test:assistant-auth": "node scripts/testAssistantAuth.cjs",
+    "test:whole-system-retrieval": "node scripts/testWholeSystemRetrieval.mjs",
+    "test:assistant-browser-path": "node scripts/testAssistantBrowserPath.mjs",
     "verify:skeleton": "node scripts/verifySkeletonMappings.mjs",
     "preview": "vite preview"
   },
