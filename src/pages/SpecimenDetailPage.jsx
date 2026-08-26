@@ -3,6 +3,8 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../supabase";
 import { analyseBone } from "../api";
 import BoneImageList from "../components/BoneImageList";
+import SiteLocationMiniMap from "../components/SiteLocationMiniMap";
+import { hasStoredImage } from "../lib/imageDocumentationDashboard";
 import {
   PP1_BONE_LABELS,
   allowedSidesForCategory,
