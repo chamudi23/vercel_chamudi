@@ -197,11 +197,10 @@ export default function SpecimenListPage() {
                 <tr className="border-b border-white/10 bg-white/[0.02]">
                   <th className="text-left px-5 py-3 text-xs text-white/30 uppercase tracking-wider font-medium">Specimen ID</th>
                   <th className="text-left px-5 py-3 text-xs text-white/30 uppercase tracking-wider font-medium">Skeleton Code</th>
+                  <th className="text-left px-5 py-3 text-xs text-white/30 uppercase tracking-wider font-medium">Bone Category</th>
                   <th className="text-left px-5 py-3 text-xs text-white/30 uppercase tracking-wider font-medium">Site</th>
-                  <th className="text-left px-5 py-3 text-xs text-white/30 uppercase tracking-wider font-medium">District</th>
                   <th className="text-left px-5 py-3 text-xs text-white/30 uppercase tracking-wider font-medium">Time Period</th>
-                  <th className="text-left px-5 py-3 text-xs text-white/30 uppercase tracking-wider font-medium">Year</th>
-                  <th className="text-left px-5 py-3 text-xs text-white/30 uppercase tracking-wider font-medium">Preservation</th>
+                  <th className="text-left px-5 py-3 text-xs text-white/30 uppercase tracking-wider font-medium">Storage Location</th>
                   <th className="px-5 py-3"></th>
                 </tr>
               </thead>
@@ -216,17 +215,10 @@ export default function SpecimenListPage() {
                       <span className="font-mono text-emerald-400 text-xs">{s.specimen_id}</span>
                     </td>
                     <td className="px-5 py-3.5 text-white/70">{s.skeleton_code || "—"}</td>
+                    <td className="px-5 py-3.5 text-white/70">{s.bone_type || "—"}</td>
                     <td className="px-5 py-3.5 text-white/70">{s.site_name || "—"}</td>
-                    <td className="px-5 py-3.5 text-white/50">{s.district || "—"}</td>
                     <td className="px-5 py-3.5 text-white/50">{s.time_period || "—"}</td>
-                    <td className="px-5 py-3.5 text-white/50">{s.excavation_year || "—"}</td>
-                    <td className="px-5 py-3.5">
-                      {s.preservation_state ? (
-                        <span className={`text-[10px] uppercase tracking-wider font-semibold px-2 py-1 rounded-full border ${badgeColor(s.preservation_state)}`}>
-                          {s.preservation_state}
-                        </span>
-                      ) : "—"}
-                    </td>
+                    <td className="px-5 py-3.5 text-white/50">{s.location_stored || "—"}</td>
                     <td className="px-5 py-3.5">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 text-white/20">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
