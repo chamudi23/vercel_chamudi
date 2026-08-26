@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../supabase";
 import { analyseBone } from "../api";
 import BoneImageList from "../components/BoneImageList";
+import SiteLocationMiniMap from "../components/SiteLocationMiniMap";
 import {
   PP1_BONE_LABELS,
   allowedSidesForCategory,
@@ -114,6 +115,8 @@ export default function SpecimenDetailPage() {
   const [skeletalInput, setSkeletalInput] = useState(null);
   const [skeletalInputDraft, setSkeletalInputDraft] = useState({});
   const [qualityLogs, setQualityLogs] = useState([]);
+  const [catalogueRecords, setCatalogueRecords] = useState([]);
+  const [siteLocation, setSiteLocation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -202,6 +205,29 @@ export default function SpecimenDetailPage() {
       .eq("specimen_id", specData.specimen_id)
       .order("created_at", { ascending: false });
     setQualityLogs(logData || []);
+
+    const { data: skeletonData } = await supabase
+      .from("specimens")
+      .select("specimen_id, skeleton_code, bone_type, side, site_name, preservation_state, location_stored")
+      .eq("skeleton_code", specData.skeleton_code)
+      .order("specimen_id", { ascending: true });
+    const skeletonRecords = skeletonData || [specData];
+    const { data: imageData } = await supabase
+      .from("bone_images")
+      .select("*")
+      .in("specimen_id", skeletonRecords.map((record) => record.specimen_id))
+      .order("uploaded_at", { ascending: false });
+    const allImages = imageData || [];
+    setCatalogueRecords(skeletonRecords.map((record) => ({
+      ...record,
+      images: allImages.filter((image) => image.specimen_id === record.specimen_id),
+    })));
+    const { data: siteData } = await supabase
+      .from("sites")
+      .select("site_name, latitude, longitude")
+      .eq("site_name", specData.site_name)
+      .maybeSingle();
+    setSiteLocation(siteData || null);
 
     setLoading(false);
   }, [id]);
@@ -658,7 +684,7 @@ export default function SpecimenDetailPage() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-6 py-10 space-y-6">
+      <div className="mx-auto flex max-w-4xl flex-col gap-6 px-6 py-10">
 
         {saveSuccess && (
           <div className="bg-emerald-500/20 border border-emerald-500/40 rounded-xl px-5 py-4 text-emerald-300 text-sm flex items-center gap-3">
@@ -829,16 +855,67 @@ export default function SpecimenDetailPage() {
           </div>
         )}
 
-        {/* Attached Images */}
-        <div ref={attachmentSectionRef} className="scroll-mt-24 rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+        {/* Specimen image collection */}
+        <div ref={attachmentSectionRef} className="order-first scroll-mt-24 rounded-2xl border border-emerald-400/25 bg-gradient-to-br from-emerald-950/60 via-white/[0.03] to-cyan-950/30 p-6 shadow-2xl shadow-emerald-950/20">
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-widest text-white/30">Attached Images</p>
-              <p className="mt-1 text-[10px] text-white/20">{attachmentEditImageId ? "Only the selected attachment is editable. Specimen data and measurements remain read-only." : attachmentAddRequested ? "Add an image to this saved specimen. Specimen data and measurements remain read-only." : "Images linked to this specimen record."}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-300/80">Specimen Images</p>
+              <h2 className="mt-2 text-2xl font-semibold text-white">{specimen.skeleton_code || "Skeleton"}</h2>
+              <p className="mt-1 text-sm text-white/45">{catalogueRecords.length} bone records. Select a bone to open its full specimen detail page.</p>
             </div>
             {!editing && !attachmentOnlyEditing && <p className="text-[10px] text-white/25">Choose Edit to manage files and metadata here.</p>}
           </div>
-          <BoneImageList specimenId={specimen.specimen_id} specimen={{ ...specimen, boneCategory: resolveSavedBoneCategory(specimen, measurements) }} editing={editing} addMode={attachmentAddRequested} editImageId={attachmentEditImageId} onFinishSelectedEdit={finishAttachmentEdit} />
+
+          {catalogueRecords.length > 0 && (
+            <div className="mb-7 space-y-5">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                {catalogueRecords.map((record) => {
+                  const image = record.images[0];
+                  const imageSrc = image?.image_url || image?.file_url;
+                  const imageLabel = image?.image_view || image?.view_angle || image?.image_type || "Bone image";
+                  return (
+                    <button
+                      key={record.specimen_id}
+                      type="button"
+                      onClick={() => navigate(image ? `/image/${encodeURIComponent(image.image_id)}` : `/specimens/${encodeURIComponent(record.specimen_id)}`)}
+                      className={`group overflow-hidden rounded-xl border text-left transition ${record.specimen_id === specimen.specimen_id ? "border-emerald-400 ring-2 ring-emerald-400/20" : "border-white/10 hover:border-emerald-500/40"}`}
+                    >
+                      <div className="aspect-[16/10] bg-black/25">
+                        {imageSrc ? (
+                          <img src={imageSrc} alt={`${record.bone_type || "Bone"} ${imageLabel}`} className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
+                        ) : (
+                          <div className="flex h-full flex-col items-center justify-center gap-2 text-xs text-white/30"><span className="text-2xl">＋</span>No image attached</div>
+                        )}
+                      </div>
+                      <div className="p-3">
+                        <p className="truncate text-sm font-medium text-white">{record.bone_type || "Skeletal element"}</p>
+                        <p className="mt-1 truncate text-[10px] uppercase tracking-wider text-white/40">{[record.side, record.preservation_state].filter(Boolean).join(" · ") || "Details available"}</p>
+                        <p className="mt-2 truncate font-mono text-[10px] text-emerald-300/60">{record.specimen_id}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="grid gap-4 border-t border-white/10 pt-5 md:grid-cols-[1fr_280px] md:items-center">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300/70">Find Site</p>
+                  <h3 className="mt-1 text-lg font-semibold text-white">{specimen.site_name || "Site location"}</h3>
+                  <p className="mt-1 text-xs text-white/40">Location associated with this skeleton and its bone records.</p>
+                </div>
+                {siteLocation ? (
+                  <SiteLocationMiniMap latitude={siteLocation.latitude} longitude={siteLocation.longitude} siteName={siteLocation.site_name || specimen.site_name} />
+                ) : (
+                  <div className="rounded-md border border-white/10 bg-white/[0.02] p-4 text-xs text-white/35">No mapped coordinates are available for this site.</div>
+                )}
+              </div>
+
+            </div>
+          )}
+
+          {(editing || attachmentAddRequested || attachmentEditImageId) && (
+            <BoneImageList specimenId={specimen.specimen_id} specimen={{ ...specimen, boneCategory: resolveSavedBoneCategory(specimen, measurements) }} editing={editing} addMode={attachmentAddRequested} editImageId={attachmentEditImageId} onFinishSelectedEdit={finishAttachmentEdit} onAttachmentsChange={fetchAll} />
+          )}
         </div>
 
         {/* Measurements */}
