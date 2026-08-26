@@ -59,8 +59,8 @@ const PROHIBITED_REQUESTS = Object.freeze([
   { code: 'SYSTEM_PROMPT_PROHIBITED', pattern: /\b(system prompt|hidden prompt|hidden instructions?|developer message|reveal (?:your )?instructions?)\b/i, message: 'OAHRIS Assistant cannot disclose hidden instructions.' },
 ])
 
-const GUIDANCE_MARKERS = /\b(how(?: do i| can i| to)?|guide me|show me how|where can i|steps?|instructions?|help me (?:to|with)|walk me through)\b/i
-const GUIDANCE_ACTIONS = /\b(add|create|upload|attach|edit|update|change|search|use|view|specimen|image|measurement|viewer|record)\b/i
+const GUIDANCE_MARKERS = /\b(how(?: do i| can i| to)?|guide me|show me how|where can i|where do i|where do i see|what does|what is|steps?|instructions?|help me (?:to|with)|walk me through)\b/i
+const GUIDANCE_ACTIONS = /\b(add|create|upload|attach|edit|update|change|search|use|view|specimen|image|measurement|viewer|record|import|excavation|dating|spatial|gis|dbscan|cluster|site|similar findings|skeletal|analysis|report|results?|data quality|completeness|annotation)\b/i
 
 function isGuidanceRequest(message) {
   const text = String(message || '').trim()

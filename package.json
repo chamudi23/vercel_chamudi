@@ -11,6 +11,7 @@
     "test:orchestrator": "node scripts/testAssistantOrchestrator.cjs",
     "test:deepseek": "node scripts/testDeepSeekProvider.cjs",
     "test:conversation": "node scripts/testAssistantConversation.mjs",
+    "test:whole-system-help": "node scripts/testWholeSystemHelp.mjs",
     "verify:skeleton": "node scripts/verifySkeletonMappings.mjs",
     "preview": "vite preview"
   },
