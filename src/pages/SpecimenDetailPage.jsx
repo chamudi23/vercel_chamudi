@@ -94,7 +94,7 @@ function resolveSavedBoneCategory(specimenRecord, measurementRecords) {
   return categories.size === 1 ? [...categories.values()][0] : "";
 }
 
-const EXCAVATION_FIELDS = ["excavation_date", "excavation_phase", "depth_found", "excavator_name", "excavation_notes"];
+const EXCAVATION_FIELDS = ["excavation_date", "depth_found", "excavator_name", "excavation_notes"];
 const LAB_DATING_FIELDS = ["dating_method", "date_result", "date_range_min", "date_range_max", "lab_name", "result_notes"];
 
 export default function SpecimenDetailPage() {
@@ -360,7 +360,6 @@ export default function SpecimenDetailPage() {
         time_period: editForm.time_period,
         preservation_state: editForm.preservation_state,
         location_stored: editForm.location_stored,
-        burial_context: editForm.burial_context,
         notes: editForm.notes,
         age_estimate: editForm.age_estimate,
         sex_estimate: editForm.sex_estimate,
@@ -376,7 +375,6 @@ export default function SpecimenDetailPage() {
       const excavationPayload = {
         specimen_id: id,
         excavation_date: excavationDraft.excavation_date || null,
-        excavation_phase: excavationDraft.excavation_phase || null,
         depth_found: optionalNumber(excavationDraft.depth_found),
         excavator_name: excavationDraft.excavator_name || null,
         excavation_notes: excavationDraft.excavation_notes || null,
@@ -817,27 +815,12 @@ export default function SpecimenDetailPage() {
                 </select>
               </div>
               <div><label className={labelClass}>Storage Location</label><input name="location_stored" value={editForm.location_stored || ""} onChange={handleEditChange} className={inputClass} /></div>
-              <div className="md:col-span-2"><label className={labelClass}>Burial Context</label><input name="burial_context" value={editForm.burial_context || ""} onChange={handleEditChange} className={inputClass} /></div>
-              <div className="md:col-span-2 mt-2 border-t border-white/10 pt-5"><p className="text-xs uppercase tracking-widest text-white/30">Biological Profile</p></div>
-              <div><label className={labelClass}>Age Estimate</label><input name="age_estimate" value={editForm.age_estimate || ""} onChange={handleEditChange} placeholder="e.g. 30-45 years" className={inputClass} /></div>
-              <div>
-                <label className={labelClass}>Sex Estimate</label>
-                <select name="sex_estimate" value={editForm.sex_estimate || ""} onChange={handleEditChange} className={selectClass}>
-                  <option value="">Select sex estimate</option>
-                  {SEX_ESTIMATE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
-                </select>
-              </div>
-              <div><label className={labelClass}>Height Estimate (cm)</label><input name="height_estimate" type="number" min="0" step="0.1" value={editForm.height_estimate ?? ""} onChange={handleEditChange} placeholder="e.g. 168.5" className={inputClass} /></div>
               <div className="md:col-span-2"><label className={labelClass}>Notes</label><textarea name="notes" value={editForm.notes || ""} onChange={handleEditChange} rows={3} className={inputClass + " resize-none"} /></div>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8">
               <MetadataValue label="Preservation State" value={specimen.preservation_state} />
               <MetadataValue label="Storage Location" value={specimen.location_stored} />
-              <MetadataValue label="Burial Context" value={specimen.burial_context} className="md:col-span-2" />
-              <MetadataValue label="Age Estimate" value={specimen.age_estimate} />
-              <MetadataValue label="Sex Estimate" value={specimen.sex_estimate} />
-              <MetadataValue label="Height Estimate (cm)" value={specimen.height_estimate} />
               <MetadataValue label="Notes" value={specimen.notes} className="md:col-span-2" />
             </div>
           )}
@@ -904,6 +887,29 @@ export default function SpecimenDetailPage() {
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
               Add Measurement
             </button>}
+          </div>
+
+          <div className="mb-5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+            <p className="mb-3 text-xs uppercase tracking-widest text-emerald-300/80">Biological Profile</p>
+            {editing ? (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div><label className={labelClass}>Age Estimate</label><input name="age_estimate" value={editForm.age_estimate || ""} onChange={handleEditChange} placeholder="e.g. 30-45 years" className={inputClass} /></div>
+                <div>
+                  <label className={labelClass}>Sex Estimate</label>
+                  <select name="sex_estimate" value={editForm.sex_estimate || ""} onChange={handleEditChange} className={selectClass}>
+                    <option value="">Select sex estimate</option>
+                    {SEX_ESTIMATE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+                  </select>
+                </div>
+                <div><label className={labelClass}>Height Estimate (cm)</label><input name="height_estimate" type="number" min="0" step="0.1" value={editForm.height_estimate ?? ""} onChange={handleEditChange} placeholder="e.g. 168.5" className={inputClass} /></div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-y-4 gap-x-8 md:grid-cols-3">
+                <MetadataValue label="Age Estimate" value={specimen.age_estimate} />
+                <MetadataValue label="Sex Estimate" value={specimen.sex_estimate} />
+                <MetadataValue label="Height Estimate (cm)" value={specimen.height_estimate} />
+              </div>
+            )}
           </div>
 
           {measurementSuccess && (
@@ -1119,7 +1125,6 @@ export default function SpecimenDetailPage() {
           {editing ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div><label className={labelClass}>Excavation Date</label><input name="excavation_date" type="date" value={excavationDraft.excavation_date} onChange={(event) => setExcavationDraft((draft) => ({ ...draft, excavation_date: event.target.value }))} className={inputClass} style={{ colorScheme: "dark" }} /></div>
-              <div><label className={labelClass}>Excavation Phase</label><input name="excavation_phase" value={excavationDraft.excavation_phase} onChange={(event) => setExcavationDraft((draft) => ({ ...draft, excavation_phase: event.target.value }))} className={inputClass} /></div>
               <div><label className={labelClass}>Depth Found (m)</label><input name="depth_found" type="number" min="0" step="0.01" value={excavationDraft.depth_found} onChange={(event) => setExcavationDraft((draft) => ({ ...draft, depth_found: event.target.value }))} className={inputClass} /></div>
               <div><label className={labelClass}>Excavator Name</label><input name="excavator_name" value={excavationDraft.excavator_name} onChange={(event) => setExcavationDraft((draft) => ({ ...draft, excavator_name: event.target.value }))} className={inputClass} /></div>
               <div className="md:col-span-2"><label className={labelClass}>Excavation Notes</label><textarea name="excavation_notes" value={excavationDraft.excavation_notes} onChange={(event) => setExcavationDraft((draft) => ({ ...draft, excavation_notes: event.target.value }))} rows={3} className={inputClass + " resize-none"} /></div>
@@ -1127,7 +1132,6 @@ export default function SpecimenDetailPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8">
               <MetadataValue label="Excavation Date" value={displayDate(excavation?.excavation_date)} />
-              <MetadataValue label="Excavation Phase" value={excavation?.excavation_phase} />
               <MetadataValue label="Depth Found (m)" value={excavation?.depth_found} />
               <MetadataValue label="Excavator Name" value={excavation?.excavator_name} />
               <MetadataValue label="Excavation Notes" value={excavation?.excavation_notes} className="md:col-span-2" />
