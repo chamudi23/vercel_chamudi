@@ -17,7 +17,12 @@ class Query {
   constructor(client, table) { this.client = client; this.table = table; this.filters = []; this.maximum = Infinity; this.sort = null }
   select(columns) { this.client.calls.push([this.table, 'select', columns]); return this }
   eq(column, value) { this.filters.push((row) => row[column] === value); return this }
-  ilike(column, value) { const expected = String(value).toLowerCase(); this.filters.push((row) => String(row[column] ?? '').toLowerCase() === expected); return this }
+  ilike(column, value) {
+    const pattern = String(value).replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*').replace(/_/g, '.')
+    const matcher = new RegExp(`^${pattern}$`, 'i')
+    this.filters.push((row) => matcher.test(String(row[column] ?? '')))
+    return this
+  }
   in(column, values) { this.filters.push((row) => values.includes(row[column])); return this }
   order(column, { ascending = true } = {}) { this.sort = { column, ascending }; return this }
   limit(value) { this.maximum = value; return this }
@@ -41,8 +46,10 @@ function fixtureClient() {
   const specimens = Array.from({ length: 25 }, (_, index) => ({ specimen_id: index ? `SP-${index}` : 'SK001', skeleton_code: `SKELETON-${index}`, bone_type: 'Femur', side: 'Left', site_name: 'Alpha Cave', district: 'Kandy', province: 'Central', time_period: 'Iron Age', preservation_state: 'Complete', location_stored: index ? 'Store A' : null, excavation_year: index ? 2020 : null, burial_context: index ? 'Burial' : null, notes: index ? 'Recorded note' : null, age_estimate: index ? null : '30-45 years', sex_estimate: index ? null : 'Female', height_estimate: index ? null : 168.5, created_at: '2026-01-01' }))
   specimens.push({ specimen_id: 'SKMISS', skeleton_code: 'SM', bone_type: 'Tibia', side: 'Right', site_name: 'Missing Site', district: null, province: null, time_period: null, preservation_state: null, location_stored: null, excavation_year: null, burial_context: null, notes: null })
   specimens.push({ specimen_id: 'SKAMB', skeleton_code: 'SA', bone_type: 'Skull', side: 'Midline', site_name: 'Twin Site', district: 'Kandy', province: 'Central', time_period: 'Iron Age', preservation_state: null, location_stored: null, excavation_year: null, burial_context: null, notes: null })
+  specimens.push({ specimen_id: 'SKREF', skeleton_code: 'SR', bone_type: 'Radius', side: 'Left', site_name: 'Reference   Only', district: 'Matale', province: 'Central', time_period: 'Historic', preservation_state: 'Fragmented', location_stored: null, excavation_year: null, burial_context: null, notes: null })
+  specimens.push({ specimen_id: 'SKSPACE', skeleton_code: 'SS', bone_type: 'Ulna', side: 'Right', site_name: 'spaced site', district: 'Kandy', province: 'Central', time_period: 'Iron Age', preservation_state: 'Complete', location_stored: null, excavation_year: null, burial_context: null, notes: null })
   return new MockClient({
-    sites: [alpha, { ...alpha, id: 'TWIN-1', site_name: 'Twin Site' }, { ...alpha, id: 'TWIN-2', site_name: 'Twin Site' }, ...Array.from({ length: 25 }, (_, index) => ({ ...alpha, id: `K-${index}`, site_name: `Kandy Site ${index}` }))],
+    sites: [alpha, { ...alpha, id: 'SPACE-1', site_name: '  Spaced   Site  ' }, { ...alpha, id: 'TWIN-1', site_name: 'Twin Site' }, { ...alpha, id: 'TWIN-2', site_name: 'Twin Site' }, ...Array.from({ length: 25 }, (_, index) => ({ ...alpha, id: `K-${index}`, site_name: `Kandy Site ${index}` }))],
     specimens,
     excavation_records: [{ specimen_id: 'SK001', excavation_date: '2024-01-02', excavation_phase: 'Phase 1', depth_found: null, excavation_notes: null }],
     laboratory_dating_results: [{ specimen_id: 'SK001', dating_method: 'Radiocarbon', date_result: '2450 BP', date_range_min: 2400, date_range_max: 2500, lab_name: 'OAHRIS Lab', result_notes: null }],
@@ -65,11 +72,17 @@ test('search_sites requires a filter, caps results, and omits coordinates', asyn
   assert.equal(result.records.some((site) => 'latitude' in site || 'longitude' in site), false)
 })
 
-test('get_site resolves IDs, bounds linked specimens, handles missing and ambiguous names', async () => {
+test('get_site resolves normalized exact names and returns explicit resolved, reference-only, missing, and ambiguous states', async () => {
   const client = fixtureClient()
   const found = await whole.getSite({ siteId: 'SITE-1' }, client)
   assert.equal(found.status, 'resolved'); assert.equal(found.site.siteName, 'Alpha Cave'); assert.equal(found.linkedSpecimens.length, 20)
+  const normalized = await whole.getSite({ siteName: '  spaced   SITE ' }, client)
+  assert.equal(normalized.status, 'resolved'); assert.equal(normalized.site.siteId, 'SPACE-1'); assert.equal(normalized.linkedSpecimens[0].specimenId, 'SKSPACE')
+  const referenceOnly = await whole.getSite({ siteName: ' reference only ' }, client)
+  assert.equal(referenceOnly.status, 'reference_only'); assert.equal(referenceOnly.site, null); assert.equal(referenceOnly.linkedSpecimens[0].specimenId, 'SKREF')
+  assert.equal(referenceOnly.linkedSpecimens[0].siteResolutionStatus, 'missing')
   assert.equal((await whole.getSite({ siteId: 'NO-SITE' }, client)).type, 'NOT_FOUND')
+  assert.equal((await whole.getSite({ siteName: 'Unknown Place' }, client)).type, 'NOT_FOUND')
   const ambiguous = await whole.getSite({ siteName: 'Twin Site' }, client)
   assert.equal(ambiguous.status, 'ambiguous'); assert.equal(ambiguous.linkedSpecimens.length, 0)
 })
@@ -147,7 +160,8 @@ test('deterministic intents select exact tools and reject unsupported specimen a
   assert.equal(parseAssistantIntent('check data quality for SK001').type, 'DATA_QUALITY_RESULT')
   const unsupported = resolveConversationTurn({ message: 'What skeletal analysis exists for specimen SK001?' })
   assert.equal(unsupported.type, 'CLARIFICATION'); assert.equal(unsupported.toolCalls.length, 0)
-  assert.equal(findPolicyRejection('Estimate sex from this pelvis.').code, 'SEX_ESTIMATION_PROHIBITED')
+  assert.equal(findPolicyRejection('Estimate sex from this pelvis.'), null)
+  assert.equal(resolveConversationTurn({ message: 'Estimate sex from this pelvis.' }).toolCalls[0].name, 'get_system_help')
 })
 
 test('server provenance is generated after the authorized tool and provider cannot replace it', async () => {

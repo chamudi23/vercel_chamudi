@@ -18,7 +18,7 @@ const services = {
   getSkeletonCoverage: async (skeletonCode) => ({ type: 'COVERAGE_RESULT', skeletonCode }),
   getSystemHelp: () => ({ type: 'HELP_NOT_FOUND' }),
   searchSites: async (args) => { backendCalls.push(['search_sites', args]); return { type: 'SITE_RESULTS', records: args.timePeriod === 'Missing' ? [] : [{ siteId: 'SITE-1', siteName: 'Anuradhapura', timePeriod: args.timePeriod }] } },
-  getSite: async () => ({ type: 'NOT_FOUND', resource: 'site', identifier: 'missing', operation: 'get_site' }),
+  getSite: async (args) => { backendCalls.push(['get_site', args]); return { type: 'NOT_FOUND', resource: 'site', identifier: args.siteName || args.siteId, operation: 'get_site' } },
   getSpecimenContext: async (specimenId) => { backendCalls.push(['get_specimen_context', { specimenId }]); return { type: 'NOT_FOUND', resource: 'specimen context', identifier: specimenId, operation: 'get_specimen_context' } },
   getImage: async () => ({ type: 'NOT_FOUND', resource: 'image', identifier: 'missing', operation: 'get_image' }),
   getSkeletalAnalysisResult: async (caseId) => { backendCalls.push(['get_skeletal_analysis_result', { caseId }]); return { type: 'NOT_FOUND', resource: 'skeletal analysis', identifier: caseId, operation: 'get_skeletal_analysis_result' } },
@@ -88,7 +88,7 @@ for (const prompt of ['what sites are available', 'show me archaeological sites'
 }
 
 const greetingResult = await browserPath('hi', unrelatedContext)
-assert.equal(greetingResult.message.type, 'CLARIFICATION')
+assert.equal(greetingResult.message.type, 'CONVERSATION')
 assert.match(greetingResult.message.text, /^Hello!/)
 assert.equal(greetingResult.visiblePresentation, null)
 
@@ -96,6 +96,36 @@ const missingSiteResult = await browserPath('find sites from Missing period', un
 assert.equal(missingSiteResult.message.type, 'NOT_FOUND')
 assert.equal(missingSiteResult.message.text, 'No matching OAHRIS site records were found.')
 assert.equal(missingSiteResult.visiblePresentation, null)
+
+const exactSiteResult = await browserPath('Tell me about Bellambandi Palassa', unrelatedContext)
+assert.equal(exactSiteResult.intent.type, 'UNSUPPORTED_QUERY')
+assert.equal(exactSiteResult.message.type, 'NOT_FOUND')
+assert.equal(exactSiteResult.message.text, 'No matching OAHRIS site was found for Bellambandi Palassa.')
+assert.deepEqual(backendCalls.at(-1), ['get_site', { siteName: 'Bellambandi Palassa' }])
+
+const siteFollowUpContext = { previousUserMessage: 'Tell me about Bellambandi Palassa', previousAssistantMessage: exactSiteResult.message.text }
+const bareSiteResult = await browserPath('Bellambandi Palassa', siteFollowUpContext)
+assert.equal(bareSiteResult.message.type, 'NOT_FOUND')
+assert.equal(bareSiteResult.message.text, 'No matching OAHRIS site was found for Bellambandi Palassa.')
+assert.deepEqual(backendCalls.at(-1), ['get_site', { siteName: 'Bellambandi Palassa' }])
+
+const callsBeforeThanks = backendCalls.length
+const thanksResult = await browserPath('thank you', siteFollowUpContext)
+assert.equal(thanksResult.intent.type, 'UNSUPPORTED_QUERY')
+assert.equal(thanksResult.message.type, 'CONVERSATION')
+assert.equal(thanksResult.message.text, "You're welcome! Let me know if you need anything else in OAHRIS.")
+assert.equal(thanksResult.visiblePresentation, null)
+assert.equal(backendCalls.length, callsBeforeThanks)
+
+const callsBeforeClarifications = backendCalls.length
+const vagueSiteResult = await browserPath('this part', siteFollowUpContext)
+assert.equal(vagueSiteResult.message.type, 'CLARIFICATION')
+assert.equal(vagueSiteResult.message.text, 'Do you want the site record, linked specimens, or something else?')
+assert.doesNotMatch(vagueSiteResult.message.text, /[*_#`]|\n/)
+const compoundSiteResult = await browserPath('Show Bellambandi Palassa site details and its images', siteFollowUpContext)
+assert.equal(compoundSiteResult.message.type, 'CLARIFICATION')
+assert.equal(compoundSiteResult.message.text, 'I can help with one part at a time. Would you like the site record or its images first?')
+assert.equal(backendCalls.length, callsBeforeClarifications)
 
 const coverageResult = await browserPath('coverage for skeleton SK-977', unrelatedContext)
 assert.equal(coverageResult.intent.type, 'COVERAGE_RESULT')

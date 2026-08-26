@@ -1,8 +1,10 @@
 const SITE_METADATA_FIELDS = ['district', 'province', 'time_period']
 
-function normalize(value) {
-  return String(value ?? '').trim().toLowerCase()
+export function normalizeSiteName(value) {
+  return String(value ?? '').trim().replace(/\s+/g, ' ').toLowerCase()
 }
+
+function normalize(value) { return normalizeSiteName(value) }
 
 function coordinate(value, minimum, maximum) {
   if (value === null || value === undefined || String(value).trim() === '') return null
@@ -24,8 +26,9 @@ function withoutCoordinates(site) {
 
 /**
  * Resolve one specimen against the canonical sites catalogue without guessing.
- * Site names are compared case-insensitively after trimming only; no aliases,
- * partial matches, or fuzzy matching are applied.
+ * Site names are compared case-insensitively after harmless outer/repeated
+ * whitespace normalization; no aliases, partial matches, or fuzzy matching
+ * are applied.
  */
 export function resolveSpecimenSite(specimen, sites = []) {
   const id = specimenId(specimen)

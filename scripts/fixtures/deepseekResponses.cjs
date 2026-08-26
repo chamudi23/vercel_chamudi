@@ -15,6 +15,12 @@ const selections = Object.freeze({
   get_measurements: completion({ toolCalls: [toolCall('get_measurements', { specimenId: 'SP-1' })] }),
   get_skeleton_coverage: completion({ toolCalls: [toolCall('get_skeleton_coverage', { skeletonCode: 'SK001' })] }),
   get_system_help: completion({ toolCalls: [toolCall('get_system_help', { query: 'How do I use the skeleton viewer?' })] }),
+  search_sites: completion({ toolCalls: [toolCall('search_sites', { timePeriod: 'Anuradhapura' })] }),
+  get_site: completion({ toolCalls: [toolCall('get_site', { siteName: 'Bellambandi Palassa' })] }),
+  get_specimen_context: completion({ toolCalls: [toolCall('get_specimen_context', { specimenId: 'SPEC-664' })] }),
+  get_image: completion({ toolCalls: [toolCall('get_image', { imageId: 'IMG001' })] }),
+  get_skeletal_analysis_result: completion({ toolCalls: [toolCall('get_skeletal_analysis_result', { caseId: 'KGC-123' })] }),
+  get_specimen_data_quality: completion({ toolCalls: [toolCall('get_specimen_data_quality', { specimenId: 'SPEC-664' })] }),
 })
 
 module.exports = { completion, selections, toolCall }

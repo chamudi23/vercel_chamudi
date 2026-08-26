@@ -17,7 +17,6 @@ const {
 
 const EMPTY_PRESENTATION = Object.freeze({ specimens: [], images: [], measurements: [], sites: [], site: null, specimenContext: null, imageDetail: null, skeletalAnalysis: null, dataQuality: null, coverage: null, helpTopic: null })
 const DETERMINISTIC_PROVIDER = Object.freeze({ name: 'deterministic' })
-const SERVER_SUMMARY_TOOLS = new Set(['search_sites', 'get_site', 'get_specimen_context', 'get_image', 'get_skeletal_analysis_result', 'get_specimen_data_quality'])
 
 function presentation(overrides = {}) {
   return { specimens: [], images: [], measurements: [], sites: [], site: null, specimenContext: null, imageDetail: null, skeletalAnalysis: null, dataQuality: null, coverage: null, helpTopic: null, ...overrides }
@@ -46,6 +45,17 @@ function safeResponse(type, answer, provider, overrides = {}) {
 function cleanAnswer(value, fallback) {
   const answer = typeof value === 'string' ? value.trim() : ''
   return (answer || fallback).slice(0, ORCHESTRATION_LIMITS.maxResponseLength)
+}
+
+function cleanClarification(value, fallback) {
+  const plain = cleanAnswer(value, fallback)
+    .replace(/```(?:[a-z0-9_-]+)?/gi, ' ')
+    .replace(/[`*_>#]/g, '')
+    .replace(/(^|\s)(?:[-+]\s+|\d+[.)]\s+)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const sentences = (plain.match(/[^.!?]+[.!?]?/g) || []).map((sentence) => sentence.trim()).filter(Boolean)
+  return (sentences.slice(0, 2).join(' ') || fallback).slice(0, 320)
 }
 
 function normalizeProviderUsage(value) {
@@ -90,6 +100,7 @@ function buildSources(toolName, result) {
   if (result.type === 'COVERAGE_RESULT' && result.skeletonCode) addSource(sources, seen, { type: 'skeleton', id: result.skeletonCode, route: '/skeleton' })
   if (result.type === 'SITE_RESULTS') for (const site of result.records || []) if (site.siteId) addSource(sources, seen, { type: 'site', id: site.siteId, route: `/parami/site/${encodeURIComponent(site.siteId)}` })
   if (result.type === 'SITE_RESULT' && result.site?.siteId) addSource(sources, seen, { type: 'site', id: result.site.siteId, route: `/parami/site/${encodeURIComponent(result.site.siteId)}` })
+  if (result.type === 'SITE_RESULT') for (const specimen of result.linkedSpecimens || []) if (specimen.specimenId) addSource(sources, seen, { type: 'specimen', id: specimen.specimenId, route: `/specimens/${encodeURIComponent(specimen.specimenId)}` })
   if (result.type === 'SPECIMEN_CONTEXT' && result.specimen?.specimenId) addSource(sources, seen, { type: 'specimen', id: result.specimen.specimenId, route: `/specimens/${encodeURIComponent(result.specimen.specimenId)}` })
   if (result.type === 'IMAGE_RESULT' && result.image?.imageId) addSource(sources, seen, { type: 'image', id: result.image.imageId, route: `/image/${encodeURIComponent(result.image.imageId)}` })
   if (result.type === 'SKELETAL_ANALYSIS_RESULT' && result.analysis?.caseId) addSource(sources, seen, { type: 'skeletal-analysis', id: result.analysis.caseId, route: `/skeletal/report/${encodeURIComponent(result.analysis.caseId)}` })
@@ -138,15 +149,58 @@ function deterministicAnswer(toolName, result) {
   if (result.type === 'SYSTEM_HELP') return result.topic?.summary || 'Verified OAHRIS guidance was retrieved.'
   if (result.type === 'COVERAGE_RESULT') return `Coverage retrieved for ${result.skeletonCode}.`
   if (result.type === 'SITE_RESULTS') return `${(result.records || []).length} matching archaeological site record${result.records?.length === 1 ? '' : 's'} found.`
-  if (result.type === 'SITE_RESULT') return result.status === 'ambiguous' ? 'More than one stored site has that exact name, so no site was guessed.' : `Stored site record retrieved for ${result.site?.siteName || 'the requested site'}.`
-  if (result.type === 'SPECIMEN_CONTEXT') return `Stored excavation and dating context retrieved for ${result.specimen?.specimenId}.`
+  if (result.type === 'SITE_RESULT') {
+    if (result.status === 'ambiguous') return 'I found more than one OAHRIS site record with that name. Please verify which site you mean.'
+    if (result.status === 'reference_only') return `${result.requestedSiteName || 'That site'} is referenced by OAHRIS specimen records, but I could not resolve it to a unique stored site record.`
+    return `Stored site record retrieved for ${result.site?.siteName || 'the requested site'}.`
+  }
+  if (result.type === 'SPECIMEN_CONTEXT') {
+    const siteStatus = result.siteResolution?.status
+    const siteNote = siteStatus && siteStatus !== 'resolved' ? ` Site resolution is ${siteStatus}; no site was guessed.` : ''
+    const datingNote = result.laboratoryDating ? '' : ' There is no laboratory dating information recorded for this specimen.'
+    return `Stored excavation context retrieved for ${result.specimen?.specimenId}.${siteNote}${datingNote}`
+  }
   if (result.type === 'IMAGE_RESULT') return `Stored image detail retrieved for ${result.image?.imageId}.`
   if (result.type === 'SKELETAL_ANALYSIS_RESULT') return `Recorded result produced by the Skeletal Analysis module retrieved for ${result.analysis?.caseId}.`
   if (result.type === 'DATA_QUALITY_RESULT') return `Current completeness and stored measurement-analysis logs retrieved for ${result.specimenId}.`
+  if (toolName === 'get_specimen' && result.records?.[0]) {
+    const specimen = result.records[0]
+    const estimates = [
+      ['age estimate', specimen.recordedAgeEstimate],
+      ['sex estimate', specimen.recordedSexEstimate],
+      ['height estimate', specimen.recordedHeightEstimate],
+    ].filter(([, value]) => value !== null && value !== undefined && value !== '').map(([label, value]) => `${label}: ${value}`)
+    if (estimates.length) return `Values recorded in the specimen record for ${specimen.specimenId}: ${estimates.join('; ')}.`
+  }
   const count = Array.isArray(result.records) ? result.records.length : 0
   if (toolName === 'search_images') return `${count} matching image record${count === 1 ? '' : 's'} found.`
   if (toolName === 'get_measurements') return `${count} measurement record${count === 1 ? '' : 's'} found.`
   return `${count} matching specimen record${count === 1 ? '' : 's'} found.`
+}
+
+function requiresServerSummary(toolName, result) {
+  return (toolName === 'get_site' && result.status !== 'resolved')
+    || (toolName === 'get_specimen_context' && (!result.laboratoryDating || (result.siteResolution?.status && result.siteResolution.status !== 'resolved')))
+    || toolName === 'get_skeletal_analysis_result'
+    || (toolName === 'get_specimen' && result.records?.[0] && ['recordedAgeEstimate', 'recordedSexEstimate', 'recordedHeightEstimate'].some((key) => result.records[0][key] !== null && result.records[0][key] !== undefined))
+}
+
+function answerNumbersAreGrounded(answer, result) {
+  const serialized = JSON.stringify(result)
+  return (answer.match(/\b\d+(?:\.\d+)?\b/g) || []).every((number) => serialized.includes(number))
+}
+
+function groundedSynthesisAnswer(toolName, result, value) {
+  const answer = cleanAnswer(value, '')
+  if (!answer || !answerNumbersAreGrounded(answer, result) || /\b(?:I|Skully|the assistant)\s+(?:estimated|calculated|predicted|inferred|determined|ran|performed)\b/i.test(answer)) return deterministicAnswer(toolName, result)
+  if (toolName === 'get_skeletal_analysis_result' && !(/\brecorded\b/i.test(answer) && /\bSkeletal Analysis module\b/i.test(answer))) return deterministicAnswer(toolName, result)
+  if (toolName === 'get_specimen_data_quality' && !(/\bcurrent\b/i.test(answer) && /\bcompleteness\b/i.test(answer) && (!(result.storedMeasurementAnalysisLogs || []).length || /\bstored\b/i.test(answer)))) return deterministicAnswer(toolName, result)
+  if (toolName === 'get_specimen') {
+    const specimen = result.records?.[0]
+    const hasStoredEstimate = specimen && ['recordedAgeEstimate', 'recordedSexEstimate', 'recordedHeightEstimate'].some((key) => specimen[key] !== null && specimen[key] !== undefined)
+    if (hasStoredEstimate && !/\brecorded in (?:the )?specimen record\b/i.test(answer)) return deterministicAnswer(toolName, result)
+  }
+  return answer
 }
 
 function providerCall(work) {
@@ -200,7 +254,10 @@ function createAssistantOrchestrator({ provider = createAssistantProvider(), too
       if (selection.toolCalls.length > ORCHESTRATION_LIMITS.maxToolCalls) return safeResponse('CLARIFICATION', multiToolClarification(selection.toolCalls), activeProvider, { meta: { code: 'MULTIPLE_ACTIONS_NEED_CLARIFICATION', ...(selection.usage ? { usage: normalizeProviderUsage(selection.usage) } : {}) } })
       if (selection.toolCalls.length === 0) {
         const selectionUsage = normalizeProviderUsage(selection.usage)
-        if (selection.type === PROVIDER_RESULT_TYPES.CLARIFICATION || selection.clarification || selection.answer) return safeResponse('CLARIFICATION', cleanAnswer(selection.clarification || selection.answer, 'Please provide a more specific OAHRIS record or workflow request.'), deterministic ? DETERMINISTIC_PROVIDER : activeProvider, { meta: selectionUsage ? { usage: selectionUsage } : {} })
+        if (selection.type === PROVIDER_RESULT_TYPES.CLARIFICATION || selection.clarification || selection.answer) {
+          const responseType = deterministic && selection.type === 'CONVERSATION' ? 'CONVERSATION' : 'CLARIFICATION'
+          return safeResponse(responseType, cleanClarification(selection.clarification || selection.answer, 'Please provide a more specific OAHRIS record or workflow request.'), deterministic ? DETERMINISTIC_PROVIDER : activeProvider, { meta: selectionUsage ? { usage: selectionUsage } : {} })
+        }
         return safeResponse('UNSUPPORTED_QUERY', 'I could not map that request to a supported read-only OAHRIS operation.', activeProvider, { meta: selectionUsage ? { usage: selectionUsage } : {} })
       }
 
@@ -228,7 +285,11 @@ function createAssistantOrchestrator({ provider = createAssistantProvider(), too
       const serverPresentation = buildPresentation(toolResult)
       const serverSources = buildSources(toolCall.name, toolResult)
       if (hasNoResult(toolResult)) return safeResponse('NOT_FOUND', notFoundAnswer(toolCall.name, toolResult), responseProvider, { presentation: serverPresentation, sources: serverSources, meta: groundedMeta })
-      if (deterministic || SERVER_SUMMARY_TOOLS.has(toolCall.name)) return safeResponse(toolCall.name === 'get_system_help' ? 'SYSTEM_HELP' : 'GROUNDED_ANSWER', deterministicAnswer(toolCall.name, toolResult), DETERMINISTIC_PROVIDER, { presentation: serverPresentation, sources: serverSources, meta: groundedMeta })
+      if (deterministic) return safeResponse(toolCall.name === 'get_system_help' ? 'SYSTEM_HELP' : 'GROUNDED_ANSWER', deterministicAnswer(toolCall.name, toolResult), DETERMINISTIC_PROVIDER, { presentation: serverPresentation, sources: serverSources, meta: groundedMeta })
+      if (requiresServerSummary(toolCall.name, toolResult)) {
+        const selectionUsage = normalizeProviderUsage(selection.usage)
+        return safeResponse('GROUNDED_ANSWER', deterministicAnswer(toolCall.name, toolResult), activeProvider, { presentation: serverPresentation, sources: serverSources, meta: { ...groundedMeta, ...(selectionUsage ? { usage: selectionUsage } : {}) } })
+      }
 
       let synthesis
       try {
@@ -243,7 +304,7 @@ function createAssistantOrchestrator({ provider = createAssistantProvider(), too
       } catch (_) {
         return safeResponse('ERROR', 'OAHRIS Assistant could not produce a grounded response.', activeProvider, { meta: { code: 'PROVIDER_FAILURE', tool: toolCall.name } })
       }
-      const answer = cleanAnswer(synthesis?.answer, 'The requested OAHRIS information was retrieved.')
+      const answer = groundedSynthesisAnswer(toolCall.name, toolResult, synthesis?.answer)
       const usage = combineProviderUsage(selection.usage, synthesis?.usage)
       return safeResponse('GROUNDED_ANSWER', answer, activeProvider, { presentation: serverPresentation, sources: serverSources, meta: { ...groundedMeta, ...(usage ? { usage } : {}) } })
     },

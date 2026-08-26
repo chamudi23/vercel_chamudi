@@ -15,6 +15,7 @@
     "test:assistant-auth": "node scripts/testAssistantAuth.cjs",
     "test:whole-system-retrieval": "node scripts/testWholeSystemRetrieval.mjs",
     "test:assistant-browser-path": "node scripts/testAssistantBrowserPath.mjs",
+    "test:whole-system-routing": "node scripts/testWholeSystemRouting.mjs",
     "verify:skeleton": "node scripts/verifySkeletonMappings.mjs",
     "preview": "vite preview"
   },

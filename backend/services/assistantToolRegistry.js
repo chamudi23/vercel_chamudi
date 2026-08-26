@@ -71,7 +71,7 @@ const TOOL_DEFINITIONS = Object.freeze({
   },
   search_sites: {
     name: 'search_sites',
-    description: 'Search stored archaeological sites using one or more exact descriptive filters. Coordinates are not returned.',
+    description: 'Search stored OAHRIS archaeological site records using one or more controlled descriptive filters. Use this for filtered lists, not for one confidently identified site. Coordinates and spatial calculations are not returned.',
     inputSchema: {
       type: 'object', additionalProperties: false, minProperties: 1,
       properties: {
@@ -82,27 +82,27 @@ const TOOL_DEFINITIONS = Object.freeze({
   },
   get_site: {
     name: 'get_site',
-    description: 'Retrieve one archaeological site by exact site ID or exact site name, with bounded linked specimen summaries.',
+    description: 'Retrieve one exact stored OAHRIS archaeological site record by site ID or exact site name, with bounded linked specimen summaries. Use this as the single default tool for “Tell me about <site name>”, “What do we know about <site name>?”, or “Information about <site name>”. Do not combine it with specimen search for a simple site-description request. Duplicate exact names remain ambiguous.',
     inputSchema: { type: 'object', additionalProperties: false, minProperties: 1, maxProperties: 1, properties: { siteId: textProperty('Exact site identifier.'), siteName: textProperty('Exact site name; duplicate names return an ambiguous result.') } },
   },
   get_specimen_context: {
     name: 'get_specimen_context',
-    description: 'Retrieve bounded stored site resolution, excavation context, and laboratory dating for one exact specimen ID.',
+    description: 'Retrieve recorded site-resolution, excavation, burial-context, and laboratory-dating information for one exact specimen ID. Use this for where-found, excavation, dating, or archaeological-context questions.',
     inputSchema: { type: 'object', additionalProperties: false, required: ['specimenId'], properties: { specimenId: textProperty('Exact specimen identifier.') } },
   },
   get_image: {
     name: 'get_image',
-    description: 'Retrieve one stored image detail record and bounded stored annotations by exact image ID.',
+    description: 'Retrieve one exact stored OAHRIS image record including safe metadata, bounded tags, and bounded structured annotations by image ID.',
     inputSchema: { type: 'object', additionalProperties: false, required: ['imageId'], properties: { imageId: textProperty('Exact image identifier.') } },
   },
   get_skeletal_analysis_result: {
     name: 'get_skeletal_analysis_result',
-    description: 'Retrieve one existing stored Skeletal Analysis result by exact case ID. This tool never computes a prediction.',
+    description: 'Retrieve one existing stored Skeletal Analysis result by exact analysis case ID. This does not perform a new analysis or prediction, and specimen IDs cannot be used as analysis case IDs.',
     inputSchema: { type: 'object', additionalProperties: false, required: ['caseId'], properties: { caseId: textProperty('Exact saved analysis case identifier.') } },
   },
   get_specimen_data_quality: {
     name: 'get_specimen_data_quality',
-    description: 'Retrieve the current deterministic completeness check and stored measurement-analysis logs for one exact specimen ID. Curator access is required.',
+    description: 'Retrieve current OAHRIS completeness information and previously stored measurement-analysis logs for one exact specimen ID. Access is role restricted; this tool does not run anomaly-analysis algorithms.',
     inputSchema: { type: 'object', additionalProperties: false, required: ['specimenId'], properties: { specimenId: textProperty('Exact specimen identifier.') } },
   },
 })
