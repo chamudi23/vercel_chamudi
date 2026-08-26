@@ -45,6 +45,7 @@ const MEASUREMENT_TYPES = [
 ];
 const UNITS = ["mm", "cm", "m"];
 const SITE_FIELDS = ["site_name", "district", "province", "time_period"];
+const BIOLOGICAL_FIELDS = ["age_estimate", "sex_estimate", "height_estimate"];
 const STEPS = [
   "Skeleton & Bone",
   "Site Information",
@@ -213,7 +214,6 @@ function SpecimenFormPage() {
     time_period: "",
     preservation_state: "",
     location_stored: "",
-    burial_context: "",
     notes: "",
     age_estimate: "",
     sex_estimate: "",
@@ -226,7 +226,6 @@ function SpecimenFormPage() {
   );
   const [excavation, setExcavation] = useState({
     excavation_date: "",
-    excavation_phase: "",
     depth_found: "",
     excavator_name: "",
     excavation_notes: "",
@@ -310,7 +309,7 @@ function SpecimenFormPage() {
       const { data, error } = await supabase
         .from("specimens")
         .select(
-          "specimen_id, skeleton_code, bone_type, side, site_name, district, province, time_period, measurements(bone_type)",
+          "specimen_id, skeleton_code, bone_type, side, site_name, district, province, time_period, age_estimate, sex_estimate, height_estimate, measurements(bone_type)",
         )
         .order("skeleton_code", { ascending: true });
       if (!active) return;
@@ -458,6 +457,9 @@ function SpecimenFormPage() {
       district: "",
       province: "",
       time_period: "",
+      age_estimate: "",
+      sex_estimate: "",
+      height_estimate: "",
     }));
     resetBoneMeasurements();
   }
@@ -467,6 +469,7 @@ function SpecimenFormPage() {
   function selectExistingSkeleton(code) {
     const matching = recordsForSkeleton(skeletonRecords, code);
     const sharedSite = {};
+    const sharedBiologicalProfile = {};
     const conflicts = [];
     SITE_FIELDS.forEach((field2) => {
       const distinct = /* @__PURE__ */ new Map();
@@ -480,6 +483,16 @@ function SpecimenFormPage() {
         conflicts.push(`${field2.replace("_", " ")}: ${values.join(" / ")}`);
       sharedSite[field2] = values.length === 1 ? values[0] : "";
     });
+    BIOLOGICAL_FIELDS.forEach((field2) => {
+      const distinct = new Map();
+      matching.forEach((record) => {
+        const value = String(record[field2] ?? "").trim();
+        if (value && !distinct.has(normalize(value)))
+          distinct.set(normalize(value), value);
+      });
+      const values = [...distinct.values()];
+      sharedBiologicalProfile[field2] = values.length === 1 ? values[0] : "";
+    });
     setSiteConflicts(conflicts);
     setErrors((previous) => ({
       ...previous,
@@ -490,6 +503,7 @@ function SpecimenFormPage() {
     setForm((previous) => ({
       ...previous,
       ...sharedSite,
+      ...sharedBiologicalProfile,
       specimen_id: generateSpecimenId(),
       skeleton_code: code,
       bone_type: "",
@@ -829,12 +843,11 @@ function SpecimenFormPage() {
         return;
       }
     }
-    if (excavation.excavation_date || excavation.excavation_phase) {
+    if (excavation.excavation_date || excavation.depth_found || excavation.excavator_name || excavation.excavation_notes) {
       const payload = {
         excavation_id: generateId("EX"),
         specimen_id: specimenId,
         excavation_date: excavation.excavation_date || null,
-        excavation_phase: excavation.excavation_phase,
         depth_found: optionalNumber(excavation.depth_found),
         excavator_name: excavation.excavator_name,
         excavation_notes: excavation.excavation_notes,
@@ -1083,14 +1096,6 @@ function SpecimenFormPage() {
   if (currentStep === 2)
     content = (
       <div className="space-y-4">
-        {skeletonMode === "existing" &&
-          form.skeleton_code &&
-          !siteConflicts.length && (
-            <p className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-xs text-emerald-200">
-              Site Information was loaded from the selected skeleton and is
-              read-only to prevent contradictory records.
-            </p>
-          )}
         {siteConflicts.length > 0 && (
           <div className="rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-sm text-red-100">
             <p className="font-semibold">
@@ -1198,14 +1203,6 @@ function SpecimenFormPage() {
           <FieldError>{errors.location_stored}</FieldError>
         </div>
         <div className="md:col-span-2">
-          {field(
-            "Burial Context",
-            "burial_context",
-            null,
-            "e.g. Primary inhumation",
-          )}
-        </div>
-        <div className="md:col-span-2">
           <label className="mb-1.5 block text-xs uppercase tracking-wider text-white/50">
             Notes
           </label>
@@ -1218,29 +1215,33 @@ function SpecimenFormPage() {
             className={`${inputClass("notes")} resize-none`}
           />
         </div>
-        <div className="md:col-span-2 mt-2 border-t border-white/10 pt-5">
-          <p className="mb-3 text-xs uppercase tracking-widest text-white/30">Biological Profile</p>
-        </div>
-        {field("Age Estimate", "age_estimate", null, "e.g. 30-45 years")}
-        {field("Sex Estimate", "sex_estimate", SEX_ESTIMATE_OPTIONS)}
-        <div>
-          <label className="mb-1.5 block text-xs uppercase tracking-wider text-white/50">Height Estimate (cm)</label>
-          <input
-            name="height_estimate"
-            type="number"
-            min="0"
-            step="0.1"
-            value={form.height_estimate}
-            onChange={handleChange}
-            placeholder="e.g. 168.5"
-            className={inputClass("height_estimate")}
-          />
-        </div>
       </div>
     );
   if (currentStep === 4)
     content = (
       <div>
+        <div className="mb-5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+          <p className="mb-3 text-xs uppercase tracking-[0.2em] text-emerald-300/80">
+            Biological Profile
+          </p>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            {field("Age Estimate", "age_estimate", null, "e.g. 30-45 years")}
+            {field("Sex Estimate", "sex_estimate", SEX_ESTIMATE_OPTIONS)}
+            <div>
+              <label className="mb-1.5 block text-xs uppercase tracking-wider text-white/50">Height Estimate (cm)</label>
+              <input
+                name="height_estimate"
+                type="number"
+                min="0"
+                step="0.1"
+                value={form.height_estimate}
+                onChange={handleChange}
+                placeholder="e.g. 168.5"
+                className={inputClass("height_estimate")}
+              />
+            </div>
+          </div>
+        </div>
         <div className="mb-5 flex items-center justify-between">
           <div>
             <p className="text-sm font-medium">Bone measurements</p>
@@ -1452,7 +1453,6 @@ function SpecimenFormPage() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {[
               ["Excavation Date", "excavation_date", "date"],
-              ["Excavation Phase", "excavation_phase", "text"],
               ["Depth Found (m)", "depth_found", "number"],
               ["Excavator Name", "excavator_name", "text"],
             ].map(([label, name, type]) => (
@@ -1466,9 +1466,7 @@ function SpecimenFormPage() {
                   min={type === "number" ? "0" : void 0}
                   step={name === "depth_found" ? "0.01" : void 0}
                   placeholder={
-                    name === "excavation_phase"
-                      ? "e.g. Phase 1"
-                      : name === "depth_found"
+                    name === "depth_found"
                         ? "e.g. 2.5"
                         : name === "excavator_name"
                           ? "e.g. Ms. Lakshmi"
@@ -1593,13 +1591,12 @@ function SpecimenFormPage() {
             value={form.preservation_state}
           />
           <ReviewField label="Storage Location" value={form.location_stored} />
-          <ReviewField label="Burial Context" value={form.burial_context} />
-          <ReviewField label="Age Estimate" value={form.age_estimate} />
-          <ReviewField label="Sex Estimate" value={form.sex_estimate} />
-          <ReviewField label="Height Estimate (cm)" value={form.height_estimate} />
           <ReviewField label="Notes" value={form.notes} />
         </ReviewSection>
         <ReviewSection title="Measurements" onEdit={() => setCurrentStep(4)}>
+          <ReviewField label="Age Estimate" value={form.age_estimate} />
+          <ReviewField label="Sex Estimate" value={form.sex_estimate} />
+          <ReviewField label="Height Estimate (cm)" value={form.height_estimate} />
           {completedMeasurements.length ? (
             completedMeasurements.map((row, index) => (
               <ReviewField
@@ -1616,10 +1613,6 @@ function SpecimenFormPage() {
           <ReviewField
             label="Excavation Date"
             value={excavation.excavation_date}
-          />
-          <ReviewField
-            label="Excavation Phase"
-            value={excavation.excavation_phase}
           />
           <ReviewField
             label="Depth Found"
