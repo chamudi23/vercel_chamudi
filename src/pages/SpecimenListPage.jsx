@@ -7,18 +7,15 @@ const TIME_PERIODS = [
   "Protohistoric", "Early Historic", "Medieval", "Unknown",
 ];
 
-const PRESERVATION_STATES = [
-  "All", "Excellent", "Good", "Fair", "Poor", "Fragmentary",
-];
-
 export default function SpecimenListPage() {
   const navigate = useNavigate();
   const [specimens, setSpecimens] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [filterSpecimenId, setFilterSpecimenId] = useState("");
+  const [filterSkeletonCode, setFilterSkeletonCode] = useState("");
+  const [filterBoneType, setFilterBoneType] = useState("All");
+  const [filterSite, setFilterSite] = useState("");
   const [filterPeriod, setFilterPeriod] = useState("All");
-  const [filterPreservation, setFilterPreservation] = useState("All");
-  const [filterDistrict, setFilterDistrict] = useState("");
 
   useEffect(() => {
     fetchSpecimens();
@@ -35,16 +32,24 @@ export default function SpecimenListPage() {
     setLoading(false);
   }
 
+  const boneTypeOptions = [
+    "All",
+    ...new Set(specimens.map((s) => s.bone_type).filter(Boolean).sort()),
+  ];
+
   const filtered = specimens.filter((s) => {
-    const matchSearch =
-      !search ||
-      s.specimen_id?.toLowerCase().includes(search.toLowerCase()) ||
-      s.skeleton_code?.toLowerCase().includes(search.toLowerCase()) ||
-      s.site_name?.toLowerCase().includes(search.toLowerCase());
+    const matchSpecimenId =
+      !filterSpecimenId ||
+      s.specimen_id?.toLowerCase().includes(filterSpecimenId.toLowerCase());
+    const matchSkeletonCode =
+      !filterSkeletonCode ||
+      s.skeleton_code?.toLowerCase().includes(filterSkeletonCode.toLowerCase());
+    const matchBoneType = filterBoneType === "All" || s.bone_type === filterBoneType;
+    const matchSite =
+      !filterSite || s.site_name?.toLowerCase().includes(filterSite.toLowerCase());
     const matchPeriod = filterPeriod === "All" || s.time_period === filterPeriod;
-    const matchPreservation = filterPreservation === "All" || s.preservation_state === filterPreservation;
-    const matchDistrict = !filterDistrict || s.district?.toLowerCase().includes(filterDistrict.toLowerCase());
-    return matchSearch && matchPeriod && matchPreservation && matchDistrict;
+
+    return matchSpecimenId && matchSkeletonCode && matchBoneType && matchSite && matchPeriod;
   });
 
   function exportCSV() {
@@ -135,39 +140,67 @@ export default function SpecimenListPage() {
         </div>
 
         {/* Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
-          <input
-            type="text"
-            placeholder="Search ID, code, site..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="bg-[#0f1a14] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:border-emerald-500 transition-colors"
-          />
-          <select
-            value={filterPeriod}
-            onChange={(e) => setFilterPeriod(e.target.value)}
-            className={selectClass}
-          >
-            {TIME_PERIODS.map((t) => (
-              <option key={t} value={t}>{t === "All" ? "All Time Periods" : t}</option>
-            ))}
-          </select>
-          <select
-            value={filterPreservation}
-            onChange={(e) => setFilterPreservation(e.target.value)}
-            className={selectClass}
-          >
-            {PRESERVATION_STATES.map((s) => (
-              <option key={s} value={s}>{s === "All" ? "All Preservation States" : s}</option>
-            ))}
-          </select>
-          <input
-            type="text"
-            placeholder="Filter by district..."
-            value={filterDistrict}
-            onChange={(e) => setFilterDistrict(e.target.value)}
-            className="bg-[#0f1a14] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:border-emerald-500 transition-colors"
-          />
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-6">
+          <div className="space-y-1.5">
+            <label className="block text-[10px] uppercase tracking-[0.18em] text-white/40">Specimen ID</label>
+            <input
+              type="text"
+              placeholder="Filter by ID"
+              value={filterSpecimenId}
+              onChange={(e) => setFilterSpecimenId(e.target.value)}
+              className="w-full bg-[#0f1a14] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:border-emerald-500 transition-colors"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-[10px] uppercase tracking-[0.18em] text-white/40">Skeleton Code</label>
+            <input
+              type="text"
+              placeholder="Filter by code"
+              value={filterSkeletonCode}
+              onChange={(e) => setFilterSkeletonCode(e.target.value)}
+              className="w-full bg-[#0f1a14] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:border-emerald-500 transition-colors"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-[10px] uppercase tracking-[0.18em] text-white/40">Bone Category</label>
+            <select
+              value={filterBoneType}
+              onChange={(e) => setFilterBoneType(e.target.value)}
+              className={selectClass + " w-full"}
+            >
+              {boneTypeOptions.map((boneType) => (
+                <option key={boneType} value={boneType}>
+                  {boneType === "All" ? "All Categories" : boneType}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-[10px] uppercase tracking-[0.18em] text-white/40">Site</label>
+            <input
+              type="text"
+              placeholder="Filter by site"
+              value={filterSite}
+              onChange={(e) => setFilterSite(e.target.value)}
+              className="w-full bg-[#0f1a14] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:border-emerald-500 transition-colors"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-[10px] uppercase tracking-[0.18em] text-white/40">Time Period</label>
+            <select
+              value={filterPeriod}
+              onChange={(e) => setFilterPeriod(e.target.value)}
+              className={selectClass + " w-full"}
+            >
+              {TIME_PERIODS.map((t) => (
+                <option key={t} value={t}>{t === "All" ? "All Periods" : t}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Table */}
