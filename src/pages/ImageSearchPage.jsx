@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Link2, X } from 'lucide-react'
 import { supabase } from '../supabase'
+import { hasStoredImage } from '../lib/imageDocumentationDashboard'
 import {
   CONDITION_OPTIONS,
   IMAGE_TYPE_OPTIONS,
@@ -114,14 +115,17 @@ export default function ImageSearchPage() {
     // Keep records with an uploaded image at the top of the gallery. Metadata-only
     // records remain available below them, ordered by their upload date as usual.
     return matchingImages.sort((first, second) => {
-      const firstHasImage = Boolean(first.image_url || first.file_url)
-      const secondHasImage = Boolean(second.image_url || second.file_url)
+      const firstHasImage = hasStoredImage(first)
+      const secondHasImage = hasStoredImage(second)
 
       if (firstHasImage !== secondHasImage) return firstHasImage ? -1 : 1
 
       return new Date(second.uploaded_at || 0) - new Date(first.uploaded_at || 0)
     })
   }, [filters, images, search])
+
+  const storedImageCount = useMemo(() => images.filter(hasStoredImage).length, [images])
+  const filteredStoredImageCount = useMemo(() => filteredImages.filter(hasStoredImage).length, [filteredImages])
 
   const setFilter = (field, value) => {
     setFilters((current) => ({ ...current, [field]: value }))
@@ -182,7 +186,10 @@ export default function ImageSearchPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-white/35">{filteredImages.length} of {images.length} images</span>
+            <span className="text-sm text-white/35">{filteredImages.length} of {images.length} records &bull; {filteredStoredImageCount} of {storedImageCount} image files</span>
+            <button onClick={() => navigate('/image-dashboard')} className="rounded-xl border border-violet-400/25 bg-violet-500/10 px-4 py-2 text-sm text-violet-100 transition hover:bg-violet-500/20">
+              Documentation Dashboard
+            </button>
             <button onClick={loadImages} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10">
               Refresh
             </button>
@@ -239,7 +246,9 @@ export default function ImageSearchPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filteredImages.map((image) => {
               const tags = image.image_retrieval_tags || []
-              const imageSrc = image.image_url || image.file_url
+              const imageSrc = hasStoredImage(image)
+                ? (String(image.image_url || '').trim() || String(image.file_url || '').trim())
+                : ''
               const skeletonId = skeletonIdFor(image)
 
               return (
@@ -258,7 +267,7 @@ export default function ImageSearchPage() {
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center text-sm text-white/35">
-                        No image URL
+                        Image not attached
                       </div>
                     )}
                   </div>

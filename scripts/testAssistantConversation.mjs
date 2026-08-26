@@ -20,7 +20,8 @@ function setup(providerOptions = {}) {
     getSystemHelp: (query) => { calls.push(['get_system_help', { query }]); return getSystemHelp(query) },
   }
   const provider = createMockProvider(providerOptions)
-  const orchestrator = createAssistantOrchestrator({ provider, toolRegistry: createAssistantToolRegistry(services) })
+  const secured = createAssistantOrchestrator({ provider, toolRegistry: createAssistantToolRegistry(services) })
+  const orchestrator = { respond: (request) => secured.respond({ user: { id: 'test-researcher', role: 'researcher' }, ...request }) }
   return { calls, orchestrator, provider }
 }
 

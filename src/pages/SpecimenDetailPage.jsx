@@ -3,7 +3,6 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../supabase";
 import { analyseBone } from "../api";
 import BoneImageList from "../components/BoneImageList";
-import SiteLocationMiniMap from "../components/SiteLocationMiniMap";
 import {
   PP1_BONE_LABELS,
   allowedSidesForCategory,
@@ -482,6 +481,37 @@ export default function SpecimenDetailPage() {
 
   async function handleDelete() {
     setDeleting(true);
+    const { data: imageRecords, error: imageLoadError } = await supabase
+      .from("bone_images")
+      .select("image_id, image_url, file_url")
+      .eq("specimen_id", id);
+
+    if (imageLoadError) {
+      setDeleting(false);
+      alert("Could not verify linked image records: " + imageLoadError.message);
+      return;
+    }
+
+    const linkedImages = (imageRecords || []).filter(hasStoredImage);
+    if (linkedImages.length > 0) {
+      setDeleting(false);
+      alert("This specimen has linked image evidence. Remove or reassign the linked images before deleting the specimen.");
+      return;
+    }
+
+    const metadataOnlyIds = (imageRecords || []).filter((record) => !hasStoredImage(record)).map((record) => record.image_id);
+    if (metadataOnlyIds.length > 0) {
+      const { error: imageCleanupError } = await supabase
+        .from("bone_images")
+        .delete()
+        .in("image_id", metadataOnlyIds);
+      if (imageCleanupError) {
+        setDeleting(false);
+        alert("Could not remove metadata-only image records: " + imageCleanupError.message);
+        return;
+      }
+    }
+
     await supabase.from("measurements").delete().eq("specimen_id", id);
     await supabase.from("excavation_records").delete().eq("specimen_id", id);
     await supabase.from("laboratory_dating_results").delete().eq("specimen_id", id);

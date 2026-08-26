@@ -27,6 +27,8 @@ function normalizeConversationContext(value) {
 }
 
 function firstCode(text) { return String(text || '').match(/\bSK[-\s]?\d+\b/i)?.[0].replace(/\s+/g, '').toUpperCase() || '' }
+function firstImageId(text) { return String(text || '').match(/\bIMG[-\s]?[A-Z0-9-]+\b/i)?.[0].replace(/\s+/g, '').toUpperCase() || '' }
+function firstAnalysisCaseId(text) { return String(text || '').match(/\bKGC-[A-Z0-9-]+\b/i)?.[0].toUpperCase() || '' }
 function firstSide(text) { return /\bleft\b/i.test(text) ? 'Left' : /\bright\b/i.test(text) ? 'Right' : /\bmidline\b/i.test(text) ? 'Midline' : '' }
 function firstBone(text) {
   const normalized = String(text || '').trim()
@@ -40,6 +42,11 @@ function broadDentalClarification(message) {
 }
 function tool(name, args) { return { type: 'TOOL_SELECTION', toolCalls: [{ name, arguments: args }], deterministic: true } }
 function clarification(answer) { return { type: 'CLARIFICATION', answer, toolCalls: [], deterministic: true } }
+function sitePeriod(message) { return String(message || '').match(/\b(?:find|show|search|list)\s+(?:archaeological\s+|excavation\s+)?sites?\s+(?:from|in|of)\s+(.{1,120}?)\s+period\b/i)?.[1]?.trim() || '' }
+function isBroadSiteRequest(message) {
+  return /\b(?:what|which)\b[\s\S]{0,50}\b(?:archaeological\s+|excavation\s+)?sites?\b[\s\S]{0,30}\bavailable\b/i.test(message)
+    || /\b(?:show|list)\s+(?:me\s+)?(?:the\s+)?(?:available\s+)?(?:archaeological\s+|excavation\s+)?sites?\b[.!?]?$/i.test(message)
+}
 
 function imageFilters(message) {
   const filters = {}
@@ -67,12 +74,25 @@ function resolveConversationTurn({ message, context = {} }) {
   const boneType = firstBone(current)
   const code = firstCode(current)
   const side = firstSide(current)
+  const imageId = firstImageId(current)
+  const caseId = firstAnalysisCaseId(current)
+  const siteId = current.match(/\b(?:show|get|view)\s+site\s+([A-Z0-9][A-Z0-9-]{2,119})\b/i)?.[1] || ''
+  const period = sitePeriod(current)
 
+  if (/^(?:hi|hello|hey|good\s+(?:morning|afternoon|evening))[!. ]*$/i.test(current)) return clarification('Hello! Ask me for a specific OAHRIS record, or ask how to use an OAHRIS workflow.')
   const dentalClarification = broadDentalClarification(current)
   if (dentalClarification) return clarification(dentalClarification)
   if (/\b(?:and|also)\b/i.test(current) && IMAGE_TERMS.test(current) && /\b(upload|attach|how|guide|help)\b/i.test(current)) {
     return clarification('I can help with one part at a time. Should I search the images first, or explain how to upload one?')
   }
+  if (/\b(?:skeletal\s+)?analysis\b/i.test(current) && /\bspecimen\b/i.test(current) && code) return clarification('Stored skeletal analyses cannot currently be looked up by specimen ID. Please provide the exact analysis case ID.')
+  if (/\b(excavation|dating|context)\b/i.test(current) && code) return tool('get_specimen_context', { specimenId: code })
+  if (/\b(data quality|completeness)\b/i.test(current) && code) return tool('get_specimen_data_quality', { specimenId: code })
+  if (IMAGE_TERMS.test(current) && /\b(detail|details|record|show|get|view)\b/i.test(current) && imageId) return tool('get_image', { imageId })
+  if (/\b(?:stored|saved|existing|show|get|view)\b/i.test(current) && /\b(?:skeletal\s+)?analysis\b/i.test(current) && caseId) return tool('get_skeletal_analysis_result', { caseId })
+  if (period) return tool('search_sites', { timePeriod: period })
+  if (siteId) return tool('get_site', { siteId })
+  if (isBroadSiteRequest(current)) return clarification('Which site name, district, province, time period, site type, or risk level would you like me to search?')
   if (isGuidanceRequest(current)) return tool('get_system_help', { query: current })
 
   if (boneType && /\b(which|what)\b[\s\S]{0,30}\b(bone|bone type|skeletal element)\b/i.test(previousAssistant) && IMAGE_TERMS.test(previousUser)) return tool('search_images', { boneType })

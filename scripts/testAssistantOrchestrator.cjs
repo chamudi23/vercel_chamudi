@@ -20,8 +20,9 @@ function services(overrides = {}) {
 function setup(providerOptions = {}, serviceOverrides = {}) {
   const provider = createMockProvider(providerOptions)
   const serviceSet = services(serviceOverrides)
-  const orchestrator = createAssistantOrchestrator({ provider, toolRegistry: createAssistantToolRegistry(serviceSet) })
-  return { provider, serviceSet, orchestrator }
+  const secured = createAssistantOrchestrator({ provider, toolRegistry: createAssistantToolRegistry(serviceSet) })
+  const orchestrator = { respond: (request) => secured.respond({ user: { id: 'test-researcher', role: 'researcher' }, ...request }) }
+  return { provider, serviceSet, orchestrator, secured }
 }
 
 const tests = []
@@ -155,7 +156,7 @@ test('tool descriptions are strict and expose no result limit', async () => {
   const captured = []
   const { orchestrator } = setup({ selectTool: ({ tools }) => { captured.push(...tools); return { type: 'UNSUPPORTED', toolCalls: [] } } })
   await orchestrator.respond({ message: 'A safe but unsupported question.' })
-  assert.equal(captured.length, 6)
+  assert.equal(captured.length, 12)
   for (const tool of captured) { assert.equal(tool.inputSchema.additionalProperties, false); assert.equal(Object.hasOwn(tool.inputSchema.properties, 'limit'), false) }
 })
 

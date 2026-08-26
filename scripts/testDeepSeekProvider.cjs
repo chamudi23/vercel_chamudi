@@ -50,7 +50,8 @@ function integrated(entries, overrides = {}) {
   const captures = []
   const services = serviceSet(overrides.services)
   const provider = createDeepSeekProvider({ apiKey: FAKE_KEY, fetchImpl: queueFetch(entries, captures), timeoutMs: overrides.timeoutMs })
-  const orchestrator = createAssistantOrchestrator({ provider, toolRegistry: createAssistantToolRegistry(services) })
+  const secured = createAssistantOrchestrator({ provider, toolRegistry: createAssistantToolRegistry(services) })
+  const orchestrator = { respond: (request) => secured.respond({ user: { id: 'test-researcher', role: 'researcher' }, ...request }) }
   return { captures, services, provider, orchestrator }
 }
 
@@ -209,7 +210,7 @@ test('request payload is bounded and excludes credentials and backend capabiliti
   assert.equal(captures[0].url, `${DEEPSEEK_DEFAULTS.baseUrl}/chat/completions`)
   assert.equal(captures[0].body.max_tokens, 700)
   assert.equal(captures[0].body.messages.length, 2)
-  assert.equal(captures[0].body.tools.length, 6)
+  assert.equal(captures[0].body.tools.length, 12)
   const payload = JSON.stringify(captures[0].body)
   for (const forbidden of [FAKE_KEY, 'SUPABASE_URL', 'SUPABASE_KEY', 'bone_images', 'service_role', '/sites', 'PostgREST', 'storage.from', 'process.env']) assert.equal(payload.includes(forbidden), false)
   assert.equal(captures[0].options.headers.Authorization, `Bearer ${FAKE_KEY}`)

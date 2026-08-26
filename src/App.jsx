@@ -14,6 +14,7 @@ import SpecimenListPage from "./pages/SpecimenListPage";
 import SpecimenDetailPage from "./pages/SpecimenDetailPage";
 import DataImportPage from "./pages/DataImportPage";
 import DataQualityPage from "./pages/DataQualityPage";
+import ImageDocumentationDashboardPage from './pages/ImageDocumentationDashboardPage'
 import SiteDetailPage from "./pages/SiteDetailPage";
 import AddSitePage from "./pages/AddSitePage";
 import SimilarFindingsPage from "./pages/SimilarFindingsPage";
@@ -83,6 +84,7 @@ function ApplicationRoutes() {
 
       {/* ---------------- Image Documentation ------------------------- */}
       <Route path="/gallery" element={<Auth><ImageSearchPage /></Auth>} />
+      <Route path="/image-dashboard" element={<Auth><ImageDocumentationDashboardPage /></Auth>} />
       <Route path="/search" element={<Auth><ImageSearchPage /></Auth>} />
       <Route path="/image/:imageId" element={<Auth><ImageDetailPage /></Auth>} />
       <Route path="/skeleton" element={<Auth><SkeletonViewerPage /></Auth>} />
