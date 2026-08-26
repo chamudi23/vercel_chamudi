@@ -4,11 +4,13 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowUpRight, BookOpenCheck, Database, ImageIcon, Ruler, ScanLine, Send, ShieldCheck, UserRound } from 'lucide-react'
 import { assistantClient } from '../lib/assistantClient'
 import { parseAssistantIntent } from '../lib/assistantIntent'
+import { deterministicAssistantMessage, selectAssistantPresentation } from '../lib/assistantPresentation'
+import { executeAssistantIntent } from '../lib/assistantRequestRouter'
 import SkullyAvatar from '../components/assistant/SkullyAvatar'
 import SkullyThinking from '../components/assistant/SkullyThinking'
 
 const EXAMPLES = ['Show images of left femur', 'Find specimen SK001', 'How do I add a specimen?', 'How do I use the skeleton viewer?']
-const RESPONSE_LABELS = { SYSTEM_HELP: 'System guidance', CLARIFICATION: 'Clarification', POLICY_REJECTION: 'Read-only policy', NOT_FOUND: 'No matching record', ERROR: 'Unable to complete request' }
+const RESPONSE_LABELS = { SYSTEM_HELP: 'System guidance', SITE_RESULTS: 'Site records', SITE_RESULT: 'Site record', SPECIMEN_CONTEXT: 'Stored context', IMAGE_RESULT: 'Image detail', SKELETAL_ANALYSIS_RESULT: 'Stored analysis', DATA_QUALITY_RESULT: 'Data quality', CLARIFICATION: 'Clarification', POLICY_REJECTION: 'Read-only policy', ACCESS_DENIED: 'Access restricted', NOT_FOUND: 'No matching record', ERROR: 'Unable to complete request' }
 
 function ImageCard({ image, onOpen }) {
   const details = [image.skeletonCode || image.specimenId, image.side, image.imageView, image.condition].filter(Boolean)
@@ -31,28 +33,53 @@ function CoverageCard({ coverage }) {
   return <section className="mt-4 rounded-2xl border border-white/8 bg-slate-950/55 p-4"><div className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl border border-white/6 bg-white/[0.025] p-3"><p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">Recorded categories</p><p className="mt-2 text-2xl font-semibold text-teal-100">{coverage.categoryCoveragePercentage ?? '—'}%</p></div><div className="rounded-xl border border-white/6 bg-white/[0.025] p-3"><p className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">Image documentation</p><p className="mt-2 text-2xl font-semibold text-teal-100">{coverage.imageDocumentationPercentage ?? '—'}%</p></div></div><p className="mt-3 text-xs leading-5 text-slate-400">Coverage describes OAHRIS documentation, not anatomical completeness.</p></section>
 }
 
+function DetailGrid({ rows }) {
+  return <div className="mt-3 grid gap-2 sm:grid-cols-2">{rows.filter(([, value]) => value !== undefined).map(([label, value]) => <div key={label} className="rounded-xl border border-white/6 bg-slate-950/45 px-3 py-2"><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{label}</p><p className="mt-1 text-sm text-slate-200">{value === null || value === '' ? 'Not recorded' : String(value)}</p></div>)}</div>
+}
+
+function SiteResultCard({ result, navigate }) {
+  if (!result) return null
+  if (result.status === 'ambiguous') return <section className="mt-4 rounded-2xl border border-amber-200/15 bg-amber-300/[0.04] p-4 text-sm text-amber-100/80">Multiple sites share that name. Use an exact site ID; Skully did not guess.</section>
+  const site = result.site || result
+  return <section className="mt-4 rounded-2xl border border-white/8 bg-slate-950/55 p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-slate-100">{site.siteName || 'Archaeological site'}</p><p className="mt-1 text-xs text-slate-400">{[site.district, site.province, site.timePeriod].filter(Boolean).join(' · ') || 'Stored OAHRIS site record'}</p></div>{site.siteId && <button onClick={() => navigate(`/parami/site/${encodeURIComponent(site.siteId)}`)} className="text-xs font-semibold text-teal-200">Open site</button>}</div><DetailGrid rows={[["Site type", site.siteType], ["Risk level", site.riskLevel], ["Protected status", site.protectedStatus], ["Linked specimens", result.linkedSpecimens?.length], ["Specimen linkage", result.siteLinkageStatus]]} /></section>
+}
+
+function ContextCard({ context }) {
+  const site = context.siteResolution || {}
+  return <section className="mt-4 rounded-2xl border border-white/8 bg-slate-950/55 p-4"><p className="font-semibold text-slate-100">Specimen context · {context.specimen?.specimenId}</p><DetailGrid rows={[["Site resolution", site.status], ["Site", site.site?.siteName || context.specimen?.siteName], ["Excavation date", context.excavation?.excavationDate], ["Excavation phase", context.excavation?.excavationPhase], ["Dating method", context.laboratoryDating?.method], ["Dating result", context.laboratoryDating?.result], ["BP range", context.laboratoryDating ? [context.laboratoryDating.rangeMinBp, context.laboratoryDating.rangeMaxBp].filter((value) => value !== null).join('–') : null], ["Laboratory", context.laboratoryDating?.laboratory]]} /></section>
+}
+
+function ImageDetailCard({ image, navigate }) {
+  if (!image) return null
+  return <section className="mt-4 rounded-2xl border border-white/8 bg-slate-950/55 p-4"><div className="flex gap-4">{image.imageUrl && <img src={image.imageUrl} alt={image.boneType || 'OAHRIS image'} className="h-24 w-24 rounded-xl object-cover" />}<div className="min-w-0"><p className="font-mono text-sm font-semibold text-teal-100">{image.imageId}</p><p className="mt-1 text-sm text-slate-300">{[image.boneType, image.side, image.imageView].filter(Boolean).join(' · ')}</p><button onClick={() => navigate(`/image/${encodeURIComponent(image.imageId)}`)} className="mt-3 text-xs font-semibold text-teal-200">Open image detail</button></div></div><DetailGrid rows={[["Condition", image.condition], ["Image type", image.imageType], ["Tags", image.tags?.join(', ')], ["Stored annotations", image.annotations?.length], ["Notes", image.notes]]} /></section>
+}
+
+function AnalysisResultCard({ analysis, navigate }) {
+  if (!analysis) return null
+  const predictions = analysis.storedPredictions || {}
+  return <section className="mt-4 rounded-2xl border border-orange-200/15 bg-orange-300/[0.04] p-4"><p className="font-semibold text-orange-50">Stored skeletal analysis · {analysis.caseId}</p><p className="mt-1 text-xs text-orange-100/60">{analysis.resultLabel}</p><DetailGrid rows={[["Bone/type", analysis.recordedInputs?.bonesType || analysis.basicInfo?.bonesType], ["Date", analysis.basicInfo?.analysisDate || analysis.createdAt], ["Recorded sex/gender", predictions.gender || predictions.sex], ["Recorded age range", predictions.ageRange], ["Recorded height/stature", predictions.height || predictions.stature], ["Stored confidence", predictions.confidence]]} /> <button onClick={() => navigate(`/skeletal/report/${encodeURIComponent(analysis.caseId)}`)} className="mt-3 text-xs font-semibold text-orange-200">Open stored report</button></section>
+}
+
+function DataQualityCard({ result }) {
+  if (!result) return null
+  const check = result.currentCompleteness || {}
+  return <section className="mt-4 rounded-2xl border border-emerald-200/15 bg-emerald-300/[0.04] p-4"><p className="font-semibold text-emerald-50">Data quality · {result.specimenId}</p><DetailGrid rows={[["Completeness", `${check.percentage ?? 0}%`], ["Status", check.status], ["Measurements present", check.hasMeasurements ? 'Yes' : 'No'], ["Missing tracked fields", check.missingTrackedFields?.join(', ') || 'None'], ["Stored measurement-analysis logs", result.storedMeasurementAnalysisLogs?.length || 0]]} /><p className="mt-3 text-xs text-slate-400">This is a deterministic completeness check plus stored logs. Skully did not run an anomaly or classification model.</p></section>
+}
+
 function ResultPresentation({ data, navigate }) {
   if (!data) return null
-  return <>{data.helpTopic && <HelpCard topic={data.helpTopic} onNavigate={navigate} />}{data.images && <div className="mt-4 space-y-2">{data.images.length ? data.images.map((row) => <ImageCard key={row.imageId} image={row} onOpen={() => navigate(`/image/${row.imageId}`)} />) : <p className="text-sm text-slate-400">No matching image records found.</p>}</div>}{data.specimens && <div className="mt-4 space-y-2">{data.specimens.length ? data.specimens.map((row) => <SpecimenCard key={row.specimenId} specimen={row} onOpen={() => navigate(`/specimens/${row.specimenId}`)} />) : <p className="text-sm text-slate-400">No matching specimen records found.</p>}</div>}{data.measurements && <div className="mt-4">{data.measurements.length ? <MeasurementList measurements={data.measurements} /> : <p className="text-sm text-slate-400">No measurements are recorded for this specimen.</p>}</div>}{data.coverage && <CoverageCard coverage={data.coverage} />}</>
+  return <>{data.helpTopic && <HelpCard topic={data.helpTopic} onNavigate={navigate} />}{data.images?.length > 0 && <div className="mt-4 space-y-2">{data.images.map((row) => <ImageCard key={row.imageId} image={row} onOpen={() => navigate(`/image/${row.imageId}`)} />)}</div>}{data.specimens?.length > 0 && <div className="mt-4 space-y-2">{data.specimens.map((row) => <SpecimenCard key={row.specimenId} specimen={row} onOpen={() => navigate(`/specimens/${row.specimenId}`)} />)}</div>}{data.sites?.length > 0 && <div className="space-y-2">{data.sites.map((site) => <SiteResultCard key={site.siteId} result={site} navigate={navigate} />)}</div>}{data.site && <SiteResultCard result={data.site} navigate={navigate} />}{data.specimenContext && <ContextCard context={data.specimenContext} />}{data.imageDetail && <ImageDetailCard image={data.imageDetail} navigate={navigate} />}{data.skeletalAnalysis && <AnalysisResultCard analysis={data.skeletalAnalysis} navigate={navigate} />}{data.dataQuality && <DataQualityCard result={data.dataQuality} />}{data.measurements?.length > 0 && <div className="mt-4"><MeasurementList measurements={data.measurements} /></div>}{data.coverage && <CoverageCard coverage={data.coverage} />}</>
 }
 
 function AssistantMessage({ message, navigate }) {
   const isUser = message.role === 'user'
-  const legacyPresentation = message.type === 'SYSTEM_HELP' ? { helpTopic: message.topic } : message.type === 'IMAGE_RESULTS' ? { images: message.records } : message.type === 'SPECIMEN_RESULTS' ? { specimens: message.records } : message.type === 'MEASUREMENT_RESULTS' ? { measurements: message.records } : message.type === 'COVERAGE_RESULT' ? { coverage: message.data } : null
   if (isUser) return <div className="flex justify-end"><div className="max-w-[84%] rounded-2xl rounded-br-md border border-slate-300/20 bg-slate-100 px-4 py-3 text-sm leading-6 text-slate-900 shadow-sm"><p>{message.text}</p></div><UserRound className="ml-3 mt-2 h-5 w-5 shrink-0 text-slate-400" /></div>
-  return <div className="flex items-start gap-3"><SkullyAvatar /><div className="min-w-0 max-w-3xl rounded-2xl rounded-tl-md border border-white/8 bg-slate-900/80 px-4 py-3.5 shadow-[0_12px_30px_rgba(2,6,23,0.2)]"><div className="mb-2 flex flex-wrap items-center gap-2"><p className="text-sm font-semibold text-slate-100">Skully</p>{RESPONSE_LABELS[message.type] && <span className="rounded-full border border-teal-200/15 bg-teal-300/[0.07] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-teal-100/85">{RESPONSE_LABELS[message.type]}</span>}</div><p className="text-sm leading-6 text-slate-300">{message.text}</p><ResultPresentation data={message.presentation || legacyPresentation} navigate={navigate} /></div></div>
+  return <div className="flex items-start gap-3"><SkullyAvatar /><div className="min-w-0 max-w-3xl rounded-2xl rounded-tl-md border border-white/8 bg-slate-900/80 px-4 py-3.5 shadow-[0_12px_30px_rgba(2,6,23,0.2)]"><div className="mb-2 flex flex-wrap items-center gap-2"><p className="text-sm font-semibold text-slate-100">Skully</p>{RESPONSE_LABELS[message.type] && <span className="rounded-full border border-teal-200/15 bg-teal-300/[0.07] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-teal-100/85">{RESPONSE_LABELS[message.type]}</span>}</div><p className="text-sm leading-6 text-slate-300">{message.text}</p><ResultPresentation data={selectAssistantPresentation(message)} navigate={navigate} /></div></div>
 }
 
 function WelcomePanel() {
   const capabilities = [[Database, 'Find OAHRIS records'], [ImageIcon, 'Find skeletal images'], [Ruler, 'Retrieve measurements'], [ScanLine, 'Check documentation coverage'], [BookOpenCheck, 'Explain OAHRIS workflows']]
   return <section className="mx-12 mt-2 rounded-2xl border border-white/8 bg-slate-950/35 p-4 sm:mx-14"><p className="text-sm font-medium text-slate-200">Skully can help you:</p><div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{capabilities.map(([Icon, label]) => <div key={label} className="flex items-center gap-2 text-xs text-slate-400"><Icon className="h-3.5 w-3.5 text-teal-200" />{label}</div>)}</div></section>
-}
-
-function deterministicMessage(data) {
-  if (data.type === 'HELP_NOT_FOUND') return { role: 'assistant', type: data.type, text: "I don't have verified OAHRIS guidance for that workflow yet." }
-  const count = data.records?.length || 0
-  const text = data.type === 'SYSTEM_HELP' ? data.topic.summary : data.type === 'IMAGE_RESULTS' ? `${count} matching image record${count === 1 ? '' : 's'} found.` : data.type === 'SPECIMEN_RESULTS' ? `${count} matching specimen record${count === 1 ? '' : 's'} found.` : data.type === 'MEASUREMENT_RESULTS' ? `${count} measurement record${count === 1 ? '' : 's'} found.` : `Coverage retrieved for ${data.skeletonCode}.`
-  return { role: 'assistant', type: data.type, text, topic: data.topic, records: data.records || [], data }
 }
 
 export default function AIAssistantPage() {
@@ -73,17 +100,14 @@ export default function AIAssistantPage() {
     setMessages((current) => [...current, { role: 'user', text: content }])
     setLoading(true)
     try {
-      let data
-      if (intent.type === 'UNSUPPORTED_QUERY') data = await assistantClient.respond(content, location.pathname, context)
-      else if (intent.type === 'SYSTEM_HELP') data = await assistantClient.getSystemHelp(intent.query, location.pathname)
-      else if (intent.type === 'IMAGE_RESULTS') data = await assistantClient.searchImages(intent.filters)
-      else if (intent.type === 'SPECIMEN_RESULTS') data = await assistantClient.searchSpecimens(intent.filters)
-      else if (intent.type === 'MEASUREMENT_RESULTS') data = await assistantClient.getMeasurements(intent.specimenId)
-      else data = await assistantClient.getSkeletonCoverage(intent.skeletonCode)
-      const nextMessage = intent.type === 'UNSUPPORTED_QUERY' ? { role: 'assistant', type: data.type, text: data.answer, presentation: data.presentation, sources: data.sources, meta: data.meta } : deterministicMessage(data)
+      const data = await executeAssistantIntent(intent, { content, currentRoute: location.pathname, context }, assistantClient)
+      const nextMessage = intent.type === 'UNSUPPORTED_QUERY' ? { role: 'assistant', type: data.type, text: data.answer, presentation: data.presentation, sources: data.sources, meta: data.meta } : deterministicAssistantMessage(data)
       setMessages((current) => [...current, nextMessage])
-    } catch (_) {
-      setMessages((current) => [...current, { role: 'assistant', type: 'ERROR', text: 'OAHRIS Assistant could not complete the request. Please try again.' }])
+    } catch (error) {
+      const restricted = error?.code === 'ACCESS_DENIED'
+      const sessionExpired = error?.code === 'AUTH_REQUIRED' || error?.code === 'AUTH_SESSION_INVALID'
+      const text = restricted || sessionExpired ? error.message : 'OAHRIS Assistant could not complete the request. Please try again.'
+      setMessages((current) => [...current, { role: 'assistant', type: restricted ? 'ACCESS_DENIED' : 'ERROR', text }])
     } finally {
       setLoading(false)
     }

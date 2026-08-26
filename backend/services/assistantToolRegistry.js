@@ -69,6 +69,42 @@ const TOOL_DEFINITIONS = Object.freeze({
     description: 'Retrieve verified OAHRIS workflow help for a user question.',
     inputSchema: { type: 'object', additionalProperties: false, required: ['query'], properties: { query: textProperty('OAHRIS workflow question.') } },
   },
+  search_sites: {
+    name: 'search_sites',
+    description: 'Search stored archaeological sites using one or more exact descriptive filters. Coordinates are not returned.',
+    inputSchema: {
+      type: 'object', additionalProperties: false, minProperties: 1,
+      properties: {
+        siteName: textProperty('Exact site name.'), district: textProperty('Exact district.'), province: textProperty('Exact province.'),
+        timePeriod: textProperty('Exact recorded time period.'), siteType: textProperty('Exact recorded site type.'), riskLevel: textProperty('Exact recorded risk level.'),
+      },
+    },
+  },
+  get_site: {
+    name: 'get_site',
+    description: 'Retrieve one archaeological site by exact site ID or exact site name, with bounded linked specimen summaries.',
+    inputSchema: { type: 'object', additionalProperties: false, minProperties: 1, maxProperties: 1, properties: { siteId: textProperty('Exact site identifier.'), siteName: textProperty('Exact site name; duplicate names return an ambiguous result.') } },
+  },
+  get_specimen_context: {
+    name: 'get_specimen_context',
+    description: 'Retrieve bounded stored site resolution, excavation context, and laboratory dating for one exact specimen ID.',
+    inputSchema: { type: 'object', additionalProperties: false, required: ['specimenId'], properties: { specimenId: textProperty('Exact specimen identifier.') } },
+  },
+  get_image: {
+    name: 'get_image',
+    description: 'Retrieve one stored image detail record and bounded stored annotations by exact image ID.',
+    inputSchema: { type: 'object', additionalProperties: false, required: ['imageId'], properties: { imageId: textProperty('Exact image identifier.') } },
+  },
+  get_skeletal_analysis_result: {
+    name: 'get_skeletal_analysis_result',
+    description: 'Retrieve one existing stored Skeletal Analysis result by exact case ID. This tool never computes a prediction.',
+    inputSchema: { type: 'object', additionalProperties: false, required: ['caseId'], properties: { caseId: textProperty('Exact saved analysis case identifier.') } },
+  },
+  get_specimen_data_quality: {
+    name: 'get_specimen_data_quality',
+    description: 'Retrieve the current deterministic completeness check and stored measurement-analysis logs for one exact specimen ID. Curator access is required.',
+    inputSchema: { type: 'object', additionalProperties: false, required: ['specimenId'], properties: { specimenId: textProperty('Exact specimen identifier.') } },
+  },
 })
 
 function validationError(message, code = 'INVALID_TOOL_ARGUMENTS') {
@@ -88,6 +124,7 @@ function validateToolArguments(name, args) {
   const unknown = keys.filter((key) => !Object.hasOwn(schema.properties, key))
   if (unknown.length) throw validationError('Tool arguments contain unsupported properties.')
   if (schema.minProperties && keys.length < schema.minProperties) throw validationError('At least one search filter is required.')
+  if (schema.maxProperties && keys.length > schema.maxProperties) throw validationError('Too many search identifiers were provided.')
   for (const required of schema.required || []) if (!Object.hasOwn(args, required)) throw validationError(`The ${required} argument is required.`)
   for (const [key, value] of Object.entries(args)) {
     const property = schema.properties[key]
@@ -100,8 +137,9 @@ function validateToolArguments(name, args) {
 function resolveServices(services) {
   if (services) return services
   const queries = require('./oahrisQueries')
+  const wholeSystemQueries = require('./wholeSystemQueries')
   const { getSystemHelp } = require('./helpRetrieval')
-  return { ...queries, getSystemHelp }
+  return { ...queries, ...wholeSystemQueries, getSystemHelp }
 }
 
 function createAssistantToolRegistry(injectedServices) {
@@ -113,15 +151,21 @@ function createAssistantToolRegistry(injectedServices) {
     },
     has(name) { return Object.hasOwn(TOOL_DEFINITIONS, name) },
     validate(name, args) { return validateToolArguments(name, args) },
-    async execute(name, rawArgs) {
+    async execute(name, rawArgs, context = {}) {
       const args = validateToolArguments(name, rawArgs)
       const active = getServices()
-      if (name === 'search_specimens') return active.searchSpecimens(args)
-      if (name === 'get_specimen') return active.getSpecimen(args.specimenId)
-      if (name === 'search_images') return active.searchImages(args)
-      if (name === 'get_measurements') return active.getMeasurements(args.specimenId)
-      if (name === 'get_skeleton_coverage') return active.getSkeletonCoverage(args.skeletonCode)
+      if (name === 'search_specimens') return active.searchSpecimens(args, context.supabase)
+      if (name === 'get_specimen') return active.getSpecimen(args.specimenId, context.supabase)
+      if (name === 'search_images') return active.searchImages(args, context.supabase)
+      if (name === 'get_measurements') return active.getMeasurements(args.specimenId, context.supabase)
+      if (name === 'get_skeleton_coverage') return active.getSkeletonCoverage(args.skeletonCode, context.supabase)
       if (name === 'get_system_help') return active.getSystemHelp(args.query)
+      if (name === 'search_sites') return active.searchSites(args, context.supabase)
+      if (name === 'get_site') return active.getSite(args, context.supabase)
+      if (name === 'get_specimen_context') return active.getSpecimenContext(args.specimenId, context.supabase)
+      if (name === 'get_image') return active.getImage(args.imageId, context.supabase)
+      if (name === 'get_skeletal_analysis_result') return active.getSkeletalAnalysisResult(args.caseId, context.supabase)
+      if (name === 'get_specimen_data_quality') return active.getSpecimenDataQuality(args.specimenId, context.supabase)
       throw validationError('The requested assistant tool is not allowed.', 'TOOL_NOT_ALLOWED')
     },
   }

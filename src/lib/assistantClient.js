@@ -1,7 +1,20 @@
+import { authClient } from './supabaseClients'
+
 const API_BASE = import.meta.env.VITE_ASSISTANT_API_BASE || '/api/assistant'
 
 export class AssistantApiError extends Error {
   constructor(code, message) { super(message); this.name = 'AssistantApiError'; this.code = code }
+}
+
+async function authenticatedHeaders(contentType) {
+  const { data, error } = await authClient.auth.getSession()
+  const accessToken = data?.session?.access_token
+  if (error || !accessToken) throw new AssistantApiError('AUTH_SESSION_INVALID', 'Your OAHRIS session has expired. Please sign in again.')
+  return {
+    Accept: 'application/json',
+    ...(contentType ? { 'Content-Type': contentType } : {}),
+    Authorization: `Bearer ${accessToken}`,
+  }
 }
 
 async function request(path, filters) {
@@ -10,8 +23,9 @@ async function request(path, filters) {
   const url = `${API_BASE}${path}${params.size ? `?${params}` : ''}`
   let response
   try {
-    response = await fetch(url, { headers: { Accept: 'application/json' } })
+    response = await fetch(url, { headers: await authenticatedHeaders() })
   } catch (error) {
+    if (error instanceof AssistantApiError) throw error
     if (import.meta.env.DEV) console.error('[OAHRIS Assistant] Network request failed.', { url, error })
     throw new AssistantApiError('NETWORK_ERROR', 'The OAHRIS Assistant service could not be reached.')
   }
@@ -31,8 +45,9 @@ async function post(path, payload) {
   const url = `${API_BASE}${path}`
   let response
   try {
-    response = await fetch(url, { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+    response = await fetch(url, { method: 'POST', headers: await authenticatedHeaders('application/json'), body: JSON.stringify(payload) })
   } catch (error) {
+    if (error instanceof AssistantApiError) throw error
     if (import.meta.env.DEV) console.error('[OAHRIS Assistant] Network request failed.', { url, error })
     throw new AssistantApiError('NETWORK_ERROR', 'The OAHRIS Assistant service could not be reached.')
   }
@@ -49,5 +64,11 @@ export const assistantClient = {
   searchImages: (filters) => request('/images', filters),
   getSkeletonCoverage: (code) => request(`/skeletons/${encodeURIComponent(code)}/coverage`),
   getSystemHelp: (query, currentRoute) => request('/help', { q: query, currentRoute }),
+  searchSites: (filters) => request('/sites', filters),
+  getSite: (siteId) => request(`/sites/${encodeURIComponent(siteId)}`),
+  getSpecimenContext: (specimenId) => request(`/specimens/${encodeURIComponent(specimenId)}/context`),
+  getImage: (imageId) => request(`/images/${encodeURIComponent(imageId)}`),
+  getSkeletalAnalysisResult: (caseId) => request(`/analyses/${encodeURIComponent(caseId)}`),
+  getSpecimenDataQuality: (specimenId) => request(`/specimens/${encodeURIComponent(specimenId)}/data-quality`),
   respond: (message, currentRoute, context) => post('/respond', { message, currentRoute, context }),
 }

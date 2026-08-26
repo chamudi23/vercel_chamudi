@@ -1,12 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
+import { TRACKED_SPECIMEN_FIELDS, calculateSpecimenCompleteness } from "../lib/dataQuality";
 
-const TRACKED_FIELDS = [
-  "site_name", "district", "province", "excavation_year",
-  "time_period", "preservation_state", "location_stored",
-  "burial_context", "notes",
-];
+const TRACKED_FIELDS = TRACKED_SPECIMEN_FIELDS;
 
 export default function DataQualityPage() {
   const navigate = useNavigate();
@@ -32,10 +29,7 @@ export default function DataQualityPage() {
 
   // Completeness per specimen
   function getCompleteness(specimen) {
-    const filled = TRACKED_FIELDS.filter(
-      (f) => specimen[f] !== null && specimen[f] !== undefined && specimen[f] !== ""
-    ).length;
-    return Math.round((filled / TRACKED_FIELDS.length) * 100);
+    return calculateSpecimenCompleteness(specimen);
   }
 
   const totalSpecimens = specimens.length;
