@@ -12,14 +12,14 @@ export const SKELETAL_INPUT_FIELD_DEFINITIONS = {
   Pelvis: [
     { field: 'subpubic_angle', label: 'Subpubic Angle', type: 'select', options: ['Wide >90°', 'Narrow <90°'] },
     { field: 'sciatic_notch_width', label: 'Sciatic Notch Width', type: 'select', options: ['Wide', 'Narrow'] },
-    { field: 'pelvic_inlet_shape', label: 'Pelvic Inlet Shape', type: 'text' },
+    { field: 'pelvic_inlet_shape', label: 'Pelvic Inlet Shape', type: 'select', options: ['Gynecoid (Round or slightly oval)', 'Android (Heart shaped or wedge shaped)', 'Anthropoid (Upright oval or egg-shaped)', 'Platypelloid (Flattened oval)'] },
     { field: 'pubic_symphysis_stage', label: 'Pubic Symphysis Stage', type: 'select', options: ['Smooth / Flat', 'Moderate / Flat Ridges', 'Rough / Granular', 'Degenerated / Eroded'] },
     { field: 'pelvis_size', label: 'Pelvis Size', type: 'text' },
   ],
   Pubis: [
     { field: 'subpubic_angle', label: 'Subpubic Angle', type: 'select', options: ['Wide >90°', 'Narrow <90°'] },
     { field: 'sciatic_notch_width', label: 'Sciatic Notch Width', type: 'select', options: ['Wide', 'Narrow'] },
-    { field: 'pelvic_inlet_shape', label: 'Pelvic Inlet Shape', type: 'text' },
+    { field: 'pelvic_inlet_shape', label: 'Pelvic Inlet Shape', type: 'select', options: ['Gynecoid (Round or slightly oval)', 'Android (Heart shaped or wedge shaped)', 'Anthropoid (Upright oval or egg-shaped)', 'Platypelloid (Flattened oval)'] },
     { field: 'pubic_symphysis_stage', label: 'Pubic Symphysis Stage', type: 'select', options: ['Smooth / Flat', 'Moderate / Flat Ridges', 'Rough / Granular', 'Degenerated / Eroded'] },
     { field: 'pelvis_size', label: 'Pelvis Size', type: 'text' },
   ],

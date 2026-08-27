@@ -17,8 +17,24 @@ test('skull fields are exposed for Skull specimens', () => {
 test('pelvis fields are exposed for Pelvis and Pubis', () => {
   const pelvis = getRelevantSkeletalInputFields('Pelvis');
   const pubis = getRelevantSkeletalInputFields('Pubis');
+  const pelvicInletShape = pelvis.find((field) => field.field === 'pelvic_inlet_shape');
   assert.ok(pelvis.some((field) => field.field === 'subpubic_angle'));
+  assert.equal(pelvicInletShape.type, 'select');
+  assert.deepEqual(pelvicInletShape.options, [
+    'Gynecoid (Round or slightly oval)',
+    'Android (Heart shaped or wedge shaped)',
+    'Anthropoid (Upright oval or egg-shaped)',
+    'Platypelloid (Flattened oval)',
+  ]);
   assert.ok(pubis.some((field) => field.field === 'pelvis_size'));
+});
+
+test('pelvic inlet shape is stored in skeletal input payload', () => {
+  assert.deepEqual(buildSkeletalInputPayload('Pelvis', {
+    pelvic_inlet_shape: 'Gynecoid (Round or slightly oval)',
+  }), {
+    pelvic_inlet_shape: 'Gynecoid (Round or slightly oval)',
+  });
 });
 
 test('general bone measurements do not create skeletal input payloads', () => {
