@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
+  BookOpen,
   Brain,
   Camera,
   ChevronDown,
@@ -10,12 +11,16 @@ import {
   Image as ImageIcon,
   Layers3,
   Map,
+  MapPin,
+  Search,
   ShieldCheck,
+  X,
 } from 'lucide-react'
+import SkullyAvatar from '../components/assistant/SkullyAvatar'
+import excavationHero from '../assets/oahris-excavation-hero.png'
 
 const imageUrls = {
-  hero:
-    'https://images.pexels.com/photos/33171754/pexels-photo-33171754.jpeg?auto=compress&cs=tinysrgb&w=2400',
+  hero: excavationHero,
   lab:
     'https://images.unsplash.com/photo-1639772823849-6efbd173043c?auto=format&fit=crop&q=80&w=1600',
   sriLankaRuins:
@@ -126,6 +131,142 @@ const galleryImages = [
     image: imageUrls.labAnalytics,
   },
 ]
+
+const skullyQuickActions = [
+  { label: 'Find a specimen', to: '/specimens', icon: Search },
+  { label: 'Explore a site', to: '/parami/home', icon: MapPin },
+  { label: 'Learn a workflow', to: '/skeletal/knowledge', icon: BookOpen },
+]
+
+function SkullyLauncher() {
+  const [isOpen, setIsOpen] = useState(false)
+  const [showCallout, setShowCallout] = useState(true)
+  const launcherRef = useRef(null)
+
+  useEffect(() => {
+    if (!isOpen) return undefined
+
+    const closeOnOutsideClick = (event) => {
+      if (!launcherRef.current?.contains(event.target)) setIsOpen(false)
+    }
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setIsOpen(false)
+    }
+
+    document.addEventListener('pointerdown', closeOnOutsideClick)
+    document.addEventListener('keydown', closeOnEscape)
+
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [isOpen])
+
+  return (
+    <div ref={launcherRef} className="fixed bottom-5 right-4 z-[60] sm:bottom-7 sm:right-7">
+      {isOpen && (
+        <section
+          id="skully-launcher-panel"
+          className="mb-3 w-[calc(100vw-2rem)] max-w-[22rem] overflow-hidden rounded-2xl border border-teal-300/15 bg-slate-950/95 shadow-2xl shadow-black/50 backdrop-blur-xl"
+          aria-label="Skully quick assistant"
+        >
+          <div className="flex items-start justify-between gap-3 border-b border-white/[0.07] px-4 py-4">
+            <div className="flex items-center gap-3">
+              <SkullyAvatar size="medium" />
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="font-semibold text-slate-100">Skully</h2>
+                  <span className="rounded-full bg-teal-300/[0.1] px-2 py-0.5 text-[10px] font-medium text-teal-100">
+                    OAHRIS Model 1.1
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-teal-200/75">Research assistant</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition hover:bg-white/5 hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+              aria-label="Close Skully panel"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="p-4">
+            <p className="text-sm leading-6 text-slate-300">
+              Hi, I’m Skully. I can help you explore OAHRIS records and workflows.
+            </p>
+            <div className="mt-4 grid gap-2">
+              {skullyQuickActions.map((action) => (
+                <Link
+                  key={action.label}
+                  to={action.to}
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.025] px-3 py-2.5 text-sm text-slate-300 transition hover:border-teal-300/20 hover:bg-teal-300/[0.07] hover:text-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+                >
+                  <action.icon className="h-4 w-4 text-teal-300" aria-hidden="true" />
+                  <span>{action.label}</span>
+                </Link>
+              ))}
+            </div>
+            <Link
+              to="/ai-assistant"
+              onClick={() => setIsOpen(false)}
+              className="mt-4 flex items-center justify-between rounded-xl bg-teal-300 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-teal-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-100 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+            >
+              <span>Open AI Assistant</span>
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          </div>
+        </section>
+      )}
+
+      {showCallout && !isOpen && (
+        <section className="relative mb-3 w-[17.5rem] rounded-2xl border border-teal-300/20 bg-slate-950/95 px-4 py-3.5 shadow-xl shadow-black/45 backdrop-blur-xl" aria-label="Skully assistant introduction">
+          <div className="absolute -bottom-1 right-6 h-3 w-3 rotate-45 border-b border-r border-teal-300/20 bg-slate-950" aria-hidden="true" />
+          <button
+            type="button"
+            onClick={() => setShowCallout(false)}
+            className="absolute right-2 top-2 inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition hover:bg-white/5 hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+            aria-label="Dismiss Skully introduction"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+          <p className="pr-7 text-sm font-medium text-slate-100">Hi, I’m Skully — your AI assistant.</p>
+          <p className="mt-1 text-xs leading-5 text-slate-400">Ask about specimens, sites, or workflows.</p>
+          <Link
+            to="/ai-assistant"
+            className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-teal-200 transition hover:text-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+          >
+            <span>Open assistant</span>
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+          </Link>
+        </section>
+      )}
+
+      <div className="group relative ml-auto w-fit">
+        <span className="pointer-events-none absolute right-0 top-1/2 mr-[4.5rem] -translate-y-1/2 whitespace-nowrap rounded-lg border border-white/10 bg-slate-950 px-2.5 py-1.5 text-xs font-medium text-slate-200 opacity-0 shadow-lg transition group-hover:opacity-100 group-focus-within:opacity-100">
+          Ask Skully
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            setShowCallout(false)
+            setIsOpen((open) => !open)
+          }}
+          className="relative inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-teal-300/25 bg-slate-950/95 shadow-xl shadow-black/40 transition hover:-translate-y-0.5 hover:border-teal-300/45 hover:bg-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300 sm:h-16 sm:w-16"
+          aria-label={isOpen ? 'Close Skully assistant' : 'Ask Skully'}
+          aria-expanded={isOpen}
+          aria-controls="skully-launcher-panel"
+        >
+          <span className="pointer-events-none absolute inset-1 rounded-[0.9rem] border border-teal-300/10 motion-safe:animate-pulse" aria-hidden="true" />
+          <SkullyAvatar size="medium" />
+        </button>
+      </div>
+    </div>
+  )
+}
 
 function Reveal({ children, className = '', delay = 0, immediate = false }) {
   const ref = useRef(null)
@@ -316,8 +457,9 @@ function HomePage() {
           style={{ transform: `translateY(${heroOffset}px) scale(1.06)` }}
           aria-hidden="true"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0a0f1a]/65 via-[#0a0f1a]/72 to-[#0a0f1a]" />
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(180deg,rgba(255,255,255,0.035)_1px,transparent_1px)] bg-[size:72px_72px] opacity-25" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0a0f1a]/48 via-[#0a0f1a]/58 to-[#0a0f1a]/72" />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px),linear-gradient(180deg,rgba(255,255,255,0.035)_1px,transparent_1px)] bg-[size:72px_72px] opacity-15" />
+        <div className="absolute inset-x-0 bottom-0 z-[5] h-44 bg-gradient-to-b from-transparent via-[#0a0f1a]/80 to-[#0a0f1a]" aria-hidden="true" />
 
         <div className="relative z-10 mx-auto w-full max-w-5xl text-center">
           <Reveal immediate>
@@ -360,7 +502,7 @@ function HomePage() {
         </a>
       </section>
 
-      <section id="modules" className="relative px-5 py-20 sm:px-8">
+      <section id="modules" className="relative z-10 -mt-12 px-5 pb-20 pt-24 sm:px-8">
         <div className="mx-auto max-w-6xl">
           <Reveal className="mx-auto max-w-3xl text-center">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-300/70">System Modules</p>
@@ -411,6 +553,8 @@ function HomePage() {
           </div>
         </div>
       </section>
+
+      <SkullyLauncher />
 
     </main>
   )

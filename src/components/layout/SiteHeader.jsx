@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Menu, X } from 'lucide-react'
+import { LogOut, Menu, X } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 
 /**
@@ -14,20 +14,19 @@ const navigation = [
   { label: 'Home', to: '/app', end: true },
   { label: 'Specimen Records', to: '/specimens' },
   { label: 'Skeletal Analysis', to: '/skeletal' },
-  { label: 'Spatial Analysis', to: '/parami' },
+  { label: 'GIS', to: '/parami' },
   { label: 'Image Library', to: '/gallery', related: ['/image/', '/upload', '/search'] },
   { label: 'Skeleton Viewer', to: '/skeleton' },
   { label: 'Data Quality', to: '/data-quality', requires: 'curator' },
-  { label: 'Research Assistant', to: '/ai-assistant' },
   { label: 'Users', to: '/admin/users', requires: 'admin' },
 ]
 
 function navClass({ isActive }) {
   return [
-    'rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950',
+    'inline-flex items-center rounded-lg px-2.5 py-2 text-[13px] font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 min-[1100px]:px-1.5 min-[1100px]:text-[12px] min-[1280px]:px-2 min-[1280px]:text-[13px]',
     isActive
       ? 'bg-emerald-400/10 text-emerald-300'
-      : 'text-slate-300 hover:bg-white/5 hover:text-white',
+      : 'text-slate-300 hover:bg-emerald-400/[0.07] hover:text-slate-100',
   ].join(' ')
 }
 
@@ -46,9 +45,9 @@ function UserChip({ onNavigate }) {
   const name = profile?.full_name || user.email?.split('@')[0] || 'Account'
 
   return (
-    <div className="flex items-center gap-3">
-      <div className="hidden text-right sm:block">
-        <span className="block max-w-[14rem] truncate text-sm text-slate-200">{name}</span>
+    <div className="flex items-center gap-2.5">
+      <div className="hidden min-w-0 text-right sm:block">
+        <span className="block max-w-[9.5rem] truncate text-sm font-medium text-slate-200">{name}</span>
         {role && (
           <span
             className={`mt-0.5 inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${ROLE_STYLE[role]}`}
@@ -57,6 +56,7 @@ function UserChip({ onNavigate }) {
           </span>
         )}
       </div>
+      <div className="hidden h-7 w-px bg-white/10 sm:block" aria-hidden="true" />
       <button
         type="button"
         onClick={async () => {
@@ -64,9 +64,10 @@ function UserChip({ onNavigate }) {
           await signOut()
           navigate('/', { replace: true })
         }}
-        className="rounded-md border border-white/10 px-3 py-2 text-sm text-slate-300 transition hover:border-red-400/40 hover:bg-white/5 hover:text-white"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-sm text-slate-300 transition hover:border-emerald-400/35 hover:bg-emerald-400/[0.07] hover:text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
       >
-        Sign out
+        <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+        <span>Sign out</span>
       </button>
     </div>
   )
@@ -88,30 +89,31 @@ export default function SiteHeader() {
   })
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-slate-950/95 shadow-lg shadow-black/20 backdrop-blur-xl">
-      <div className="mx-auto flex min-h-16 max-w-7xl items-center justify-between gap-6 px-5 py-3 sm:px-8">
+    <header className="sticky top-0 z-50 border-b border-white/[0.09] bg-slate-950/95 shadow-md shadow-black/20 backdrop-blur-xl">
+      <div className="mx-auto flex min-h-[4.75rem] max-w-[120rem] items-center gap-2.5 px-5 py-2 sm:px-6">
         <Link
           to={isAuthenticated ? '/app' : '/'}
-          className="min-w-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+          className="shrink-0 rounded-md leading-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 min-[1100px]:w-48"
           onClick={() => setMenuOpen(false)}
         >
-          <span className="block text-xl font-bold tracking-wide text-blue-400">OAHRIS</span>
-          <span className="hidden text-xs text-slate-400 sm:block">
-            Osteoarchaeological Research Information System
+          <span className="block text-lg font-extrabold tracking-[0.08em] text-emerald-300">OAHRIS</span>
+          <span className="mt-0.5 hidden text-[11px] tracking-wide sm:block">
+            <span className="text-slate-400">Osteoarchaeological Research</span>{' '}
+            <span className="text-emerald-300">Information System</span>
           </span>
         </Link>
 
         {isAuthenticated && (
-          <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary navigation">
+          <nav className="hidden min-w-0 flex-1 items-center justify-center gap-0.5 border-l border-white/[0.07] pl-2.5 min-[1100px]:flex" aria-label="Primary navigation">
             {visible.map((item) => (
               <NavLink key={item.to} to={item.to} end={item.end} className={itemClass(item)}>
-                {item.label}
+                <span>{item.label}</span>
               </NavLink>
             ))}
           </nav>
         )}
 
-        <div className="flex items-center gap-3">
+        <div className="ml-auto flex shrink-0 items-center gap-2.5">
           {isAuthenticated ? (
             <UserChip onNavigate={() => setMenuOpen(false)} />
           ) : (
@@ -126,7 +128,7 @@ export default function SiteHeader() {
           {isAuthenticated && (
             <button
               type="button"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-white/10 text-slate-200 transition hover:border-emerald-400/40 hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 lg:hidden"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 text-slate-200 transition hover:border-emerald-400/40 hover:bg-emerald-400/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 min-[1100px]:hidden"
               aria-expanded={menuOpen}
               aria-controls="mobile-navigation"
               aria-label={menuOpen ? 'Close navigation menu' : 'Open navigation menu'}
@@ -139,8 +141,8 @@ export default function SiteHeader() {
       </div>
 
       {menuOpen && isAuthenticated && (
-        <nav id="mobile-navigation" className="border-t border-white/10 px-5 py-3 lg:hidden" aria-label="Mobile navigation">
-          <div className="mx-auto grid max-w-7xl gap-1">
+        <nav id="mobile-navigation" className="border-t border-white/10 px-5 py-3 min-[1100px]:hidden" aria-label="Mobile navigation">
+          <div className="mx-auto grid max-w-[120rem] gap-1 sm:grid-cols-2">
             {visible.map((item) => (
               <NavLink
                 key={item.to}
@@ -149,7 +151,7 @@ export default function SiteHeader() {
                 className={itemClass(item)}
                 onClick={() => setMenuOpen(false)}
               >
-                {item.label}
+                <span>{item.label}</span>
               </NavLink>
             ))}
           </div>
