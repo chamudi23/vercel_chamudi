@@ -92,6 +92,23 @@ function moduleGuidanceQuery(message) {
   return 'How do I run a Skeletal Analysis for age, sex, stature, or biological-profile output?'
 }
 
+function systemKnowledgeQuery(message, context = {}) {
+  const current = String(message || '').trim()
+  const previousUser = context.previousUserMessage || ''
+  const previousAssistant = context.previousAssistantMessage || ''
+  const catalogueContext = /\b(?:skeletal|bone)\s+(?:catalogue|categories|types)\b|\bcanonical skeletal categories\b/i.test(`${previousUser} ${previousAssistant}`)
+  if (/^(?:what are they|which are they|list them|what are those|which ones)[?.!]*$/i.test(current) && catalogueContext) return 'What skeletal categories does OAHRIS support?'
+  if (/\b(?:what (?:are )?(?:the )?things (?:do )?you know|what do you know)\b[\s\S]{0,40}\b(?:oahris|this system|the system)\b/i.test(current)) return current
+  if (/\b(?:what is|tell me about|describe|overview of|what can)\b[\s\S]{0,30}\bOAHRIS\b|\bwhat can OAHRIS do\b/i.test(current)) return current
+  if (/\b(?:what|which|list)\b[\s\S]{0,30}\b(?:modules?|areas?)\b[\s\S]{0,30}\b(?:OAHRIS|available|have|include)\b/i.test(current)) return current
+  if (/\b(?:what can (?:you|skully)|what does skully|assistant capabilities|your limitations|assistant limitations|what can(?:not|'t) (?:you|skully))\b/i.test(current)) return current
+  if (/\b(?:how many|what|which|list|supported)\b[\s\S]{0,35}\b(?:skeletal|bone)\s+(?:catalogue|categories|types)\b|\b(?:what|which|list)\b[\s\S]{0,20}\bsupported bones\b|\bwhat bones does OAHRIS support\b/i.test(current)) return current
+  if (/\b(?:what|which)\b[\s\S]{0,25}\b(?:roles?|permissions?|access levels?)\b[\s\S]{0,25}\b(?:OAHRIS|available|have|support)|\broles? and access\b/i.test(current)) return current
+  const area = '(?:specimen records?|spatial analysis|image library|skeleton viewer|skeletal analysis|data quality|research assistant)'
+  if (new RegExp(`\\b(?:what is|what does|tell me (?:more )?about|describe|purpose of|what about)\\b[\\s\\S]{0,30}\\b${area}\\b`, 'i').test(current)) return current
+  return ''
+}
+
 function imageFilters(message) {
   const filters = {}
   const boneType = firstBone(message); const side = firstSide(message); const code = firstCode(message)
@@ -128,6 +145,8 @@ function resolveConversationTurn({ message, context = {} }) {
   if (social) return conversation(social)
   const moduleQuery = moduleGuidanceQuery(current)
   if (moduleQuery) return tool('get_system_help', { query: moduleQuery })
+  const knowledgeQuery = systemKnowledgeQuery(current, context)
+  if (knowledgeQuery) return tool('search_system_knowledge', { query: knowledgeQuery })
   const dentalClarification = broadDentalClarification(current)
   if (dentalClarification) return clarification(dentalClarification)
   if (/\b(?:and|also)\b/i.test(current) && IMAGE_TERMS.test(current) && /\b(upload|attach|how|guide|help)\b/i.test(current)) {

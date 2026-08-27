@@ -16,6 +16,7 @@
     "test:whole-system-retrieval": "node scripts/testWholeSystemRetrieval.mjs",
     "test:assistant-browser-path": "node scripts/testAssistantBrowserPath.mjs",
     "test:whole-system-routing": "node scripts/testWholeSystemRouting.mjs",
+    "test:system-knowledge": "node scripts/testSystemKnowledge.mjs",
     "verify:skeleton": "node scripts/verifySkeletonMappings.mjs",
     "preview": "vite preview"
   },

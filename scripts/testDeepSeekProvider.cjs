@@ -33,6 +33,7 @@ function serviceSet(overrides = {}) {
     getMeasurements: async (id) => { calls.push(['get_measurements', { specimenId: id }]); return { type: 'MEASUREMENT_RESULTS', specimen: { specimenId: id }, records: [{ measurementId: 'M-1', specimenId: id, value: null, unit: 'mm' }] } },
     getSkeletonCoverage: async (code) => { calls.push(['get_skeleton_coverage', { skeletonCode: code }]); return { type: 'COVERAGE_RESULT', skeletonCode: code, categoryCoveragePercentage: 25, imageDocumentationPercentage: 50, groups: [] } },
     getSystemHelp: (query) => { calls.push(['get_system_help', { query }]); return { type: 'SYSTEM_HELP', topic: { id: 'skeleton-viewer', title: 'Skeleton viewer', summary: 'Verified help.', steps: [], routes: [{ label: 'Open', path: '/skeleton' }] } } },
+    searchSystemKnowledge: async (query) => { calls.push(['search_system_knowledge', { query }]); return { type: 'SYSTEM_KNOWLEDGE', sections: [{ id: 'system-overview', title: 'OAHRIS overview', summary: 'Verified OAHRIS overview.' }] } },
     searchSites: async (args) => { calls.push(['search_sites', args]); return { type: 'SITE_RESULTS', records: [{ siteId: 'SITE-1', siteName: 'Anuradhapura', timePeriod: args.timePeriod }] } },
     getSite: async (args) => { calls.push(['get_site', args]); return { type: 'SITE_RESULT', status: 'resolved', site: { siteId: 'SITE-1', siteName: args.siteName || args.siteId }, linkedSpecimens: [] } },
     getSpecimenContext: async (id) => { calls.push(['get_specimen_context', { specimenId: id }]); return { type: 'SPECIMEN_CONTEXT', specimen: { specimenId: id }, siteResolution: { status: 'resolved' }, excavation: { excavationDate: '2020-01-01' }, laboratoryDating: { method: 'Radiocarbon', result: 'Recorded date' } } },
@@ -64,7 +65,7 @@ function integrated(entries, overrides = {}) {
 const tests = []
 function test(name, fn) { tests.push({ name, fn }) }
 
-for (const name of ['search_images', 'search_specimens', 'get_specimen', 'get_measurements', 'get_skeleton_coverage', 'get_system_help', 'search_sites', 'get_site', 'get_specimen_context', 'get_image', 'get_skeletal_analysis_result', 'get_specimen_data_quality']) {
+for (const name of ['search_images', 'search_specimens', 'get_specimen', 'get_measurements', 'get_skeleton_coverage', 'get_system_help', 'search_system_knowledge', 'search_sites', 'get_site', 'get_specimen_context', 'get_image', 'get_skeletal_analysis_result', 'get_specimen_data_quality']) {
   test(`valid ${name} tool call is normalized`, async () => {
     const { provider } = providerWith([response(selections[name])])
     const selected = await provider.selectTool(selectionContext)
@@ -294,7 +295,7 @@ test('request payload is bounded and excludes credentials and backend capabiliti
   assert.equal(captures[0].url, `${DEEPSEEK_DEFAULTS.baseUrl}/chat/completions`)
   assert.equal(captures[0].body.max_tokens, 700)
   assert.equal(captures[0].body.messages.length, 2)
-  assert.equal(captures[0].body.tools.length, 12)
+  assert.equal(captures[0].body.tools.length, 13)
   const payload = JSON.stringify(captures[0].body)
   for (const forbidden of [FAKE_KEY, 'SUPABASE_URL', 'SUPABASE_KEY', 'bone_images', 'service_role', '/sites', 'PostgREST', 'storage.from', 'process.env']) assert.equal(payload.includes(forbidden), false)
   assert.equal(captures[0].options.headers.Authorization, `Bearer ${FAKE_KEY}`)

@@ -39,8 +39,8 @@ function setup({ role = 'researcher', services: serviceOverrides = {}, provider:
 const tests = []
 const test = (name, fn) => tests.push({ name, fn })
 
-test('all twelve provider definitions remain strict and implementation-free', () => {
-  assert.equal(Object.keys(TOOL_DEFINITIONS).length, 12)
+test('all thirteen provider definitions remain strict and implementation-free', () => {
+  assert.equal(Object.keys(TOOL_DEFINITIONS).length, 13)
   for (const definition of Object.values(TOOL_DEFINITIONS)) {
     assert.equal(definition.inputSchema.additionalProperties, false)
     assert.equal(Object.hasOwn(definition.inputSchema.properties, 'limit'), false)

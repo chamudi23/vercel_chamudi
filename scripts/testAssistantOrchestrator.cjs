@@ -156,7 +156,7 @@ test('tool descriptions are strict and expose no result limit', async () => {
   const captured = []
   const { orchestrator } = setup({ selectTool: ({ tools }) => { captured.push(...tools); return { type: 'UNSUPPORTED', toolCalls: [] } } })
   await orchestrator.respond({ message: 'A safe but unsupported question.' })
-  assert.equal(captured.length, 12)
+  assert.equal(captured.length, 13)
   for (const tool of captured) { assert.equal(tool.inputSchema.additionalProperties, false); assert.equal(Object.hasOwn(tool.inputSchema.properties, 'limit'), false) }
 })
 

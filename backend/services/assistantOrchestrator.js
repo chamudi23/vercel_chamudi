@@ -128,11 +128,12 @@ function buildPresentation(result) {
 }
 
 function hasNoResult(result) {
-  return result.type === 'NOT_FOUND' || result.type === 'HELP_NOT_FOUND' || (Array.isArray(result.records) && result.records.length === 0)
+  return result.type === 'NOT_FOUND' || result.type === 'HELP_NOT_FOUND' || result.type === 'KNOWLEDGE_NOT_FOUND' || (Array.isArray(result.records) && result.records.length === 0)
 }
 
 function notFoundAnswer(toolName, result) {
   if (result.type === 'HELP_NOT_FOUND') return "I don't have verified OAHRIS guidance for that workflow yet."
+  if (result.type === 'KNOWLEDGE_NOT_FOUND') return "I don't have verified OAHRIS knowledge for that question yet."
   if (toolName === 'search_images') return 'No matching OAHRIS image records were found.'
   if (toolName === 'get_measurements') return 'No recorded OAHRIS measurements were found for that specimen.'
   if (toolName === 'search_sites') return 'No matching OAHRIS site records were found.'
@@ -147,6 +148,7 @@ function notFoundAnswer(toolName, result) {
 
 function deterministicAnswer(toolName, result) {
   if (result.type === 'SYSTEM_HELP') return result.topic?.summary || 'Verified OAHRIS guidance was retrieved.'
+  if (result.type === 'SYSTEM_KNOWLEDGE') return (result.sections || []).map((section) => section.summary).filter(Boolean).join(' ') || 'Verified OAHRIS system knowledge was retrieved.'
   if (result.type === 'COVERAGE_RESULT') return `Coverage retrieved for ${result.skeletonCode}.`
   if (result.type === 'SITE_RESULTS') return `${(result.records || []).length} matching archaeological site record${result.records?.length === 1 ? '' : 's'} found.`
   if (result.type === 'SITE_RESULT') {

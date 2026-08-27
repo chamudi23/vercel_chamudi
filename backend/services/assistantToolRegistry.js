@@ -69,6 +69,11 @@ const TOOL_DEFINITIONS = Object.freeze({
     description: 'Retrieve verified OAHRIS workflow help for a user question.',
     inputSchema: { type: 'object', additionalProperties: false, required: ['query'], properties: { query: textProperty('OAHRIS workflow question.') } },
   },
+  search_system_knowledge: {
+    name: 'search_system_knowledge',
+    description: 'Retrieve up to three verified OAHRIS knowledge sections for questions about what OAHRIS is, what its modules do, Skully capabilities or limitations, roles, or the controlled skeletal catalogue. Use get_system_help instead for step-by-step workflow instructions. Do not use this for live specimen, site, image, measurement, coverage, analysis-case, or data-quality record requests.',
+    inputSchema: { type: 'object', additionalProperties: false, required: ['query'], properties: { query: textProperty('Natural-language question about the OAHRIS system or Skully.') } },
+  },
   search_sites: {
     name: 'search_sites',
     description: 'Search stored OAHRIS archaeological site records using one or more controlled descriptive filters. Use this for filtered lists, not for one confidently identified site. Coordinates and spatial calculations are not returned.',
@@ -139,7 +144,8 @@ function resolveServices(services) {
   const queries = require('./oahrisQueries')
   const wholeSystemQueries = require('./wholeSystemQueries')
   const { getSystemHelp } = require('./helpRetrieval')
-  return { ...queries, ...wholeSystemQueries, getSystemHelp }
+  const { searchSystemKnowledge } = require('./systemKnowledgeRetrieval')
+  return { ...queries, ...wholeSystemQueries, getSystemHelp, searchSystemKnowledge }
 }
 
 function createAssistantToolRegistry(injectedServices) {
@@ -160,6 +166,7 @@ function createAssistantToolRegistry(injectedServices) {
       if (name === 'get_measurements') return active.getMeasurements(args.specimenId, context.supabase)
       if (name === 'get_skeleton_coverage') return active.getSkeletonCoverage(args.skeletonCode, context.supabase)
       if (name === 'get_system_help') return active.getSystemHelp(args.query)
+      if (name === 'search_system_knowledge') return active.searchSystemKnowledge(args.query)
       if (name === 'search_sites') return active.searchSites(args, context.supabase)
       if (name === 'get_site') return active.getSite(args, context.supabase)
       if (name === 'get_specimen_context') return active.getSpecimenContext(args.specimenId, context.supabase)
