@@ -3,21 +3,20 @@ export const SKELETAL_INPUT_FIELD_DEFINITIONS = {
     { field: 'skull_brow_ridge', label: 'Brow Ridge', type: 'select', options: ['Smooth', 'Less Developed', 'Moderate', 'Prominent', 'Thick'] },
     { field: 'mastoid_process_size', label: 'Mastoid Process Size', type: 'select', options: ['<25 mm', '25–30 mm', '>30 mm'] },
     { field: 'cranial_suture_status', label: 'Cranial Suture Status', type: 'select', options: ['Open', 'Partially Open', 'Moderately Closed', 'Mostly Closed', 'Completely Closed'] },
-    { field: 'skull_size', label: 'Skull Size', type: 'text' },
     { field: 'orbital_shape', label: 'Orbital Shape', type: 'text' },
   ],
   Mandible: [
     { field: 'jaw_shape', label: 'Jaw Shape', type: 'select', options: ['U-shaped', 'V-shaped', 'Robust Jaw', 'Rounded Jaw'] },
   ],
   Pelvis: [
-    { field: 'subpubic_angle', label: 'Subpubic Angle', type: 'select', options: ['Wide >90°', 'Narrow <90°'] },
+    { field: 'subpubic_angle', label: 'Subpubic Angle', type: 'number', unit: 'degrees', placeholder: 'e.g., 90' },
     { field: 'sciatic_notch_width', label: 'Sciatic Notch Width', type: 'select', options: ['Wide', 'Narrow'] },
     { field: 'pelvic_inlet_shape', label: 'Pelvic Inlet Shape', type: 'select', options: ['Gynecoid (Round or slightly oval)', 'Android (Heart shaped or wedge shaped)', 'Anthropoid (Upright oval or egg-shaped)', 'Platypelloid (Flattened oval)'] },
     { field: 'pubic_symphysis_stage', label: 'Pubic Symphysis Stage', type: 'select', options: ['Smooth / Flat', 'Moderate / Flat Ridges', 'Rough / Granular', 'Degenerated / Eroded'] },
     { field: 'pelvis_size', label: 'Pelvis Size', type: 'text' },
   ],
   Pubis: [
-    { field: 'subpubic_angle', label: 'Subpubic Angle', type: 'select', options: ['Wide >90°', 'Narrow <90°'] },
+    { field: 'subpubic_angle', label: 'Subpubic Angle', type: 'number', unit: 'degrees', placeholder: 'e.g., 90' },
     { field: 'sciatic_notch_width', label: 'Sciatic Notch Width', type: 'select', options: ['Wide', 'Narrow'] },
     { field: 'pelvic_inlet_shape', label: 'Pelvic Inlet Shape', type: 'select', options: ['Gynecoid (Round or slightly oval)', 'Android (Heart shaped or wedge shaped)', 'Anthropoid (Upright oval or egg-shaped)', 'Platypelloid (Flattened oval)'] },
     { field: 'pubic_symphysis_stage', label: 'Pubic Symphysis Stage', type: 'select', options: ['Smooth / Flat', 'Moderate / Flat Ridges', 'Rough / Granular', 'Degenerated / Eroded'] },
