@@ -16,9 +16,7 @@ import DataImportPage from "./pages/DataImportPage";
 import DataQualityPage from "./pages/DataQualityPage";
 import ImageDocumentationDashboardPage from './pages/ImageDocumentationDashboardPage'
 import SiteDetailPage from "./pages/SiteDetailPage";
-import AddSitePage from "./pages/AddSitePage";
 import SimilarFindingsPage from "./pages/SimilarFindingsPage";
-import AddSpecimenPage from "./pages/AddSpecimenPage";
 import GISHome from "./pages/GISHome";
 
 // Skeletal Module imports
@@ -112,8 +110,6 @@ function ApplicationRoutes() {
       <Route path="/parami/home" element={<Auth><GISHome /></Auth>} />
       <Route path="/parami/site/:siteId" element={<Auth><SiteDetailPage /></Auth>} />
       <Route path="/parami/similar-findings" element={<Auth><SimilarFindingsPage /></Auth>} />
-      <Route path="/parami/add-site" element={<Curator><AddSitePage /></Curator>} />
-      <Route path="/parami/add-specimen" element={<Curator><AddSpecimenPage /></Curator>} />
 
       {/* ---------------- Automated Skeletal Analysis -----------------
           Students have full use of this module, including running analyses
