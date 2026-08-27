@@ -1,14 +1,83 @@
+/* eslint-disable react/prop-types */
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 import { TRACKED_SPECIMEN_FIELDS, calculateSpecimenCompleteness } from "../lib/dataQuality";
+import { PP1_BONE_LABELS, validateCategorySide } from "../utils/pp1ImageModule";
+import { getRelevantSkeletalInputFields, SKELETAL_INPUT_FIELD_DEFINITIONS } from "../utils/skeletalInputFields";
+import { DISTRICTS, PRESERVATION_STATES, PROVINCES, TIME_PERIODS } from "../utils/specimenMetadata";
 
 const TRACKED_FIELDS = TRACKED_SPECIMEN_FIELDS;
+const TRACKED_FIELD_METADATA = {
+  site_name: { label: "Site name", type: "Text" },
+  district: { label: "District", type: "Select" },
+  province: { label: "Province", type: "Select" },
+  excavation_year: { label: "Excavation year", type: "Whole number" },
+  time_period: { label: "Time period", type: "Select" },
+  preservation_state: { label: "Preservation state", type: "Select" },
+  location_stored: { label: "Storage location", type: "Text" },
+  burial_context: { label: "Burial context", type: "Text" },
+  notes: { label: "Notes", type: "Text area" },
+};
+const FORM_COMPLETENESS_FIELDS = [
+  { source: "specimen", field: "specimen_id", label: "Specimen ID", type: "Text" },
+  { source: "specimen", field: "skeleton_code", label: "Skeleton code", type: "Text" },
+  { source: "specimen", field: "bone_type", label: "Bone category", type: "Select" },
+  { source: "specimen", field: "side", label: "Side", type: "Select" },
+  ...Object.entries(TRACKED_FIELD_METADATA).map(([field, metadata]) => ({ source: "specimen", field, ...metadata })),
+  { source: "specimen", field: "age_estimate", label: "Age estimate", type: "Text" },
+  { source: "specimen", field: "sex_estimate", label: "Sex estimate", type: "Select" },
+  { source: "specimen", field: "height_estimate", label: "Height estimate", type: "Decimal number (cm)" },
+  { source: "measurement", field: "measurement_type", label: "Measurement type", type: "Select" },
+  { source: "measurement", field: "value", label: "Measurement value", type: "Decimal number" },
+  { source: "measurement", field: "unit", label: "Measurement unit", type: "Select" },
+  { source: "measurement", field: "notes", label: "Measurement notes", type: "Text" },
+  { source: "excavation", field: "excavation_date", label: "Excavation date", type: "Date" },
+  { source: "excavation", field: "depth_found", label: "Depth found", type: "Decimal number (m)" },
+  { source: "excavation", field: "excavator_name", label: "Excavator name", type: "Text" },
+  { source: "excavation", field: "excavation_notes", label: "Excavation notes", type: "Text area" },
+  { source: "dating", field: "dating_method", label: "Dating method", type: "Select" },
+  { source: "dating", field: "date_result", label: "Date result", type: "Text" },
+  { source: "dating", field: "date_range_min", label: "Date range minimum", type: "Whole number (BP)" },
+  { source: "dating", field: "date_range_max", label: "Date range maximum", type: "Whole number (BP)" },
+  { source: "dating", field: "lab_name", label: "Lab name", type: "Text" },
+  { source: "dating", field: "result_notes", label: "Result notes", type: "Text" },
+  ...Object.entries(SKELETAL_INPUT_FIELD_DEFINITIONS).flatMap(([boneType, fields]) => fields
+    .filter(({ type }) => type !== "hidden")
+    .map(({ field, label, type, unit }) => ({ source: "skeletal", field, label, type: unit ? `${type === "number" ? "Decimal number" : type} (${unit})` : type === "select" ? "Select" : type === "number" ? "Decimal number" : "Text", boneType }))),
+];
+const MEASUREMENT_TYPES = new Set(["Maximum Length", "Minimum Length", "Maximum Width", "Minimum Width", "Maximum Diameter", "Minimum Diameter", "Circumference", "Height", "Depth", "Thickness", "Other"]);
+const MEASUREMENT_UNITS = new Set(["mm", "cm", "m"]);
+const STATUS_STYLES = {
+  valid: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30",
+  warning: "bg-amber-500/10 text-amber-300 border-amber-500/30",
+  error: "bg-red-500/10 text-red-300 border-red-500/30",
+};
+const STATUS_DOT = { valid: "bg-emerald-400", warning: "bg-amber-400", error: "bg-red-400" };
+
+function isProvided(value) {
+  return value !== null && value !== undefined && String(value).trim() !== "";
+}
+
+function measurementInCentimetres(value, unit) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return null;
+  if (unit === "mm") return numericValue / 10;
+  if (unit === "m") return numericValue * 100;
+  return numericValue;
+}
+
+function StatusBadge({ status }) {
+  return <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${STATUS_STYLES[status]}`}><span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[status]}`} />{status}</span>;
+}
 
 export default function DataQualityPage() {
   const navigate = useNavigate();
   const [specimens, setSpecimens] = useState([]);
   const [measurements, setMeasurements] = useState([]);
+  const [skeletalInputs, setSkeletalInputs] = useState([]);
+  const [excavationRecords, setExcavationRecords] = useState([]);
+  const [labDatingRecords, setLabDatingRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -19,9 +88,17 @@ export default function DataQualityPage() {
   async function fetchData() {
     setLoading(true);
     const { data: specData } = await supabase.from("specimens").select("*");
-    const { data: measData } = await supabase.from("measurements").select("*");
+    const [{ data: measData }, { data: skeletalData }, { data: excavationData }, { data: labDatingData }] = await Promise.all([
+      supabase.from("measurements").select("*"),
+      supabase.from("skeletal_inputs").select("*"),
+      supabase.from("excavation_records").select("*"),
+      supabase.from("laboratory_dating_results").select("*"),
+    ]);
     setSpecimens(specData || []);
     setMeasurements(measData || []);
+    setSkeletalInputs(skeletalData || []);
+    setExcavationRecords(excavationData || []);
+    setLabDatingRecords(labDatingData || []);
     setLoading(false);
   }
 
@@ -33,8 +110,6 @@ export default function DataQualityPage() {
   }
 
   const totalSpecimens = specimens.length;
-  const avgCompleteness = totalSpecimens === 0 ? 0 :
-    Math.round(specimens.reduce((sum, s) => sum + getCompleteness(s), 0) / totalSpecimens);
 
   // Missing fields summary
   const missingFieldCounts = {};
@@ -63,16 +138,88 @@ export default function DataQualityPage() {
   );
 
   // Anomalies — year outliers
-  const yearAnomalies = specimens.filter((s) => {
-    const y = parseInt(s.excavation_year);
-    return s.excavation_year && (y < 1800 || y > new Date().getFullYear());
+  const measurementsBySpecimen = new Map();
+  measurements.forEach((measurement) => {
+    const rows = measurementsBySpecimen.get(measurement.specimen_id) || [];
+    rows.push(measurement);
+    measurementsBySpecimen.set(measurement.specimen_id, rows);
   });
+  const skeletalInputsBySpecimen = new Map();
+  skeletalInputs.forEach((input) => {
+    const rows = skeletalInputsBySpecimen.get(input.specimen_id) || [];
+    rows.push(input);
+    skeletalInputsBySpecimen.set(input.specimen_id, rows);
+  });
+  const excavationBySpecimen = new Map(excavationRecords.map((record) => [record.specimen_id, record]));
+  const labDatingBySpecimen = new Map(labDatingRecords.map((record) => [record.specimen_id, record]));
+  const getFormFieldCompleteness = (definition) => {
+    const applicableSpecimens = definition.boneType
+      ? specimens.filter((specimen) => specimen.bone_type === definition.boneType)
+      : specimens;
+    const filled = applicableSpecimens.filter((specimen) => {
+      if (definition.source === "specimen") return isProvided(specimen[definition.field]);
+      if (definition.source === "measurement") return (measurementsBySpecimen.get(specimen.specimen_id) || []).some((row) => isProvided(row[definition.field]));
+      if (definition.source === "excavation") return isProvided(excavationBySpecimen.get(specimen.specimen_id)?.[definition.field]);
+      if (definition.source === "dating") return isProvided(labDatingBySpecimen.get(specimen.specimen_id)?.[definition.field]);
+      return (skeletalInputsBySpecimen.get(specimen.specimen_id) || []).some((row) => isProvided(row[definition.field]));
+    }).length;
+    const total = applicableSpecimens.length;
+    return { filled, total, pct: total === 0 ? null : Math.round((filled / total) * 100) };
+  };
+  const applicableFormFieldPercentages = FORM_COMPLETENESS_FIELDS
+    .map(getFormFieldCompleteness)
+    .map(({ pct }) => pct)
+    .filter((pct) => pct !== null);
+  const avgCompleteness = applicableFormFieldPercentages.length === 0
+    ? 0
+    : Math.round(applicableFormFieldPercentages.reduce((sum, pct) => sum + pct, 0) / applicableFormFieldPercentages.length);
+
+  const auditSpecimen = (specimen) => {
+    const issues = [];
+    const add = (status, field, message) => issues.push({ status, field, message });
+    const year = Number(specimen.excavation_year);
+    if ((idCounts[specimen.specimen_id] || 0) > 1) add("error", "Specimen ID", "Duplicate specimen ID.");
+    if (isProvided(specimen.bone_type) && !PP1_BONE_LABELS.includes(specimen.bone_type)) add("error", "Bone category", `Invalid bone category: ${specimen.bone_type}.`);
+    const sideError = isProvided(specimen.bone_type) ? validateCategorySide(specimen.bone_type, specimen.side) : "";
+    if (sideError) add("error", "Side", sideError);
+    [["District", specimen.district, DISTRICTS], ["Province", specimen.province, PROVINCES], ["Time period", specimen.time_period, TIME_PERIODS], ["Preservation state", specimen.preservation_state, PRESERVATION_STATES]].forEach(([field, value, options]) => {
+      if (isProvided(value) && !options.includes(value)) add("error", field, `Invalid option: ${value}.`);
+    });
+    if (isProvided(specimen.excavation_year) && (!Number.isInteger(year) || year > new Date().getFullYear())) add("error", "Excavation year", "Must be a whole year that is not in the future.");
+    else if (isProvided(specimen.excavation_year) && year < 1800) add("warning", "Excavation year", "Earlier than 1800; verify the recorded year.");
+
+    const missingFields = TRACKED_FIELDS.filter((field) => !isProvided(specimen[field]));
+    if (missingFields.length) add("warning", "Completeness", `${missingFields.length} tracked field${missingFields.length === 1 ? " is" : "s are"} missing.`);
+    const specimenMeasurements = measurementsBySpecimen.get(specimen.specimen_id) || [];
+    if (!specimenMeasurements.length) add("warning", "Measurements", "No measurements recorded.");
+    specimenMeasurements.forEach((measurement) => {
+      const value = Number(measurement.value);
+      const label = measurement.measurement_type || "Measurement";
+      if (!isProvided(measurement.bone_type) || !PP1_BONE_LABELS.includes(measurement.bone_type)) add("error", label, "Invalid or missing bone category.");
+      if (!MEASUREMENT_TYPES.has(measurement.measurement_type)) add("error", label, "Invalid or missing measurement type.");
+      if (!MEASUREMENT_UNITS.has(measurement.unit)) add("error", label, "Invalid measurement unit.");
+      if (!Number.isFinite(value) || value < 0) add("error", label, "Measurement must be a non-negative number.");
+      else if (value === 0 || measurementInCentimetres(value, measurement.unit) > 300) add("warning", label, "Unusual measurement; verify the value and unit.");
+    });
+    (skeletalInputsBySpecimen.get(specimen.specimen_id) || []).forEach((input) => {
+      getRelevantSkeletalInputFields(specimen.bone_type).forEach(({ field, label, type, options }) => {
+        if (!isProvided(input[field])) return;
+        if (type === "select" && !options.includes(input[field])) add("error", label, `Invalid option: ${input[field]}.`);
+        if (type === "number" && (!Number.isFinite(Number(input[field])) || Number(input[field]) < 0)) add("error", label, "Must be a non-negative number.");
+      });
+    });
+    const status = issues.some((issue) => issue.status === "error") ? "error" : issues.length ? "warning" : "valid";
+    return { specimen, status, issues };
+  };
+  const qualityAudits = specimens.map(auditSpecimen);
+  const qualityCounts = qualityAudits.reduce((counts, audit) => ({ ...counts, [audit.status]: counts[audit.status] + 1 }), { valid: 0, warning: 0, error: 0 });
+  const yearAnomalies = qualityAudits.filter((audit) => audit.issues.some((issue) => issue.field === "Excavation year"));
 
   // Overall health score
   const healthScore = Math.round(
     (avgCompleteness * 0.5) +
     (duplicates.length === 0 ? 25 : 0) +
-    (yearAnomalies.length === 0 ? 15 : 0) +
+    (qualityCounts.error === 0 ? 15 : 0) +
     (incompleteSpecimens.length / Math.max(totalSpecimens, 1) < 0.2 ? 10 : 0)
   );
 
@@ -149,12 +296,13 @@ export default function DataQualityPage() {
         </div>
 
         {/* Stats cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
           {[
             { label: "Total Specimens", value: totalSpecimens, color: "text-white" },
             { label: "Avg Completeness", value: `${avgCompleteness}%`, color: avgCompleteness >= 70 ? "text-emerald-400" : "text-yellow-400" },
-            { label: "Duplicates", value: duplicates.length, color: duplicates.length === 0 ? "text-emerald-400" : "text-red-400" },
-            { label: "Anomalies", value: yearAnomalies.length + incompleteSpecimens.length, color: "text-yellow-400" },
+            { label: "Valid", value: qualityCounts.valid, color: "text-emerald-400" },
+            { label: "Warnings", value: qualityCounts.warning, color: qualityCounts.warning ? "text-amber-400" : "text-emerald-400" },
+            { label: "Errors", value: qualityCounts.error, color: qualityCounts.error ? "text-red-400" : "text-emerald-400" },
           ].map((stat) => (
             <div key={stat.label} className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 text-center">
               <p className={`text-3xl font-bold ${stat.color}`}>{stat.value}</p>
@@ -170,7 +318,8 @@ export default function DataQualityPage() {
             { key: "missing", label: "Missing Fields" },
             { key: "incomplete", label: `Incomplete (${incompleteSpecimens.length})` },
             { key: "duplicates", label: `Duplicates (${duplicates.length})` },
-            { key: "anomalies", label: `Anomalies (${yearAnomalies.length})` },
+            { key: "quality", label: `Quality (${qualityCounts.error + qualityCounts.warning})` },
+            { key: "anomalies", label: `Year checks (${yearAnomalies.length})` },
           ].map((tab) => (
             <button
               key={tab.key}
@@ -209,20 +358,22 @@ export default function DataQualityPage() {
 
               {/* Field by field */}
               <div className="space-y-3">
-                {TRACKED_FIELDS.map((field) => {
-                  const missing = missingFieldCounts[field];
-                  const filled = totalSpecimens - missing;
-                  const pct = totalSpecimens === 0 ? 0 : Math.round((filled / totalSpecimens) * 100);
+                {FORM_COMPLETENESS_FIELDS.map((definition, index) => {
+                  const { filled, total, pct } = getFormFieldCompleteness(definition);
+                  const missing = total - filled;
                   return (
-                    <div key={field} className="flex items-center gap-3">
-                      <span className="text-xs text-white/40 w-36 capitalize">{field.replace(/_/g, " ")}</span>
+                    <div key={`${definition.source}-${definition.boneType || "all"}-${definition.field}-${index}`} className="flex items-center gap-3">
+                      <div className="w-40 shrink-0">
+                        <p className="text-xs text-white/60">{definition.label}{definition.boneType ? ` (${definition.boneType})` : ""}</p>
+                        <p className="mt-0.5 text-[10px] uppercase tracking-wider text-white/25">{definition.type}</p>
+                      </div>
                       <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full ${completenessColor(pct)}`}
-                          style={{ width: `${pct}%` }}
+                          className={`h-full rounded-full ${completenessColor(pct ?? 0)}`}
+                          style={{ width: `${pct ?? 0}%` }}
                         />
                       </div>
-                      <span className="text-xs text-white/30 w-10 text-right">{pct}%</span>
+                      <span className="text-xs text-white/30 w-16 text-right">{pct === null ? "N/A" : `${pct}%`}</span>
                       {missing > 0 && (
                         <span className="text-[10px] text-red-400/60">{missing} missing</span>
                       )}
@@ -383,6 +534,38 @@ export default function DataQualityPage() {
           </div>
         )}
 
+        {/* Quality Tab */}
+        {activeTab === "quality" && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-3 text-xs text-white/50">
+              <span className="flex items-center gap-2"><StatusBadge status="valid" /> {qualityCounts.valid} normal record{qualityCounts.valid === 1 ? "" : "s"}</span>
+              <span className="flex items-center gap-2"><StatusBadge status="warning" /> {qualityCounts.warning} need review</span>
+              <span className="flex items-center gap-2"><StatusBadge status="error" /> {qualityCounts.error} invalid</span>
+            </div>
+            {qualityAudits.map(({ specimen, status, issues }, index) => (
+              <button
+                type="button"
+                key={`${specimen.specimen_id}-${index}`}
+                onClick={() => navigate(`/specimens/${specimen.specimen_id}`)}
+                className={`block w-full rounded-2xl border p-5 text-left transition-colors hover:bg-white/[0.04] ${STATUS_STYLES[status]}`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-mono text-sm text-white">{specimen.specimen_id}</p>
+                    <p className="mt-1 text-xs text-white/50">{specimen.bone_type || "No bone category"} · {specimen.skeleton_code || "No skeleton code"}</p>
+                  </div>
+                  <StatusBadge status={status} />
+                </div>
+                {issues.length ? (
+                  <ul className="mt-4 space-y-1.5 text-xs text-white/70">
+                    {issues.map((issue, issueIndex) => <li key={`${issue.field}-${issueIndex}`}><span className={issue.status === "error" ? "text-red-300" : "text-amber-300"}>{issue.field}:</span> {issue.message}</li>)}
+                  </ul>
+                ) : <p className="mt-4 text-xs text-emerald-200">All checked values are normal.</p>}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Anomalies Tab */}
         {activeTab === "anomalies" && (
           <div className="space-y-4">
@@ -405,15 +588,15 @@ export default function DataQualityPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {yearAnomalies.map((s, i) => (
+                    {yearAnomalies.map(({ specimen: s, status, issues }, i) => (
                       <tr
                         key={s.specimen_id}
                         className={`border-b border-white/5 hover:bg-white/[0.04] cursor-pointer ${i % 2 === 0 ? "" : "bg-white/[0.01]"}`}
                         onClick={() => navigate(`/specimens/${s.specimen_id}`)}
                       >
                         <td className="px-5 py-3.5 font-mono text-emerald-400 text-xs">{s.specimen_id}</td>
-                        <td className="px-5 py-3.5 text-red-400 font-mono">{s.excavation_year}</td>
-                        <td className="px-5 py-3.5 text-white/40 text-xs">Year outside valid range (1800-{new Date().getFullYear()})</td>
+                        <td className={`px-5 py-3.5 font-mono ${status === "error" ? "text-red-400" : "text-amber-400"}`}>{s.excavation_year}</td>
+                        <td className="px-5 py-3.5 text-white/40 text-xs">{issues.find((issue) => issue.field === "Excavation year")?.message}</td>
                       </tr>
                     ))}
                   </tbody>

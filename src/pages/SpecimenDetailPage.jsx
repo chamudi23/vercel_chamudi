@@ -322,10 +322,10 @@ export default function SpecimenDetailPage() {
     }
     const invalidMeasurement = measurements.find((measurement) => {
       const draft = measurementDrafts[measurement.measurement_id];
-      return !draft?.bone_type || draft.value === "" || Number.isNaN(Number(draft.value));
+      return !draft?.bone_type || draft.value === "" || !Number.isFinite(Number(draft.value)) || Number(draft.value) < 0;
     });
     if (invalidMeasurement) {
-      setSaveError("Each measurement must have a bone type and numeric value.");
+      setSaveError("Each measurement must have a bone type and a non-negative numeric value.");
       return;
     }
 
@@ -529,8 +529,8 @@ export default function SpecimenDetailPage() {
   }
 
   async function handleAddMeasurement() {
-    if (!newMeasurement.bone_type || !newMeasurement.value) {
-      alert("Please fill in at least Bone Type and Value!");
+    if (!newMeasurement.bone_type || newMeasurement.value === "" || !Number.isFinite(Number(newMeasurement.value)) || Number(newMeasurement.value) < 0) {
+      alert("Please provide a bone type and a non-negative numeric value.");
       return;
     }
     setAddingMeasurement(true);
