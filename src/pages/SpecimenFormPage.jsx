@@ -61,8 +61,17 @@ const inputBase =
 function generateId(prefix) {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e3)}`;
 }
-function generateSpecimenId() {
-  return `SPEC-${Math.floor(Math.random() * 900) + 100}`;
+// Only SPEC-### values participate in automatic numbering. Other legacy IDs
+// remain valid without affecting the next generated identifier.
+function nextSpecimenId(records) {
+  const highestNumber = (records || []).reduce((highest, record) => {
+    const match = String(record.specimen_id || "")
+      .trim()
+      .match(/^SPEC[-\s]?(\d+)$/i);
+    return match ? Math.max(highest, Number(match[1])) : highest;
+  }, 0);
+
+  return `SPEC-${String(highestNumber + 1).padStart(3, "0")}`;
 }
 // Only SK-### values participate in automatic numbering. Other legacy codes remain valid
 // existing skeletons without affecting the next generated code.
@@ -204,7 +213,7 @@ function SpecimenFormPage() {
   const [measurementNotice, setMeasurementNotice] = useState("");
   const [skeletalInputForm, setSkeletalInputForm] = useState({});
   const [form, setForm] = useState({
-    specimen_id: generateSpecimenId(),
+    specimen_id: "",
     skeleton_code: "",
     bone_type: "",
     side: "Unknown",
@@ -326,14 +335,20 @@ function SpecimenFormPage() {
     };
   }, []);
 
-  // Wait for the database query before generating a code. Otherwise the first
-  // render could incorrectly suggest SK-001 while existing records are loading.
+  // Wait for the database query before generating IDs. Otherwise the first
+  // render could incorrectly suggest the first available number while records
+  // are still loading.
   useEffect(() => {
     if (!loadingSkeletons && skeletonMode === "new") {
       setForm((previous) =>
-        previous.skeleton_code
+        previous.skeleton_code && previous.specimen_id
           ? previous
-          : { ...previous, skeleton_code: nextSkeletonCode(skeletonRecords) },
+          : {
+              ...previous,
+              specimen_id: previous.specimen_id || nextSpecimenId(skeletonRecords),
+              skeleton_code:
+                previous.skeleton_code || nextSkeletonCode(skeletonRecords),
+            },
       );
     }
   }, [loadingSkeletons, skeletonMode, skeletonRecords]);
@@ -449,8 +464,11 @@ function SpecimenFormPage() {
     setSuccess(false);
     setForm((previous) => ({
       ...previous,
-      specimen_id: generateSpecimenId(),
-      skeleton_code: mode === "new" ? nextSkeletonCode(skeletonRecords) : "",
+      specimen_id: loadingSkeletons ? "" : nextSpecimenId(skeletonRecords),
+      skeleton_code:
+        mode === "new" && !loadingSkeletons
+          ? nextSkeletonCode(skeletonRecords)
+          : "",
       bone_type: "",
       side: "Unknown",
       site_name: "",
@@ -504,7 +522,7 @@ function SpecimenFormPage() {
       ...previous,
       ...sharedSite,
       ...sharedBiologicalProfile,
-      specimen_id: generateSpecimenId(),
+      specimen_id: nextSpecimenId(skeletonRecords),
       skeleton_code: code,
       bone_type: "",
       side: "Unknown",
@@ -606,6 +624,22 @@ function SpecimenFormPage() {
     setSkeletalInputForm((previous) => ({ ...previous, [name]: value }));
   }
 
+  async function regenerateSpecimenId() {
+    const { data, error } = await supabase.from("specimens").select("specimen_id");
+    if (error) {
+      setErrors((previous) => ({
+        ...previous,
+        specimen_id: `Could not generate the Specimen ID: ${error.message}`,
+      }));
+      return;
+    }
+    setForm((previous) => ({
+      ...previous,
+      specimen_id: nextSpecimenId(data),
+    }));
+    setErrors((previous) => ({ ...previous, specimen_id: "" }));
+  }
+
   // Navigation validates only the current step; saving validates the whole form.
   function validate() {
     const validationErrors = {};
@@ -699,8 +733,6 @@ function SpecimenFormPage() {
       return;
     }
     const createdBy = authUserData.user.id;
-    const specimenId = form.specimen_id.trim();
-    const skeletonCode = form.skeleton_code.trim();
     const validMeasurements = measurements.filter(
       (row) =>
         row.measurement_type &&
@@ -708,23 +740,6 @@ function SpecimenFormPage() {
         Number.isFinite(Number(row.value)),
     );
     const specimenDimensionPayload = buildSpecimenDimensionPayload(validMeasurements);
-    const { data: existingId, error: idCheckError } = await supabase
-      .from("specimens")
-      .select("specimen_id")
-      .eq("specimen_id", specimenId)
-      .maybeSingle();
-    if (idCheckError) {
-      setErrors({
-        submit: `Could not check the Specimen ID: ${idCheckError.message}`,
-      });
-      setSaving(false);
-      return;
-    }
-    if (existingId) {
-      setErrors({ specimen_id: "This Specimen ID already exists." });
-      setSaving(false);
-      return;
-    }
     const { data: currentSkeletonRows, error: skeletonCheckError } =
       await supabase
         .from("specimens")
@@ -738,15 +753,14 @@ function SpecimenFormPage() {
       setSaving(false);
       return;
     }
+    // Generate automatic identifiers from this fresh database read so a record
+    // created after the form was opened cannot reuse an older displayed number.
+    const specimenId = nextSpecimenId(currentSkeletonRows);
+    const skeletonCode =
+      skeletonMode === "new"
+        ? nextSkeletonCode(currentSkeletonRows)
+        : form.skeleton_code.trim();
     const matchingRows = recordsForSkeleton(currentSkeletonRows, skeletonCode);
-    if (skeletonMode === "new" && matchingRows.length > 0) {
-      setErrors({
-        skeleton_code:
-          "This Skeleton Code already exists. Choose Existing Skeleton or enter a new code.",
-      });
-      setSaving(false);
-      return;
-    }
     const duplicateBone = findDuplicateSpecimen(matchingRows, {
       skeletonCode,
       boneCategory: form.bone_type,
@@ -963,12 +977,7 @@ function SpecimenFormPage() {
               <button
                 type="button"
                 aria-label="Generate specimen ID"
-                onClick={() =>
-                  setForm((previous) => ({
-                    ...previous,
-                    specimen_id: generateSpecimenId(),
-                  }))
-                }
+                onClick={regenerateSpecimenId}
                 className="rounded-xl border border-white/10 bg-white/5 px-3 text-white/50"
               >
                 ↻
