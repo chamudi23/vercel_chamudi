@@ -166,6 +166,11 @@ export const FEATURE_MAP = {
       asa: { narrow: 0, wide: 1 },
       levels: [['narrow', 'acute', 'less than 90', 'under 90', 'v shaped'],
                ['wide', 'broad', 'obtuse', 'greater than 90', 'more than 90', 'u shaped']],
+      // CSRM types this column as NUMERIC — it holds the angle in degrees, not
+      // a description. A bare "95" matches none of the aliases above, so the
+      // channel was being dropped for every metrically-recorded pelvis. 90
+      // degrees is the sectioning point in the methodology paper.
+      numericLevel: (deg) => (deg >= 90 ? 1 : 0),
     },
     {
       asaKey: 'sciaticNotch', column: 'sciatic_notch_width', kind: 'ordinal',
@@ -528,7 +533,10 @@ function scoreFeatures(asaMeasurements, inputRows, analysisType) {
         s = closeness(num(asaVal), num(csrmVal), f.tolerance)
       } else {
         const la = asaLevelOf(asaVal, f)
-        const lb = levelOf(csrmVal, f.levels)
+        // A feature whose CSRM column is numeric resolves by threshold; the
+        // text aliases cannot match a bare number.
+        const csrmNum = f.numericLevel ? num(csrmVal) : null
+        const lb = csrmNum !== null ? f.numericLevel(csrmNum) : levelOf(csrmVal, f.levels)
         if (la === null || la < 0 || lb === null || lb < 0) continue
         s = f.kind === 'nominal'
           ? (la === lb ? 1 : 0)
