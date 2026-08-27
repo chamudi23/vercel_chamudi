@@ -16,7 +16,8 @@
     "test:whole-system-retrieval": "node scripts/testWholeSystemRetrieval.mjs",
     "test:assistant-browser-path": "node scripts/testAssistantBrowserPath.mjs",
     "verify:skeleton": "node scripts/verifySkeletonMappings.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "backfill:kgc": "node scripts/backfillKgcTables.mjs"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",

@@ -137,6 +137,7 @@ export default function Step3Review() {
   const { analysisData, setPredictions } = useAnalysis();
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [kgcWarning, setKgcWarning] = useState('');
   const steps = ['Basic Information', 'Skeletal Measurements', 'Review & Predict'];
 
   const { basicInfo, measurements } = analysisData;
@@ -150,11 +151,13 @@ export default function Step3Review() {
   const handleGenerateReport = async () => {
     setSaving(true);
     setSaveError('');
+    setKgcWarning('');
     setPredictions(predictions);
     // Persist the full analysis to Supabase so it appears in Past Analysis
-    // and its report can be reopened from any device.
+    // and its report can be reopened from any device. The same save also
+    // mirrors the case into the normalised kgc_* tables.
     const caseId = basicInfo.caseId;
-    const { error } = await saveAnalysis({ caseId, basicInfo, measurements, predictions });
+    const { error, kgcError } = await saveAnalysis({ caseId, basicInfo, measurements, predictions });
     setSaving(false);
     if (error) {
       // Surface the failure instead of navigating to an empty report.
@@ -164,6 +167,21 @@ export default function Step3Review() {
       );
       return;
     }
+    if (kgcError) {
+      // The analysis itself saved, so the report is complete — only the
+      // normalised copy is missing. Hold here rather than navigating past
+      // the warning, and let the user go on to the report from the banner.
+      setKgcWarning(
+        `The analysis was saved and the report is ready, but this case could not be ` +
+          `written to the normalised kgc_ tables: ${kgcError.message || 'unknown error'}.`
+      );
+      return;
+    }
+    goToReport();
+  };
+
+  const goToReport = () => {
+    const caseId = basicInfo.caseId;
     navigate(caseId ? `/skeletal/report/${encodeURIComponent(caseId)}` : '/skeletal/report');
   };
 
@@ -236,6 +254,18 @@ export default function Step3Review() {
           {saveError && (
             <div className="bg-red-900/20 border border-red-700/40 text-red-300 rounded-lg px-4 py-3 text-sm">
               {saveError}
+            </div>
+          )}
+
+          {kgcWarning && (
+            <div className="bg-amber-900/20 border border-amber-700/40 text-amber-300 rounded-lg px-4 py-3 text-sm flex items-center justify-between gap-4">
+              <span>{kgcWarning}</span>
+              <button
+                onClick={goToReport}
+                className="shrink-0 bg-amber-600 hover:bg-amber-500 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors"
+              >
+                Continue to Report →
+              </button>
             </div>
           )}
 

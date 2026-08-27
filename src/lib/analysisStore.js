@@ -12,9 +12,14 @@
  *    measurements jsonb
  *    predictions  jsonb
  *    created_at   timestamptz
+ *
+ *  Saving also mirrors the analysis into the normalised kgc_* tables via
+ *  kgcCaseStore — see the note there. Reads stay on `analyses`, which is
+ *  the shape every screen in the module already expects.
  * ------------------------------------------------------------------ */
 
 import { supabase } from './skeletalSupabase';
+import { saveKgcCase } from './kgcCaseStore';
 
 const TABLE = 'analyses';
 const COLS = 'case_id, basic_info, measurements, predictions, created_at';
@@ -57,9 +62,19 @@ export async function getAnalysis(caseId) {
   return data ? rowToRecord(data) : null;
 }
 
-/** Insert or update an analysis (keyed by case_id). Returns { error }. */
+/**
+ * Insert or update an analysis (keyed by case_id).
+ *
+ * Writes `analyses` first, then mirrors the same record into the kgc_*
+ * tables. The mirror is reported separately because it is not what any
+ * screen reads: a case whose normalised rows failed is still fully usable
+ * in the app, so blocking the report on it would cost the user their work
+ * for no gain. Callers should surface `kgcError` as a warning.
+ *
+ * @returns {Promise<{ error: Error|null, kgcError: Error|null }>}
+ */
 export async function saveAnalysis(record) {
-  if (!record?.caseId) return { error: new Error('missing caseId') };
+  if (!record?.caseId) return { error: new Error('missing caseId'), kgcError: null };
   const row = {
     case_id: record.caseId,
     basic_info: record.basicInfo || {},
@@ -67,6 +82,11 @@ export async function saveAnalysis(record) {
     predictions: record.predictions || {},
   };
   const { error } = await supabase.from(TABLE).upsert(row, { onConflict: 'case_id' });
-  if (error) console.error('[analyses] save failed:', error.message);
-  return { error };
+  if (error) {
+    console.error('[analyses] save failed:', error.message);
+    return { error, kgcError: null };
+  }
+
+  const { error: kgcError } = await saveKgcCase(record);
+  return { error: null, kgcError };
 }
