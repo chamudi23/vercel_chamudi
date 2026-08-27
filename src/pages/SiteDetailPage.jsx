@@ -247,7 +247,7 @@ function SiteDetailPage() {
       {/* Tab: Map — same Leaflet setup as the main GIS map, but zoomed
           into this one site's coordinates instead of showing all sites */}
       {activeTab === 'map' && (
-        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+        <div className="relative z-0 bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-700">
             <h2 className="text-slate-200 font-semibold">Site Location</h2>
             <p className="text-slate-500 text-xs mt-0.5">
@@ -256,7 +256,7 @@ function SiteDetailPage() {
           </div>
           <MapContainer center={[lat, lng]} zoom={12} style={{ height: '400px', width: '100%' }} scrollWheelZoom={false}>
             <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             />
             <CircleMarker

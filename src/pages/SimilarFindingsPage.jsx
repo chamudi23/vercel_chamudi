@@ -3,52 +3,11 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 import KNN from 'ml-knn'
 
-// ── Simple K-Means implementation ──────────────────────────────────────────
-// Unsupervised clustering: picks k random starting centroids, assigns each
-// bone to its nearest centroid by Euclidean distance (length + width), then
-// recomputes each centroid as the average of its assigned points, repeating
-// for `iterations` rounds until the groups stabilise.
-function kMeans(data, k, iterations = 50) {
-  if (data.length < k) k = data.length
-  if (k === 0) return { clusters: [], assignments: [] }
-  let centroids = [...data].sort(() => Math.random() - 0.5).slice(0, k)
-  let assignments = new Array(data.length).fill(0)
-  for (let iter = 0; iter < iterations; iter++) {
-    assignments = data.map(point => {
-      let minDist = Infinity, nearest = 0
-      centroids.forEach((c, ci) => {
-        const dist = Math.sqrt(
-          Math.pow(point.length_cm - c.length_cm, 2) +
-          Math.pow(point.width_cm - c.width_cm, 2)
-        )
-        if (dist < minDist) { minDist = dist; nearest = ci }
-      })
-      return nearest
-    })
-    const newCentroids = centroids.map((_, ci) => {
-      const pts = data.filter((_, i) => assignments[i] === ci)
-      if (pts.length === 0) return centroids[ci]
-      return {
-        length_cm: pts.reduce((s, p) => s + p.length_cm, 0) / pts.length,
-        width_cm:  pts.reduce((s, p) => s + p.width_cm, 0)  / pts.length,
-      }
-    })
-    centroids = newCentroids
-  }
-  return {
-    clusters: centroids.map((centroid, ci) => ({
-      id: ci, centroid,
-      points: data.filter((_, i) => assignments[i] === ci),
-    })),
-    assignments,
-  }
-}
-
 // ── Rule-based similarity ───────────────────────────────────────────────────
 // Hard-coded domain rule (not machine learning): two bones are "similar" if
 // they're the same bone type, from the same time period, and their length
 // difference is within the tolerance. Used as a simple baseline to compare
-// against the K-Means and KNN results.
+// against the KNN results.
 function areSimilar(a, b, lengthTolerance = 3.0) {
   return (
     a.bone_type   === b.bone_type &&
@@ -134,7 +93,6 @@ function SimilarFindingsPage() {
   const [boneFilter,     setBoneFilter]     = useState('All')
   const [periodFilter,   setPeriodFilter]   = useState('All')
   const [tolerance,      setTolerance]      = useState(3.0)
-  const [kValue,         setKValue]         = useState(4)
   const [selectedGroup,  setSelectedGroup]  = useState(null)
 
   // KNN states
@@ -162,16 +120,15 @@ function SimilarFindingsPage() {
     load()
   }, [])
 
-  // Reset the expanded-row state whenever the tab changes, since 'rule' uses
-  // a numeric index and 'kmeans' uses a `k${ci}` string — without this a
-  // stale selection from one tab can silently match a key in another.
+  // Reset the expanded-row state whenever the tab changes, so a stale
+  // selection from one tab doesn't silently match a key in another.
   const switchTab = (tabId) => {
     setActiveTab(tabId)
     setSelectedGroup(null)
   }
 
   // Filtered findings — respects the Bone Type / Time Period filters above,
-  // so every tab (Rule-Based, K-Means, KNN) works off the same narrowed set
+  // so every tab (Rule-Based, KNN) works off the same narrowed set
   const filtered = useMemo(() => findings.filter(f =>
     (boneFilter  === 'All' || f.bone_type   === boneFilter) &&
     (periodFilter === 'All' || f.time_period === periodFilter)
@@ -295,13 +252,6 @@ function SimilarFindingsPage() {
       .sort((a, b) => b.length - a.length)
   }, [filtered, tolerance])
 
-  // K-Means
-  const kMeansResult = useMemo(() => {
-    const valid = filtered.filter(f => f.length_cm && f.width_cm)
-    if (valid.length < 2) return { clusters: [] }
-    return kMeans(valid, Math.min(kValue, valid.length))
-  }, [filtered, kValue])
-
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto p-8">
@@ -323,7 +273,7 @@ function SimilarFindingsPage() {
           </p>
           <h2 className="text-2xl font-bold text-slate-100">Similar Bone Findings Analysis</h2>
           <p className="text-slate-400 text-sm mt-1">
-            Cross-site skeletal similarity detection using Rule-Based, K-Means, and KNN Machine Learning
+            Cross-site skeletal similarity detection using Rule-Based and KNN Machine Learning
           </p>
         </div>
         <Link to="/parami" className="text-slate-400 hover:text-slate-200 text-sm transition-colors">
@@ -382,7 +332,6 @@ function SimilarFindingsPage() {
       <div className="flex gap-2 mb-6 border-b border-slate-700 overflow-x-auto">
         {[
           { id: 'rule',   label: '📋 Rule-Based' },
-          { id: 'kmeans', label: '🤖 K-Means' },
           { id: 'knn',    label: '🧠 KNN Machine Learning' },
           { id: 'all',    label: '📊 All Findings' },
         ].map(tab => (
@@ -486,87 +435,6 @@ function SimilarFindingsPage() {
               })}
             </div>
           )}
-        </div>
-      )}
-
-      {/* ── K-Means Tab ── */}
-      {activeTab === 'kmeans' && (
-        <div>
-          <div className="bg-slate-800 rounded-xl border border-slate-700 p-5 mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-slate-300 text-sm font-medium">Number of Clusters (K): {kValue}</label>
-            </div>
-            <input type="range" min="2" max="8" step="1" value={kValue}
-              onChange={e => setKValue(parseInt(e.target.value))}
-              className="w-full accent-orange-500" />
-            <div className="flex justify-between text-xs text-slate-500 mt-1">
-              <span>2 clusters</span><span>8 clusters</span>
-            </div>
-            <div className="mt-3 bg-slate-700 rounded-lg p-3 text-xs text-slate-400">
-              🤖 <strong className="text-slate-300">K-Means:</strong> Groups bone findings by measurement similarity (length + width). Iteratively assigns to nearest centroid.
-            </div>
-          </div>
-          <div className="space-y-4">
-            {kMeansResult.clusters.filter(c => c.points.length > 0).map((cluster, ci) => {
-              const colour = CLUSTER_COLOURS[ci % CLUSTER_COLOURS.length]
-              const sites  = [...new Set(cluster.points.map(p => p.site_name))]
-              const avgLen = cluster.centroid.length_cm.toFixed(1)
-              const avgW   = cluster.centroid.width_cm.toFixed(1)
-              const periods= [...new Set(cluster.points.map(p => p.time_period))]
-              const bones  = [...new Set(cluster.points.map(p => p.bone_type))]
-              return (
-                <div key={ci} className={`rounded-xl border ${colour.border} ${colour.bg} overflow-hidden`}>
-                  <div className="px-6 py-4 flex items-center justify-between cursor-pointer"
-                    onClick={() => setSelectedGroup(selectedGroup === `k${ci}` ? null : `k${ci}`)}>
-                    <div className="flex items-center gap-3">
-                      <span className="w-3 h-3 rounded-full" style={{ background: colour.dot }} />
-                      <div>
-                        <p className={`font-semibold ${colour.text}`}>Cluster {ci + 1} — {avgLen}cm × {avgW}cm</p>
-                        <p className="text-slate-400 text-xs mt-0.5">{cluster.points.length} findings · {sites.length} sites · {bones.join(', ')}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex flex-wrap gap-1">
-                        {periods.map(p => <span key={p} className="bg-slate-800 text-slate-300 text-xs px-2 py-0.5 rounded-full">{p}</span>)}
-                      </div>
-                      <span className="text-slate-500">{selectedGroup === `k${ci}` ? '▲' : '▼'}</span>
-                    </div>
-                  </div>
-                  {selectedGroup === `k${ci}` && (
-                    <div className="border-t border-slate-700 overflow-x-auto">
-                      <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-slate-700">
-                            {['Site', 'Bone', 'Side', 'Period', 'Length', 'Width', 'Preservation', 'Age', 'Sex'].map(h => (
-                              <th key={h} className="text-left px-4 py-3 text-slate-400 font-medium whitespace-nowrap">{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {cluster.points.map((f, fi) => (
-                            <tr key={fi} className={`border-b border-slate-700 hover:bg-slate-700/50 ${fi % 2 !== 0 ? 'bg-slate-800/30' : ''}`}>
-                              <td className="px-4 py-3 text-slate-200 font-medium whitespace-nowrap">{f.site_name}</td>
-                              <td className="px-4 py-3 text-slate-400">{f.bone_type}</td>
-                              <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${f.side === 'Left' ? 'bg-blue-900 text-blue-300' : 'bg-orange-900 text-orange-300'}`}>{f.side}</span></td>
-                              <td className="px-4 py-3 text-slate-400 whitespace-nowrap">{f.time_period}</td>
-                              <td className="px-4 py-3 text-emerald-400 font-mono">{f.length_cm} cm</td>
-                              <td className="px-4 py-3 text-slate-400 font-mono">{f.width_cm} cm</td>
-                              <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs ${PRESERVATION_BADGE[f.preservation_state] || 'bg-slate-700 text-slate-400'}`}>{f.preservation_state}</span></td>
-                              <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">{f.age_estimate}</td>
-                              <td className="px-4 py-3 text-slate-400">{f.sex_estimate}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      <div className="px-6 py-3 bg-slate-900/40 text-xs text-slate-400">
-                        🤖 <strong className="text-slate-300">AI Insight:</strong> K-Means identified {cluster.points.length} findings (avg: {avgLen}cm × {avgW}cm) across {sites.length} sites — {sites.join(', ')}.
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
         </div>
       )}
 

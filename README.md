@@ -34,7 +34,6 @@ OAHRIS helps researchers **store, visualize, and analyze** excavation data, skel
 | Student ID | Name | Module |
 |---|---|---|
 | IT22159908 | Ilshan | Data Integration |
-| IT22889874 | Parami K K J | 🗺️ GIS Spatial Analysis |
 | IT21824210 | — | Image Management |
 | **IT22299802** | **Chamudi Gayeshika** | **🧬 Skeletal Analysis System** |
 | IT22299802 | Minuri | Research Analytics |
@@ -109,23 +108,6 @@ OAHRIS helps researchers **store, visualize, and analyze** excavation data, skel
 | `/skeletal/knowledge/course` | 🎓 Learning Path (Google login) |
 | `/skeletal/knowledge/guide` | 🦴 Animated Bone Feature Guide |
 | `/skeletal/knowledge/tutorial` | 📘 New‑Analysis Tutorial |
-
----
-
-## 🗺️ GIS Spatial Analysis · `IT22889874 — Parami`
-
-Geographic & temporal visualization of excavation sites across Sri Lanka.
-
-- **Interactive Leaflet map** with risk‑level markers (High / Medium / Low)
-- **Temporal filter** across 5 historical phases (50,000 BP → present)
-- **AI clustering (DBSCAN)** to auto‑detect burial‑site clusters — adjustable ε & min‑points
-- **Statistics dashboard** + district/type breakdowns
-
-<div align="center">
-
-`http://localhost:5173/parami`
-
-</div>
 
 ---
 
@@ -252,22 +234,6 @@ kgc_supabase_setup.sql               # DB tables + RLS + seed data
 | `updated_at` | timestamptz | last update |
 
 *Row‑Level Security ensures each learner can read/write only their own row.*
-
-</details>
-
-<details>
-<summary><b>sites</b> — GIS excavation sites</summary>
-
-| Column | Type | Description |
-|---|---|---|
-| `id` | uuid | Primary key |
-| `site_name` | varchar | Site name |
-| `district` / `province` | varchar | Location |
-| `latitude` / `longitude` | numeric | Coordinates |
-| `time_period` | varchar | Historical period |
-| `site_type` | varchar | Cave site, burial ground, … |
-| `risk_level` | varchar | High / Medium / Low |
-| `protected_status` | boolean | Legally protected? |
 
 </details>
 

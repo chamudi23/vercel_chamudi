@@ -367,7 +367,10 @@ function ParamiModulePage() {
       </div>
 
       {/* ── MAP ── */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden mb-8">
+      {/* relative + z-0 keeps Leaflet's internal panes/controls (z-index up
+          to 1000+) contained in their own stacking context, so they don't
+          paint on top of the app's sticky header (z-50) while scrolling */}
+      <div className="relative z-0 bg-slate-800 rounded-xl border border-slate-700 overflow-hidden mb-8">
         <div className="px-6 py-4 border-b border-slate-700 flex items-center justify-between flex-wrap gap-2">
           <h3 className="text-slate-200 font-semibold">
             Site Map
@@ -399,7 +402,7 @@ function ParamiModulePage() {
             scrollWheelZoom={true}
           >
             <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             />
             {/* Cluster radius circles */}
