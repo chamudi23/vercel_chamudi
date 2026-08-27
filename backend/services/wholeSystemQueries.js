@@ -6,6 +6,7 @@ const MAX_ANNOTATIONS = 20
 const MAX_TAGS = 20
 const MAX_LOGS = 20
 const MAX_TEXT = 500
+const MAX_NAME_CANDIDATES = 100
 const SITE_FILTER_KEYS = Object.freeze(['siteName', 'district', 'province', 'timePeriod', 'siteType', 'riskLevel'])
 
 let siteContextModulePromise
@@ -21,6 +22,9 @@ function exactFilter(value) {
   if (!result || /[*%_]/.test(result)) throw Object.assign(new Error('The search filter contains unsupported wildcard characters.'), { code: 'INVALID_FILTER' })
   return result
 }
+function normalizedName(value) { return String(value ?? '').trim().replace(/\s+/g, ' ') }
+function escapedLikeToken(value) { return value.replace(/[\\%_]/g, '\\$&') }
+function normalizedNamePattern(value) { return `%${normalizedName(value).split(' ').map(escapedLikeToken).join('%')}%` }
 function notFound(resource, identifier, operation) { return { type: 'NOT_FOUND', resource, identifier, operation } }
 function safeUrl(value) {
   if (!value) return null
@@ -81,8 +85,9 @@ async function searchSites(filters = {}, client) {
 }
 
 async function getSite(input = {}, client) {
+  const { normalizeSiteName, resolveSpecimenSite } = await siteContextModule()
   const siteId = input.siteId ? exactFilter(input.siteId) : ''
-  const siteName = input.siteName ? exactFilter(input.siteName) : ''
+  const siteName = input.siteName ? normalizedName(exactFilter(input.siteName)) : ''
   if ((siteId ? 1 : 0) + (siteName ? 1 : 0) !== 1) throw Object.assign(new Error('Provide exactly one site ID or exact site name.'), { code: 'INVALID_FILTER' })
 
   let candidates
@@ -91,29 +96,51 @@ async function getSite(input = {}, client) {
     if (error) throw serviceError(error)
     candidates = data || []
   } else {
-    const { data, error } = await client.from('sites').select('id,site_name,district,province,time_period,site_type,risk_level,protected_status,description').ilike('site_name', siteName).limit(MAX_RESULTS)
+    const { data, error } = await client.from('sites').select('id,site_name,district,province,time_period,site_type,risk_level,protected_status,description').ilike('site_name', normalizedNamePattern(siteName)).order('site_name', { ascending: true }).limit(MAX_NAME_CANDIDATES)
     if (error) throw serviceError(error)
-    candidates = data || []
+    const requestedKey = normalizeSiteName(siteName)
+    candidates = (data || []).filter((site) => normalizeSiteName(site.site_name) === requestedKey)
+  }
+  if (!candidates.length && siteName) {
+    const { data: referencedSpecimens, error: specimenError } = await client
+      .from('specimens')
+      .select('specimen_id,skeleton_code,bone_type,side,site_name,district,province,time_period,preservation_state')
+      .ilike('site_name', normalizedNamePattern(siteName))
+      .order('skeleton_code', { ascending: true })
+      .limit(MAX_NAME_CANDIDATES)
+    if (specimenError) throw serviceError(specimenError)
+    const exactReferences = (referencedSpecimens || []).filter((specimen) => normalizeSiteName(specimen.site_name) === normalizeSiteName(siteName)).slice(0, MAX_RESULTS)
+    if (exactReferences.length) {
+      return {
+        type: 'SITE_RESULT',
+        status: 'reference_only',
+        site: null,
+        requestedSiteName: siteName,
+        siteLinkageStatus: 'reference_only',
+        linkedSpecimens: exactReferences.map((specimen) => mapLinkedSpecimen(specimen, resolveSpecimenSite(specimen, []).status)),
+        meta: { limit: MAX_RESULTS, coordinatesIncluded: false, linkage: 'specimen_reference_only' },
+      }
+    }
   }
   if (!candidates.length) return notFound('site', siteId || siteName, 'get_site')
   if (!siteId && candidates.length > 1) return { type: 'SITE_RESULT', status: 'ambiguous', site: null, matches: candidates.slice(0, MAX_RESULTS).map(mapSite), linkedSpecimens: [], meta: { coordinatesIncluded: false } }
 
   const selected = candidates[0]
-  const { data: sameName, error: duplicateError } = await client.from('sites').select('id,site_name,district,province,time_period,site_type,risk_level,protected_status,description').ilike('site_name', exactFilter(selected.site_name)).limit(MAX_RESULTS)
+  const { data: sameNameCandidates, error: duplicateError } = await client.from('sites').select('id,site_name,district,province,time_period,site_type,risk_level,protected_status,description').ilike('site_name', normalizedNamePattern(selected.site_name)).order('site_name', { ascending: true }).limit(MAX_NAME_CANDIDATES)
   if (duplicateError) throw serviceError(duplicateError)
-  if ((sameName || []).length > 1) {
+  const sameName = (sameNameCandidates || []).filter((site) => normalizeSiteName(site.site_name) === normalizeSiteName(selected.site_name))
+  if (sameName.length > 1) {
     return { type: 'SITE_RESULT', status: 'resolved', site: mapSite(selected), siteLinkageStatus: 'ambiguous', matches: sameName.slice(0, MAX_RESULTS).map(mapSite), linkedSpecimens: [], meta: { coordinatesIncluded: false, linkage: 'ambiguous_site_name' } }
   }
 
   const { data: specimens, error: specimenError } = await client
     .from('specimens')
     .select('specimen_id,skeleton_code,bone_type,side,site_name,district,province,time_period,preservation_state')
-    .eq('site_name', selected.site_name)
+    .ilike('site_name', normalizedNamePattern(selected.site_name))
     .order('skeleton_code', { ascending: true })
-    .limit(MAX_RESULTS)
+    .limit(MAX_NAME_CANDIDATES)
   if (specimenError) throw serviceError(specimenError)
-  const { resolveSpecimenSite } = await siteContextModule()
-  const linkedSpecimens = (specimens || []).slice(0, MAX_RESULTS).map((specimen) => mapLinkedSpecimen(specimen, resolveSpecimenSite(specimen, [selected]).status))
+  const linkedSpecimens = (specimens || []).filter((specimen) => normalizeSiteName(specimen.site_name) === normalizeSiteName(selected.site_name)).slice(0, MAX_RESULTS).map((specimen) => mapLinkedSpecimen(specimen, resolveSpecimenSite(specimen, [selected]).status))
   return { type: 'SITE_RESULT', status: 'resolved', site: mapSite(selected), siteLinkageStatus: 'resolved', linkedSpecimens, meta: { limit: MAX_RESULTS, coordinatesIncluded: false, linkage: 'exact_site_name' } }
 }
 

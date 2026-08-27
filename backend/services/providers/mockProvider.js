@@ -8,7 +8,14 @@ const VIEWS = ['Anterior', 'Posterior', 'Lateral', 'Superior', 'Inferior', 'Medi
 const IMAGE_TYPES = ['Excavation', 'Laboratory', 'Museum', 'Field', 'Reference']
 
 function firstOption(text, options) { return options.find((option) => text.includes(option.toLowerCase())) }
-function firstCode(message) { return message.match(/\bSK[-\s]?\d+\b/i)?.[0].replace(/\s+/g, '').toUpperCase() }
+function firstCode(message) { return message.match(/\b(?:SK[-\s]?\d+|SPEC-[A-Z0-9-]+)\b/i)?.[0].replace(/\s+/g, '').toUpperCase() }
+function firstImageId(message) { return message.match(/\bIMG[-\s]?[A-Z0-9-]+\b/i)?.[0].replace(/\s+/g, '').toUpperCase() }
+function firstCaseId(message) { return message.match(/\bKGC-[A-Z0-9-]+\b/i)?.[0].toUpperCase() }
+function sitePeriod(message) { return message.match(/\bsites?\s+(?:from|in|of)\s+(.{1,120}?)\s+period\b/i)?.[1]?.trim() }
+function exactSiteName(message) { return message.match(/^\s*(?:(?:could you\s+)?tell me about|what do we know about|(?:give me\s+)?information about)\s+(.+?)[?.!]*\s*$/i)?.[1]?.trim().replace(/\s+/g, ' ') }
+function looksLikeSystemKnowledge(message) {
+  return /\b(?:what is|tell me about|describe|overview of|what can)\b[\s\S]{0,30}\bOAHRIS\b|\b(?:system modules?|assistant capabilities|assistant limitations|roles? and access|skeletal catalogue|bone categories|bone types)\b|\b(?:what is|what does|purpose of|what about)\b[\s\S]{0,30}\b(?:specimen records?|spatial analysis|image library|skeleton viewer|skeletal analysis|data quality|research assistant)\b/i.test(message)
+}
 function firstBone(text) { return Object.entries(BONE_TERMS).find(([term]) => new RegExp(`\\b${term}s?\\b`, 'i').test(text))?.[1] }
 function filtersFrom(message) {
   const text = message.toLowerCase()
@@ -32,6 +39,23 @@ function filtersFrom(message) {
 function defaultSelection({ message }) {
   const text = message.toLowerCase()
   const code = firstCode(message)
+  const imageId = firstImageId(message)
+  const caseId = firstCaseId(message)
+  const period = sitePeriod(message)
+  const siteName = exactSiteName(message)
+  const contextTerms = /\b(?:where|found|excavat(?:ed|ion)|dating|archaeological context)\b/i.test(message)
+  if (code && contextTerms && /\b(image|images|photo|photos|picture|pictures)\b/.test(text)) return { type: PROVIDER_RESULT_TYPES.TOOL_SELECTION, toolCalls: [{ name: 'get_specimen_context', arguments: { specimenId: code } }, { name: 'search_images', arguments: { specimenId: code } }] }
+  if (/\b(?:skeletal\s+)?analysis\b/.test(text) && /\bspecimen\b/.test(text) && code) return { type: PROVIDER_RESULT_TYPES.CLARIFICATION, toolCalls: [], clarification: 'Stored Skeletal Analysis results are currently retrieved by analysis case ID. Please provide the case ID.' }
+  if (/\b(?:run|perform|calculate|find)\b[\s\S]{0,30}\b(?:dbscan|k[ -]?means|knn|similar findings|anomaly analysis)\b/i.test(message)) return { type: PROVIDER_RESULT_TYPES.TOOL_SELECTION, toolCalls: [{ name: 'get_system_help', arguments: { query: message } }] }
+  if (/\b(?:estimate|determine|calculate|infer|predict)\b[\s\S]{0,30}\b(?:age|sex|stature)\b|\b(?:create|build)\b[\s\S]{0,20}\bbiological[ -]?profile\b/i.test(message)) return { type: PROVIDER_RESULT_TYPES.TOOL_SELECTION, toolCalls: [{ name: 'get_system_help', arguments: { query: 'How do I run skeletal analysis?' } }] }
+  if (code && /\b(?:missing important (?:data|information)|data quality|completeness|incomplete)\b/i.test(message)) return { type: PROVIDER_RESULT_TYPES.TOOL_SELECTION, toolCalls: [{ name: 'get_specimen_data_quality', arguments: { specimenId: code } }] }
+  if (code && contextTerms) return { type: PROVIDER_RESULT_TYPES.TOOL_SELECTION, toolCalls: [{ name: 'get_specimen_context', arguments: { specimenId: code } }] }
+  if (imageId && /\b(?:metadata|information|detail|details|attached|stored)\b/i.test(message)) return { type: PROVIDER_RESULT_TYPES.TOOL_SELECTION, toolCalls: [{ name: 'get_image', arguments: { imageId } }] }
+  if (caseId && /\b(?:analysis|saved result|stored result|result)\b/i.test(message)) return { type: PROVIDER_RESULT_TYPES.TOOL_SELECTION, toolCalls: [{ name: 'get_skeletal_analysis_result', arguments: { caseId } }] }
+  if (period && /\bsites?\b/i.test(message)) return { type: PROVIDER_RESULT_TYPES.TOOL_SELECTION, toolCalls: [{ name: 'search_sites', arguments: { timePeriod: period } }] }
+  if (looksLikeSystemKnowledge(message)) return { type: PROVIDER_RESULT_TYPES.TOOL_SELECTION, toolCalls: [{ name: 'search_system_knowledge', arguments: { query: message } }] }
+  if (siteName && !/\b(?:specimen|image|analysis case)\b/i.test(siteName)) return { type: PROVIDER_RESULT_TYPES.TOOL_SELECTION, toolCalls: [{ name: 'get_site', arguments: { siteName } }] }
+  if (/\b(?:what|which)\b[\s\S]{0,50}\b(?:archaeological\s+|excavation\s+)?sites?\b[\s\S]{0,30}\b(?:available|have)\b|\b(?:show|list)\s+(?:me\s+)?(?:archaeological\s+|excavation\s+)?sites?\b/i.test(message)) return { type: PROVIDER_RESULT_TYPES.CLARIFICATION, toolCalls: [], clarification: 'I can search sites by name, district, province, period, site type, or risk level. Which filter would you like to use?' }
   if (/\b(measurement|measurements|measured)\b/.test(text) && code) return { type: PROVIDER_RESULT_TYPES.TOOL_SELECTION, toolCalls: [{ name: 'get_measurements', arguments: { specimenId: code } }] }
   if (/\b(coverage|documentation status|documented)\b/.test(text) && code) return { type: PROVIDER_RESULT_TYPES.TOOL_SELECTION, toolCalls: [{ name: 'get_skeleton_coverage', arguments: { skeletonCode: code } }] }
   if (/\b(image|images|photo|photos|picture|pictures)\b/.test(text)) {
@@ -55,8 +79,16 @@ function defaultSelection({ message }) {
 
 function defaultSynthesis({ toolName, toolResult }) {
   if (toolResult.type === 'SYSTEM_HELP') return { answer: toolResult.topic.summary }
+  if (toolResult.type === 'SYSTEM_KNOWLEDGE') return { answer: (toolResult.sections || []).map((section) => section.summary).filter(Boolean).join(' ') }
   if (toolResult.type === 'COVERAGE_RESULT') return { answer: `OAHRIS documentation coverage was retrieved for ${toolResult.skeletonCode}.` }
+  if (toolResult.type === 'SITE_RESULTS') return { answer: `${toolResult.records?.length || 0} matching stored OAHRIS archaeological site record${toolResult.records?.length === 1 ? '' : 's'} found.` }
+  if (toolResult.type === 'SITE_RESULT') return { answer: toolResult.status === 'ambiguous' ? 'I found more than one OAHRIS site record with that name. Please verify which site you mean.' : toolResult.status === 'reference_only' ? `${toolResult.requestedSiteName || 'That site'} is referenced by OAHRIS specimen records, but it does not resolve to a unique stored site record.` : `Stored OAHRIS site information was retrieved for ${toolResult.site?.siteName || 'the requested site'}.` }
+  if (toolResult.type === 'SPECIMEN_CONTEXT') return { answer: toolResult.laboratoryDating ? `Recorded excavation and laboratory-dating information was retrieved for ${toolResult.specimen?.specimenId}.` : `Recorded excavation context was retrieved for ${toolResult.specimen?.specimenId}. There is no laboratory dating information recorded for this specimen.` }
+  if (toolResult.type === 'IMAGE_RESULT') return { answer: `Stored OAHRIS image metadata and annotations were retrieved for ${toolResult.image?.imageId}.` }
+  if (toolResult.type === 'SKELETAL_ANALYSIS_RESULT') return { answer: `Recorded result produced by the Skeletal Analysis module was retrieved for ${toolResult.analysis?.caseId}.` }
+  if (toolResult.type === 'DATA_QUALITY_RESULT') return { answer: `The current deterministic OAHRIS completeness check and previously stored measurement-analysis logs were retrieved for ${toolResult.specimenId}.` }
   const count = Array.isArray(toolResult.records) ? toolResult.records.length : 0
+  if (toolName === 'get_specimen' && toolResult.records?.[0] && ['recordedAgeEstimate', 'recordedSexEstimate', 'recordedHeightEstimate'].some((key) => toolResult.records[0][key] !== null && toolResult.records[0][key] !== undefined)) return { answer: `The requested values are recorded in the specimen record for ${toolResult.records[0].specimenId}.` }
   const label = toolName === 'search_images' ? 'image' : toolName === 'get_measurements' ? 'measurement' : 'specimen'
   return { answer: `${count} matching ${label} record${count === 1 ? '' : 's'} found in OAHRIS.` }
 }

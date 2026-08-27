@@ -11,8 +11,9 @@ const ASSISTANT_TOOL_PERMISSIONS = Object.freeze({
   get_measurements: ROLE_GROUPS.authenticated,
   get_skeleton_coverage: ROLE_GROUPS.authenticated,
   get_system_help: ROLE_GROUPS.authenticated,
+  search_system_knowledge: ROLE_GROUPS.authenticated,
 
-  // Reserved Phase 4C permissions. These names are not registered tools yet.
+  // Whole-system read-only retrieval permissions.
   search_sites: ROLE_GROUPS.authenticated,
   get_site: ROLE_GROUPS.authenticated,
   get_specimen_context: ROLE_GROUPS.authenticated,

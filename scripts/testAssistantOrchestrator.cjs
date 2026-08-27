@@ -121,11 +121,11 @@ for (const [label, message, code] of [
   assert.equal(response.type, 'POLICY_REJECTION'); assert.equal(response.meta.code, code); assert.equal(provider.stats.selectionCalls, 0); assert.equal(serviceSet.calls.length, 0)
 })
 
-test('age, sex, stature, and biological-profile requests are pre-rejected', async () => {
+test('age, sex, stature, and biological-profile requests receive deterministic Skeletal Analysis guidance', async () => {
   for (const message of ['Estimate age from this skull.', 'Estimate sex.', 'Calculate stature.', 'Build a biological profile.']) {
-    const { orchestrator, provider } = setup()
+    const { orchestrator, provider, serviceSet } = setup()
     const response = await orchestrator.respond({ message })
-    assert.equal(response.type, 'POLICY_REJECTION'); assert.equal(provider.stats.selectionCalls, 0)
+    assert.equal(response.type, 'SYSTEM_HELP'); assert.equal(provider.stats.selectionCalls, 0); assert.equal(serviceSet.calls[0][0], 'get_system_help')
   }
 })
 
@@ -156,7 +156,7 @@ test('tool descriptions are strict and expose no result limit', async () => {
   const captured = []
   const { orchestrator } = setup({ selectTool: ({ tools }) => { captured.push(...tools); return { type: 'UNSUPPORTED', toolCalls: [] } } })
   await orchestrator.respond({ message: 'A safe but unsupported question.' })
-  assert.equal(captured.length, 12)
+  assert.equal(captured.length, 13)
   for (const tool of captured) { assert.equal(tool.inputSchema.additionalProperties, false); assert.equal(Object.hasOwn(tool.inputSchema.properties, 'limit'), false) }
 })
 

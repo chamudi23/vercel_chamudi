@@ -5,7 +5,7 @@ import { parseAssistantIntent } from '../src/lib/assistantIntent.js'
 const require = createRequire(import.meta.url)
 const { createAssistantOrchestrator } = require('../backend/services/assistantOrchestrator.js')
 const { createAssistantToolRegistry } = require('../backend/services/assistantToolRegistry.js')
-const { normalizeConversationContext } = require('../backend/services/assistantConversation.js')
+const { normalizeConversationContext, resolveConversationTurn } = require('../backend/services/assistantConversation.js')
 const { createMockProvider } = require('../backend/services/providers/mockProvider.js')
 const { getSystemHelp } = require('../backend/services/helpRetrieval.js')
 
@@ -37,6 +37,36 @@ test('guidance wording resolves to verified add-specimen help, not mutation reje
   assert.equal(provider.stats.selectionCalls, 0)
 })
 
+for (const [message, context, expected] of [
+  ['thank you', { previousUserMessage: 'Tell me about a site.', previousAssistantMessage: 'Stored site record retrieved.' }, "You're welcome! Let me know if you need anything else in OAHRIS."],
+  ['thanks', { previousUserMessage: 'Show specimen SPEC-664.', previousAssistantMessage: 'Stored specimen record retrieved.' }, "You're welcome!"],
+  ['okay', { previousUserMessage: 'Show image IMG001.', previousAssistantMessage: 'Stored image detail retrieved.' }, 'Got it.'],
+  ['got it', { previousUserMessage: 'Show analysis case KGC-123.', previousAssistantMessage: 'Recorded result retrieved.' }, 'Got it.'],
+  ['great', { previousUserMessage: 'Check data quality for SPEC-664.', previousAssistantMessage: 'Current completeness retrieved.' }, 'Glad that helped.'],
+  ['bye', {}, 'See you later!'],
+  ['hello', {}, 'Hello! What would you like to explore in OAHRIS?'],
+]) test(`social message stays conversational: ${message}`, async () => {
+  const { orchestrator, calls, provider } = setup()
+  const result = await orchestrator.respond({ message, context })
+  assert.equal(result.type, 'CONVERSATION')
+  assert.equal(result.answer, expected)
+  assert.equal(calls.length, 0)
+  assert.equal(provider.stats.selectionCalls, 0)
+  assert.equal(provider.stats.synthesisCalls, 0)
+})
+
+for (const [message, context] of [
+  ['thank you', { previousUserMessage: 'Tell me about a site.', previousAssistantMessage: 'Which site do you mean?' }],
+  ['thanks', { previousUserMessage: 'Show a specimen.', previousAssistantMessage: 'Which specimen?' }],
+  ['okay', { previousUserMessage: 'Show stored analysis.', previousAssistantMessage: 'Which analysis case ID?' }],
+]) test(`social phrase cannot fill a follow-up slot: ${message}`, async () => {
+  const { orchestrator, calls, provider } = setup()
+  const result = await orchestrator.respond({ message, context })
+  assert.equal(result.type, 'CONVERSATION')
+  assert.equal(calls.length, 0)
+  assert.equal(provider.stats.selectionCalls, 0)
+})
+
 for (const message of ['Add specimen SK100 for me', 'Delete specimen SK001', 'Update this specimen', 'Change the bone type']) {
   test(`direct mutation remains blocked: ${message}`, async () => {
     const { orchestrator, provider, calls } = setup()
@@ -60,6 +90,21 @@ test('specimen clarification plus SK001 follow-up resolves get_specimen', async 
   const { orchestrator, calls } = setup()
   await orchestrator.respond({ message: 'SK001', context: { previousUserMessage: 'Show me specimen information.', previousAssistantMessage: 'Which specimen ID?' } })
   assert.deepEqual(calls[0], ['get_specimen', { specimenId: 'SK001' }])
+})
+
+test('real site, specimen, and analysis follow-up values remain valid', () => {
+  assert.deepEqual(
+    resolveConversationTurn({ message: 'Anuradhapura Citadel', context: { previousUserMessage: 'Tell me about a site.', previousAssistantMessage: 'Which site?' } }).toolCalls,
+    [{ name: 'get_site', arguments: { siteName: 'Anuradhapura Citadel' } }],
+  )
+  assert.deepEqual(
+    resolveConversationTurn({ message: 'SPEC-664', context: { previousUserMessage: 'Show a specimen.', previousAssistantMessage: 'Which specimen?' } }).toolCalls,
+    [{ name: 'get_specimen', arguments: { specimenId: 'SPEC-664' } }],
+  )
+  assert.deepEqual(
+    resolveConversationTurn({ message: 'KGC-123', context: { previousUserMessage: 'Show stored analysis.', previousAssistantMessage: 'Which analysis case ID?' } }).toolCalls,
+    [{ name: 'get_skeletal_analysis_result', arguments: { caseId: 'KGC-123' } }],
+  )
 })
 
 test('affirmative upload follow-up resolves verified upload help', async () => {

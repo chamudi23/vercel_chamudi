@@ -1,5 +1,5 @@
 import { CONDITION_OPTIONS, IMAGE_TYPE_OPTIONS, IMAGE_VIEW_OPTIONS, PP1_BONE_OPTIONS, normalize, resolveBoneCategory } from '../utils/pp1ImageModule.js'
-const specimenCode = /\bSK[-\s]?\d+\b/gi
+const specimenCode = /\b(?:SK[-\s]?\d+|SPEC-[A-Z0-9-]+)\b/gi
 const imageCode = /\bIMG[-\s]?[A-Z0-9-]+\b/i
 const analysisCaseCode = /\bKGC-[A-Z0-9-]+\b/i
 const interpretationTerms = /\b(diagnos|patholog|disease|estimate age|determine age|calculate age|what is the age|estimate sex|determine sex|calculate sex|estimate stature|determine stature|calculate stature|biological profile|cause of death|trauma assessment)\b/i
@@ -19,6 +19,7 @@ export function parseAssistantIntent(prompt) {
   const caseId = raw.match(analysisCaseCode)?.[0]?.toUpperCase() || ''
   const siteId = raw.match(/\b(?:show|get|view)\s+site\s+([A-Z0-9][A-Z0-9-]{2,119})\b/i)?.[1] || ''
   const period = sitePeriod(raw)
+  if (code && /\b(image|images|photo|photos|picture|pictures)\b/.test(text) && /\b(?:where|found|excavat(?:ed|ion)|dating|archaeological context)\b/.test(text)) return { type: 'UNSUPPORTED_QUERY', message: 'This request contains more than one assistant action.' }
   if (/\b(?:skeletal\s+)?analysis\b/.test(text) && /\bspecimen\b/.test(text) && code) return { type: 'UNSUPPORTED_QUERY', message: 'Stored skeletal analyses cannot currently be looked up by specimen ID. Use an exact analysis case ID.' }
   if (/\b(excavation|dating|context)\b/.test(text) && code) return { type: 'SPECIMEN_CONTEXT', specimenId: code }
   if (/\b(data quality|completeness)\b/.test(text) && code) return { type: 'DATA_QUALITY_RESULT', specimenId: code }
