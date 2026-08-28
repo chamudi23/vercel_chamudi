@@ -30,6 +30,21 @@ const features = [
     badge: "Records",
   },
   {
+    id: 3,
+    title: "Add Site",
+    description:
+      "Register an archaeological site with location, period, protection and risk details, plus an optional site photograph.",
+    route: "/sites/add",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-7 h-7">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 21s6-5.2 6-11a6 6 0 10-12 0c0 5.8 6 11 6 11z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v6m-3-3h6" />
+      </svg>
+    ),
+    accent: "#34d399",
+    badge: "Site Entry",
+  },
+  {
     id: 4,
     title: "Data Import",
     description:
