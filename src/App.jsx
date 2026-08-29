@@ -107,10 +107,12 @@ function ApplicationRoutes() {
       <Route path="/specimens/import" element={<Curator><DataImportPage /></Curator>} />
       <Route path="/specimens/:id" element={<Auth><SpecimenDetailPage /></Auth>} />
       <Route path="/sites/add" element={<Curator><AddSitePage /></Curator>} />
+      <Route path="/sites/edit/:siteId" element={<Curator><AddSitePage /></Curator>} />
       <Route path="/minuri/sites" element={<Auth><ViewSitesPage /></Auth>} />
       <Route path="/minuri/sites/:siteId" element={<Auth><SiteDetailsPage /></Auth>} />
       <Route path="/minuri/storage-locations" element={<Auth><ViewStorageLocationsPage /></Auth>} />
       <Route path="/minuri/storage-locations/add" element={<Curator><AddStorageLocationPage /></Curator>} />
+      <Route path="/minuri/storage-locations/edit/:locationId" element={<Curator><AddStorageLocationPage /></Curator>} />
       <Route path="/data-quality" element={<Curator><DataQualityPage /></Curator>} />
 
       {/* ---------------- GIS Spatial Analysis ------------------------ */}

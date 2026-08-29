@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, Boxes, CheckCircle2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../supabase";
 
 const inputBase =
@@ -8,6 +8,8 @@ const inputBase =
 
 function AddStorageLocationPage() {
   const navigate = useNavigate();
+  const { locationId } = useParams();
+  const editing = Boolean(locationId);
   const [form, setForm] = useState({
     location_code: "",
     lab_no: "",
@@ -17,7 +19,41 @@ function AddStorageLocationPage() {
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(editing);
   const [success, setSuccess] = useState("");
+
+  useEffect(() => {
+    if (!editing) return undefined;
+    let active = true;
+
+    async function loadLocation() {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("storage_locations")
+        .select("location_code, lab_no, shelf_no, description, is_active")
+        .eq("id", locationId)
+        .single();
+
+      if (!active) return;
+      if (error) {
+        setErrors({ submit: `The storage location could not be loaded: ${error.message}` });
+      } else {
+        setForm({
+          location_code: data.location_code || "",
+          lab_no: data.lab_no || "",
+          shelf_no: data.shelf_no || "",
+          description: data.description || "",
+          is_active: data.is_active ?? true,
+        });
+      }
+      setLoading(false);
+    }
+
+    loadLocation();
+    return () => {
+      active = false;
+    };
+  }, [editing, locationId]);
 
   function handleChange(event) {
     const { name, value, type, checked } = event.target;
@@ -65,11 +101,10 @@ function AddStorageLocationPage() {
       is_active: form.is_active,
     };
 
-    const { data, error } = await supabase
-      .from("storage_locations")
-      .insert(payload)
-      .select("display_label")
-      .single();
+    const query = editing
+      ? supabase.from("storage_locations").update(payload).eq("id", locationId)
+      : supabase.from("storage_locations").insert(payload);
+    const { data, error } = await query.select("display_label").single();
 
     if (error) {
       setErrors({
@@ -79,14 +114,18 @@ function AddStorageLocationPage() {
             : error.message || "The storage location could not be saved.",
       });
     } else {
-      setSuccess(`${data.display_label} was added successfully.`);
-      setForm({
-        location_code: "",
-        lab_no: "",
-        shelf_no: "",
-        description: "",
-        is_active: true,
-      });
+      setSuccess(`${data.display_label} was ${editing ? "updated" : "added"} successfully.`);
+      if (editing) {
+        setTimeout(() => navigate("/minuri/storage-locations"), 1000);
+      } else {
+        setForm({
+          location_code: "",
+          lab_no: "",
+          shelf_no: "",
+          description: "",
+          is_active: true,
+        });
+      }
     }
     setSaving(false);
   }
@@ -99,20 +138,20 @@ function AddStorageLocationPage() {
         <div className="mx-auto flex max-w-4xl items-center justify-between">
           <button
             type="button"
-            onClick={() => navigate("/minuri")}
+            onClick={() => navigate(editing ? "/minuri/storage-locations" : "/minuri")}
             className="inline-flex items-center gap-2 text-sm text-white/50 transition hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Back to Module
+            {editing ? "Back to Locations" : "Back to Module"}
           </button>
-          <span className="text-xs uppercase tracking-widest text-white/30">Storage Form</span>
+          <span className="text-xs uppercase tracking-widest text-white/30">{editing ? "Edit Storage" : "Storage Form"}</span>
         </div>
       </header>
 
       <main className="mx-auto max-w-4xl px-6 py-10">
         <div className="mb-8">
-          <p className="mb-2 text-xs uppercase tracking-[0.2em] text-emerald-400/80">New Record</p>
-          <h1 className="text-3xl font-bold">Add Storage Location</h1>
+          <p className="mb-2 text-xs uppercase tracking-[0.2em] text-emerald-400/80">{editing ? "Update Record" : "New Record"}</p>
+          <h1 className="text-3xl font-bold">{editing ? "Edit Storage Location" : "Add Storage Location"}</h1>
           <p className="mt-2 max-w-2xl text-sm text-white/40">
             Register a laboratory shelf or storage slot for use when specimens are added.
           </p>
@@ -159,6 +198,7 @@ function AddStorageLocationPage() {
                     onChange={handleChange}
                     maxLength={50}
                     placeholder={placeholder}
+                    disabled={loading}
                     className={inputClass(name)}
                   />
                   {errors[name] && <p className="mt-1 text-xs text-red-400">{errors[name]}</p>}
@@ -176,6 +216,7 @@ function AddStorageLocationPage() {
                   onChange={handleChange}
                   rows={4}
                   placeholder="e.g. Osteology laboratory - cabinet A"
+                  disabled={loading}
                   className={`${inputClass("description")} resize-y`}
                 />
               </div>
@@ -186,6 +227,7 @@ function AddStorageLocationPage() {
                   type="checkbox"
                   checked={form.is_active}
                   onChange={handleChange}
+                  disabled={loading}
                   className="h-4 w-4 rounded border-white/20 accent-emerald-500"
                 />
                 <span>
@@ -200,17 +242,17 @@ function AddStorageLocationPage() {
             <button
               type="button"
               onClick={() => navigate("/minuri/storage-locations")}
-              disabled={saving}
+              disabled={saving || loading}
               className="rounded-xl border border-white/10 px-5 py-2.5 text-sm text-white/55 transition hover:text-white disabled:opacity-40"
             >
               View Locations
             </button>
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || loading || Boolean(errors.submit && loading)}
               className="rounded-xl bg-emerald-600 px-7 py-2.5 text-sm font-medium transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-emerald-900 disabled:text-emerald-600"
             >
-              {saving ? "Saving Location..." : "Add Storage Location"}
+              {loading ? "Loading Location..." : saving ? "Saving Location..." : editing ? "Save Changes" : "Add Storage Location"}
             </button>
           </div>
         </form>

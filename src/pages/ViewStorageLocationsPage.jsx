@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Boxes, Building2, FlaskConical, Plus, Search } from "lucide-react";
+import { ArrowLeft, Boxes, Building2, FlaskConical, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Can } from "../components/auth/AuthGuards";
 import { supabase } from "../supabase";
@@ -8,7 +8,32 @@ function ViewStorageLocationsPage() {
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
   const [search, setSearch] = useState("");
+  const [deleteLocation, setDeleteLocation] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete() {
+    if (!deleteLocation || deleting) return;
+    setDeleting(true);
+    setActionError("");
+
+    const { error: deleteError } = await supabase
+      .from("storage_locations")
+      .delete()
+      .eq("id", deleteLocation.id);
+
+    if (deleteError) {
+      setActionError(`Could not delete ${deleteLocation.display_label}: ${deleteError.message}`);
+      setDeleteLocation(null);
+      setDeleting(false);
+      return;
+    }
+
+    setLocations((current) => current.filter((location) => location.id !== deleteLocation.id));
+    setDeleteLocation(null);
+    setDeleting(false);
+  }
 
   useEffect(() => {
     let active = true;
@@ -114,6 +139,12 @@ function ViewStorageLocationsPage() {
           </div>
         )}
 
+        {actionError && (
+          <div className="mb-6 rounded-2xl border border-red-500/30 bg-red-500/10 px-6 py-4 text-sm text-red-200">
+            {actionError}
+          </div>
+        )}
+
         {!loading && !error && locations.length === 0 && (
           <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] px-6 py-16 text-center">
             <Boxes className="mx-auto h-10 w-10 text-white/20" aria-hidden="true" />
@@ -160,11 +191,45 @@ function ViewStorageLocationsPage() {
                     </div>
                   ))}
                 </dl>
+                <Can write>
+                  <div className="mt-4 grid grid-cols-2 gap-2 border-t border-white/10 pt-4">
+                    <Link to={`/minuri/storage-locations/edit/${encodeURIComponent(location.id)}`} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-amber-400/20 bg-amber-400/5 px-3 py-2 text-xs text-amber-300 transition hover:bg-amber-400/15">
+                      <Pencil className="h-3.5 w-3.5" aria-hidden="true" /> Edit
+                    </Link>
+                    <button type="button" onClick={() => setDeleteLocation(location)} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2 text-xs text-red-300 transition hover:bg-red-500/15">
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Delete
+                    </button>
+                  </div>
+                </Can>
               </article>
             ))}
           </div>
         )}
       </main>
+
+      {deleteLocation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4" role="dialog" aria-modal="true" aria-labelledby="delete-location-title">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#17231b] p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="delete-location-title" className="text-lg font-bold">Delete storage location?</h2>
+                <p className="mt-2 text-sm leading-relaxed text-white/50">
+                  This will permanently delete <span className="font-medium text-white/80">{deleteLocation.display_label}</span>. This action cannot be undone.
+                </p>
+              </div>
+              <button type="button" onClick={() => setDeleteLocation(null)} disabled={deleting} className="rounded-lg p-1 text-white/40 hover:bg-white/10 hover:text-white" aria-label="Close delete confirmation">
+                <X className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => setDeleteLocation(null)} disabled={deleting} className="rounded-xl border border-white/10 px-4 py-2.5 text-sm text-white/60 hover:text-white disabled:opacity-40">Cancel</button>
+              <button type="button" onClick={handleDelete} disabled={deleting} className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-red-500 disabled:bg-red-900">
+                {deleting ? "Deleting..." : "Delete Location"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

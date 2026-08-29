@@ -1,6 +1,6 @@
 /* eslint-disable react/prop-types */
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../supabase";
 import { DISTRICTS, PROVINCES } from "../utils/specimenMetadata";
 
@@ -58,12 +58,21 @@ async function fetchAllSiteIds() {
   return records;
 }
 
+function siteImageStoragePath(url) {
+  const marker = "/storage/v1/object/public/site-images/";
+  const markerIndex = String(url || "").indexOf(marker);
+  if (markerIndex < 0) return "";
+  return decodeURIComponent(String(url).slice(markerIndex + marker.length).split("?")[0]);
+}
+
 function FieldError({ children }) {
   return children ? <p className="mt-1 text-xs text-red-400">{children}</p> : null;
 }
 
 function AddSitePage() {
   const navigate = useNavigate();
+  const { siteId } = useParams();
+  const editing = Boolean(siteId);
   const redirectTimer = useRef(null);
   const [form, setForm] = useState({
     site_id: "",
@@ -81,6 +90,7 @@ function AddSitePage() {
   });
   const [image, setImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
+  const [existingImageUrl, setExistingImageUrl] = useState("");
   const [loadingId, setLoadingId] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
@@ -89,17 +99,46 @@ function AddSitePage() {
   useEffect(() => {
     let active = true;
 
-    async function generateSiteId() {
+    async function prepareForm() {
       try {
-        const records = await fetchAllSiteIds();
-        if (active) {
-          setForm((previous) => ({ ...previous, site_id: nextSiteId(records) }));
+        if (editing) {
+          const { data, error } = await supabase
+            .from("sites")
+            .select("site_id, site_name, district, province, latitude, longitude, site_type, excavation_year, time_period, risk_level, description, protected_status, image_url")
+            .eq("site_id", siteId)
+            .single();
+
+          if (error) throw error;
+          if (active) {
+            setForm({
+              site_id: data.site_id || "",
+              site_name: data.site_name || "",
+              district: data.district || "",
+              province: data.province || "",
+              latitude: data.latitude ?? "",
+              longitude: data.longitude ?? "",
+              site_type: data.site_type || "",
+              excavation_year: data.excavation_year ?? "",
+              time_period: data.time_period || "",
+              risk_level: data.risk_level || "",
+              description: data.description || "",
+              protected_status: data.protected_status || "",
+            });
+            setExistingImageUrl(data.image_url || "");
+          }
+        } else {
+          const records = await fetchAllSiteIds();
+          if (active) {
+            setForm((previous) => ({ ...previous, site_id: nextSiteId(records) }));
+          }
         }
       } catch (error) {
         if (active) {
           setErrors((previous) => ({
             ...previous,
-            loadId: `Could not generate the next Site ID: ${error.message}`,
+            loadId: editing
+              ? `Could not load the site: ${error.message}`
+              : `Could not generate the next Site ID: ${error.message}`,
           }));
         }
       } finally {
@@ -107,12 +146,12 @@ function AddSitePage() {
       }
     }
 
-    generateSiteId();
+    prepareForm();
     return () => {
       active = false;
       if (redirectTimer.current) clearTimeout(redirectTimer.current);
     };
-  }, []);
+  }, [editing, siteId]);
 
   useEffect(() => {
     if (!image) {
@@ -227,12 +266,12 @@ function AddSitePage() {
     let uploadedPath = null;
 
     try {
-      const siteId = await getAvailableSiteId();
-      const upload = await uploadImage(image, siteId);
+      const resolvedSiteId = editing ? form.site_id : await getAvailableSiteId();
+      const upload = await uploadImage(image, resolvedSiteId);
       uploadedPath = upload.storagePath;
 
       const payload = {
-        site_id: siteId,
+        site_id: resolvedSiteId,
         site_name: form.site_name.trim(),
         district: form.district || null,
         province: form.province || null,
@@ -244,15 +283,21 @@ function AddSitePage() {
         risk_level: form.risk_level || null,
         description: form.description.trim() || null,
         protected_status: form.protected_status || null,
-        image_url: upload.publicUrl,
-        created_at: new Date().toISOString(),
+        image_url: upload.publicUrl || existingImageUrl || null,
       };
 
-      const { error } = await supabase.from("sites").insert(payload);
+      const { error } = editing
+        ? await supabase.from("sites").update(payload).eq("site_id", siteId)
+        : await supabase.from("sites").insert({ ...payload, created_at: new Date().toISOString() });
       if (error) throw error;
 
-      setSuccess(`${siteId} was added successfully. Returning to the Minuri module...`);
-      redirectTimer.current = setTimeout(() => navigate("/minuri"), 1200);
+      if (editing && upload.publicUrl && existingImageUrl) {
+        const oldImagePath = siteImageStoragePath(existingImageUrl);
+        if (oldImagePath) await supabase.storage.from("site-images").remove([oldImagePath]);
+      }
+
+      setSuccess(`${resolvedSiteId} was ${editing ? "updated" : "added"} successfully. Returning to the site catalogue...`);
+      redirectTimer.current = setTimeout(() => navigate("/minuri/sites"), 1200);
     } catch (error) {
       if (uploadedPath) {
         await supabase.storage.from("site-images").remove([uploadedPath]);
@@ -269,16 +314,16 @@ function AddSitePage() {
     <div className="min-h-screen bg-[#0f1a14] text-white">
       <style>{`select option { background-color: #0f1a14; color: white; }`}</style>
       <header className="flex items-center justify-between border-b border-white/10 px-6 py-4">
-        <button type="button" onClick={() => navigate("/minuri")} className="text-sm text-white/50 hover:text-white">
+        <button type="button" onClick={() => navigate(editing ? "/minuri/sites" : "/minuri")} className="text-sm text-white/50 hover:text-white">
           &larr; Back to Module
         </button>
-        <span className="text-xs uppercase tracking-widest text-white/30">Site Form</span>
+        <span className="text-xs uppercase tracking-widest text-white/30">{editing ? "Edit Site" : "Site Form"}</span>
       </header>
 
       <main className="mx-auto max-w-4xl px-6 py-10">
         <div className="mb-8">
-          <p className="mb-2 text-xs uppercase tracking-[0.2em] text-emerald-400/80">New Record</p>
-          <h1 className="text-3xl font-bold">Add Archaeological Site</h1>
+          <p className="mb-2 text-xs uppercase tracking-[0.2em] text-emerald-400/80">{editing ? "Update Record" : "New Record"}</p>
+          <h1 className="text-3xl font-bold">{editing ? "Edit Archaeological Site" : "Add Archaeological Site"}</h1>
           <p className="mt-2 max-w-2xl text-sm text-white/40">
             Register the location, archaeological context, risk status, and an optional site photograph.
           </p>
@@ -373,15 +418,15 @@ function AddSitePage() {
                 <input id="site_image" type="file" accept="image/*" onChange={handleImageChange} className={`${inputClass("image")} file:mr-4 file:rounded-lg file:border-0 file:bg-emerald-600 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-emerald-500`} />
                 <FieldError>{errors.image}</FieldError>
                 {image && <p className="mt-2 text-xs text-white/45">Selected: {image.name}</p>}
-                {previewUrl && <img src={previewUrl} alt="Selected site preview" className="mt-3 h-40 w-full rounded-xl border border-white/10 object-cover sm:w-64" />}
+                {(previewUrl || existingImageUrl) && <img src={previewUrl || existingImageUrl} alt="Selected site preview" className="mt-3 h-40 w-full rounded-xl border border-white/10 object-cover sm:w-64" />}
               </div>
             </div>
           </section>
 
           <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <button type="button" onClick={() => navigate("/minuri")} disabled={saving} className="rounded-xl border border-white/10 px-5 py-2.5 text-sm text-white/55 hover:text-white disabled:opacity-40">Cancel</button>
+            <button type="button" onClick={() => navigate(editing ? "/minuri/sites" : "/minuri")} disabled={saving} className="rounded-xl border border-white/10 px-5 py-2.5 text-sm text-white/55 hover:text-white disabled:opacity-40">Cancel</button>
             <button type="submit" disabled={saving || loadingId || Boolean(errors.loadId) || Boolean(success)} className="rounded-xl bg-emerald-600 px-7 py-2.5 text-sm font-medium hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-emerald-900 disabled:text-emerald-600">
-              {saving ? "Saving Site..." : "Add Site"}
+              {saving ? "Saving Site..." : editing ? "Save Changes" : "Add Site"}
             </button>
           </div>
         </form>
