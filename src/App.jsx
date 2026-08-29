@@ -16,6 +16,7 @@ import DataImportPage from "./pages/DataImportPage";
 import DataQualityPage from "./pages/DataQualityPage";
 import ImageDocumentationDashboardPage from './pages/ImageDocumentationDashboardPage'
 import SiteDetailPage from "./pages/SiteDetailPage";
+import AddSitePage from "./pages/AddSitePage";
 import SimilarFindingsPage from "./pages/SimilarFindingsPage";
 import GISHome from "./pages/GISHome";
 
@@ -101,6 +102,7 @@ function ApplicationRoutes() {
       <Route path="/specimens/add" element={<Curator><SpecimenFormPage /></Curator>} />
       <Route path="/specimens/import" element={<Curator><DataImportPage /></Curator>} />
       <Route path="/specimens/:id" element={<Auth><SpecimenDetailPage /></Auth>} />
+      <Route path="/sites/add" element={<Curator><AddSitePage /></Curator>} />
       <Route path="/data-quality" element={<Curator><DataQualityPage /></Curator>} />
 
       {/* ---------------- GIS Spatial Analysis ------------------------ */}
