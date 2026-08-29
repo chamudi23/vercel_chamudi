@@ -46,6 +46,50 @@ const features = [
   },
   {
     id: 4,
+    title: "View Sites",
+    description:
+      "Browse registered archaeological sites in a visual catalogue and open each record to see its complete details.",
+    route: "/minuri/sites",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-7 h-7">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 6.75A2.75 2.75 0 015.75 4h12.5A2.75 2.75 0 0121 6.75v10.5A2.75 2.75 0 0118.25 20H5.75A2.75 2.75 0 013 17.25V6.75z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 15l4.2-4.2a1.5 1.5 0 012.1 0L13 14.5l1.7-1.7a1.5 1.5 0 012.1 0L21 17M16.5 8.5h.01" />
+      </svg>
+    ),
+    accent: "#2dd4bf",
+    badge: "Site Records",
+  },
+  {
+    id: 5,
+    title: "Add Storage Location",
+    description:
+      "Register a laboratory, shelf, or storage slot so it can be selected during specimen registration.",
+    route: "/minuri/storage-locations/add",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-7 h-7">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 5.5A1.5 1.5 0 015.5 4h13A1.5 1.5 0 0120 5.5v13a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 014 18.5v-13zM4 10h16M10 10v10" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15 13v4m-2-2h4" />
+      </svg>
+    ),
+    accent: "#a78bfa",
+    badge: "Storage Entry",
+  },
+  {
+    id: 6,
+    title: "View Storage Locations",
+    description:
+      "Browse active and inactive specimen storage slots by collection, laboratory, and shelf.",
+    route: "/minuri/storage-locations",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-7 h-7">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16v14H4V6zM7 3h10v3H7V3zM4 11h16M9 11v9M15 11v9" />
+      </svg>
+    ),
+    accent: "#818cf8",
+    badge: "Storage Records",
+  },
+  {
+    id: 7,
     title: "Data Import",
     description:
       "Upload a CSV file of bulk specimen records. Preview, validate, and confirm before saving. Errors are shown before import.",
@@ -59,7 +103,7 @@ const features = [
     badge: "Bulk Upload",
   },
   {
-    id: 5,
+    id: 8,
     title: "Data Quality Dashboard",
     description:
       "Monitor total specimens, completeness percentage, missing field summaries, duplicate warnings, and records needing attention.",
