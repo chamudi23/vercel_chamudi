@@ -15,6 +15,17 @@ const TIME_PERIODS = [
 ];
 const RISK_LEVELS = ["High", "Medium", "Low"];
 const PROTECTED_STATUSES = ["Protected", "Not Protected", "Unknown"];
+const SITE_TYPES = [
+  "Burial Ground",
+  "Cave Site",
+  "Ancient City",
+  "Rock Shelter",
+  "Religious Site",
+  "Rock Fortress",
+  "Cave Temple",
+  "Ancient Port",
+  "Habitation Site",
+];
 const SITE_ID_PATTERN = /^SITE_(\d+)$/i;
 const SITE_ID_PAGE_SIZE = 1000;
 const currentYear = new Date().getFullYear();
@@ -321,7 +332,10 @@ function AddSitePage() {
               </div>
               <div>
                 <label htmlFor="site_type" className="mb-1.5 block text-xs uppercase tracking-wider text-white/50">Site Type</label>
-                <input id="site_type" name="site_type" value={form.site_type} onChange={handleChange} placeholder="e.g. Cave Site" className={inputClass("site_type")} />
+                <select id="site_type" name="site_type" value={form.site_type} onChange={handleChange} className={inputClass("site_type")}>
+                  <option value="">Select site type</option>
+                  {SITE_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+                </select>
               </div>
               <div>
                 <label htmlFor="excavation_year" className="mb-1.5 block text-xs uppercase tracking-wider text-white/50">Excavation Year</label>
