@@ -21,11 +21,8 @@ import {
 } from "../utils/skeletalInputFields";
 import {
   DATING_METHODS,
-  DISTRICTS,
   optionalNumber,
   PRESERVATION_STATES,
-  PROVINCES,
-  TIME_PERIODS,
   validateExcavationAndDating,
 } from "../utils/specimenMetadata";
 
@@ -1155,27 +1152,21 @@ function SpecimenFormPage() {
             <FieldError>{errors.site_name}</FieldError>
           </div>
           {[
-            ["District", "district", DISTRICTS],
-            ["Province", "province", PROVINCES],
-            ["Time Period", "time_period", TIME_PERIODS],
-          ].map(([label, name, options]) => (
+            ["District", "district"],
+            ["Province", "province"],
+            ["Time Period", "time_period"],
+          ].map(([label, name]) => (
             <div key={name}>
               <label className="mb-1.5 block text-xs uppercase tracking-wider text-white/50">
                 {label}
               </label>
-              <select
+              <input
                 name={name}
                 value={form[name]}
-                disabled
-                className={`${selectClass(name)} opacity-65`}
-              >
-                <option value="">Select {label.toLowerCase()}</option>
-                {options.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+                readOnly
+                placeholder={`Generated from selected site`}
+                className={`${inputClass(name)} opacity-65`}
+              />
             </div>
           ))}
         </div>
