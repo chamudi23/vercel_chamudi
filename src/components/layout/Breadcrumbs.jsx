@@ -20,6 +20,7 @@ const routeTrails = [
   { pattern: '/minuri/sites/:siteId', trail: [['Specimen Record Management', '/minuri'], ['Sites', '/minuri/sites'], ['Site Details']] },
   { pattern: '/minuri/sites', trail: [['Specimen Record Management', '/minuri'], ['Sites']] },
   { pattern: '/minuri/storage-locations/add', trail: [['Specimen Record Management', '/minuri'], ['Storage Locations', '/minuri/storage-locations'], ['Add Location']] },
+  { pattern: '/minuri/storage-locations/edit/:locationId', trail: [['Specimen Record Management', '/minuri'], ['Storage Locations', '/minuri/storage-locations'], ['Edit Location']] },
   { pattern: '/minuri/storage-locations', trail: [['Specimen Record Management', '/minuri'], ['Storage Locations']] },
   { pattern: '/minuri', trail: [['Specimen Record Management']] },
   { pattern: '/parami/site/:siteId', trail: [['Spatial Analysis', '/parami'], ['Site Details']] },
