@@ -1,4 +1,6 @@
+/* eslint-disable react/prop-types */
 import { useState, useEffect } from "react";
+import { Bone, ImageOff, MapPin } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 
@@ -7,9 +9,34 @@ const TIME_PERIODS = [
   "Protohistoric", "Early Historic", "Medieval", "Unknown",
 ];
 
+function SpecimenImage({ src, specimenId }) {
+  const [failed, setFailed] = useState(false);
+
+  if (!src || failed) {
+    return (
+      <div className="flex h-48 items-center justify-center bg-emerald-950/50 text-white/25">
+        <div className="text-center">
+          <ImageOff className="mx-auto h-9 w-9" aria-hidden="true" />
+          <span className="mt-2 block text-xs">No specimen image</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={src}
+      alt={specimenId ? `Specimen ${specimenId}` : "Osteoarchaeological specimen"}
+      className="h-48 w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 export default function SpecimenListPage() {
   const navigate = useNavigate();
   const [specimens, setSpecimens] = useState([]);
+  const [specimenImages, setSpecimenImages] = useState({});
   const [loading, setLoading] = useState(true);
   const [filterSpecimenId, setFilterSpecimenId] = useState("");
   const [filterSkeletonCode, setFilterSkeletonCode] = useState("");
@@ -23,12 +50,28 @@ export default function SpecimenListPage() {
 
   async function fetchSpecimens() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("specimens")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const [specimenResult, imageResult] = await Promise.all([
+      supabase
+        .from("specimens")
+        .select("*")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("bone_images")
+        .select("specimen_id, image_url, file_url, uploaded_at")
+        .order("uploaded_at", { ascending: false }),
+    ]);
 
-    if (!error) setSpecimens(data || []);
+    if (!specimenResult.error) setSpecimens(specimenResult.data || []);
+    if (!imageResult.error) {
+      const imagesBySpecimen = {};
+      (imageResult.data || []).forEach((image) => {
+        const imageUrl = String(image.image_url || image.file_url || "").trim();
+        if (image.specimen_id && imageUrl && !imagesBySpecimen[image.specimen_id]) {
+          imagesBySpecimen[image.specimen_id] = imageUrl;
+        }
+      });
+      setSpecimenImages(imagesBySpecimen);
+    }
     setLoading(false);
   }
 
@@ -70,17 +113,6 @@ export default function SpecimenListPage() {
     a.click();
     URL.revokeObjectURL(url);
   }
-
-  const badgeColor = (state) => {
-    const map = {
-      Excellent: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
-      Good: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-      Fair: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
-      Poor: "bg-orange-500/20 text-orange-300 border-orange-500/30",
-      Fragmentary: "bg-red-500/20 text-red-300 border-red-500/30",
-    };
-    return map[state] || "bg-white/10 text-white/40 border-white/10";
-  };
 
   const selectClass = "bg-[#0f1a14] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 transition-colors";
 
@@ -224,43 +256,41 @@ export default function SpecimenListPage() {
             </button>
           </div>
         ) : (
-          <div className="border border-white/10 rounded-2xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-white/10 bg-white/[0.02]">
-                  <th className="text-left px-5 py-3 text-xs text-white/30 uppercase tracking-wider font-medium">Specimen ID</th>
-                  <th className="text-left px-5 py-3 text-xs text-white/30 uppercase tracking-wider font-medium">Skeleton Code</th>
-                  <th className="text-left px-5 py-3 text-xs text-white/30 uppercase tracking-wider font-medium">Bone Category</th>
-                  <th className="text-left px-5 py-3 text-xs text-white/30 uppercase tracking-wider font-medium">Site</th>
-                  <th className="text-left px-5 py-3 text-xs text-white/30 uppercase tracking-wider font-medium">Time Period</th>
-                  <th className="text-left px-5 py-3 text-xs text-white/30 uppercase tracking-wider font-medium">Storage Location</th>
-                  <th className="px-5 py-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((s, i) => (
-                  <tr
-                    key={s.specimen_id}
-                    onClick={() => navigate(`/specimens/${s.specimen_id}`)}
-                    className={`border-b border-white/5 hover:bg-white/[0.04] cursor-pointer transition-colors ${i % 2 === 0 ? "" : "bg-white/[0.01]"}`}
-                  >
-                    <td className="px-5 py-3.5">
-                      <span className="font-mono text-emerald-400 text-xs">{s.specimen_id}</span>
-                    </td>
-                    <td className="px-5 py-3.5 text-white/70">{s.skeleton_code || "—"}</td>
-                    <td className="px-5 py-3.5 text-white/70">{s.bone_type || "—"}</td>
-                    <td className="px-5 py-3.5 text-white/70">{s.site_name || "—"}</td>
-                    <td className="px-5 py-3.5 text-white/50">{s.time_period || "—"}</td>
-                    <td className="px-5 py-3.5 text-white/50">{s.location_stored || "—"}</td>
-                    <td className="px-5 py-3.5">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4 text-white/20">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                      </svg>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {filtered.map((specimen) => (
+              <button
+                key={specimen.specimen_id}
+                type="button"
+                onClick={() => navigate(`/specimens/${encodeURIComponent(specimen.specimen_id)}`)}
+                className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] text-left transition duration-200 hover:-translate-y-1 hover:border-emerald-400/35 hover:bg-white/[0.07] hover:shadow-xl hover:shadow-black/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+                aria-label={`View details for specimen ${specimen.specimen_id}`}
+              >
+                <div className="overflow-hidden">
+                  <SpecimenImage
+                    src={specimenImages[specimen.specimen_id]}
+                    specimenId={specimen.specimen_id}
+                  />
+                </div>
+                <div className="p-4">
+                  <h2 className="truncate font-mono text-sm font-semibold text-emerald-300 transition group-hover:text-emerald-200">
+                    {specimen.specimen_id}
+                  </h2>
+                  <p className="mt-1 truncate text-xs text-white/45">
+                    {specimen.skeleton_code || "Skeleton code not recorded"}
+                  </p>
+                  <div className="mt-4 space-y-2 text-xs text-white/45">
+                    <p className="flex items-center gap-1.5 truncate">
+                      <Bone className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      {[specimen.bone_type, specimen.side].filter(Boolean).join(" · ") || "Bone details not recorded"}
+                    </p>
+                    <p className="flex items-center gap-1.5 truncate">
+                      <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      {specimen.site_name || "Site not recorded"}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            ))}
           </div>
         )}
       </div>
