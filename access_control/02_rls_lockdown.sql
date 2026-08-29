@@ -55,7 +55,8 @@ declare
   target_tables text[] := array[
     'specimens', 'measurements', 'skeletal_inputs', 'excavation_records',
     'laboratory_dating_results', 'sites', 'bone_images', 'image_annotations',
-    'data_import_logs', 'data_quality_log', 'site_images', 'bone_type_reference'
+    'data_import_logs', 'data_quality_log', 'site_images', 'bone_type_reference',
+    'storage_locations'
   ];
   t    text;
   pol  record;
@@ -91,7 +92,7 @@ declare
   curated text[] := array[
     'specimens', 'measurements', 'skeletal_inputs', 'excavation_records',
     'laboratory_dating_results', 'sites', 'bone_images', 'image_annotations',
-    'site_images', 'bone_type_reference'
+    'site_images', 'bone_type_reference', 'storage_locations'
   ];
   t text;
 begin
