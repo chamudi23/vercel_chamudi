@@ -3,9 +3,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 import { TRACKED_SPECIMEN_FIELDS, calculateSpecimenCompleteness } from "../lib/dataQuality";
-import { PP1_BONE_LABELS, validateCategorySide } from "../utils/pp1ImageModule";
-import { getRelevantSkeletalInputFields, SKELETAL_INPUT_FIELD_DEFINITIONS } from "../utils/skeletalInputFields";
-import { DISTRICTS, PRESERVATION_STATES, PROVINCES, TIME_PERIODS } from "../utils/specimenMetadata";
+import { hasStoredImage } from "../lib/imageDocumentationDashboard";
+import { auditDataQuality, QUALITY_CATEGORIES, QUALITY_SEVERITIES } from "../utils/dataQualityRules";
 
 const TRACKED_FIELDS = TRACKED_SPECIMEN_FIELDS;
 const TRACKED_FIELD_METADATA = {
@@ -42,12 +41,7 @@ const FORM_COMPLETENESS_FIELDS = [
   { source: "dating", field: "date_range_max", label: "Date range maximum", type: "Whole number (BP)" },
   { source: "dating", field: "lab_name", label: "Lab name", type: "Text" },
   { source: "dating", field: "result_notes", label: "Result notes", type: "Text" },
-  ...Object.entries(SKELETAL_INPUT_FIELD_DEFINITIONS).flatMap(([boneType, fields]) => fields
-    .filter(({ type }) => type !== "hidden")
-    .map(({ field, label, type, unit }) => ({ source: "skeletal", field, label, type: unit ? `${type === "number" ? "Decimal number" : type} (${unit})` : type === "select" ? "Select" : type === "number" ? "Decimal number" : "Text", boneType }))),
 ];
-const MEASUREMENT_TYPES = new Set(["Maximum Length", "Minimum Length", "Maximum Width", "Minimum Width", "Maximum Diameter", "Minimum Diameter", "Circumference", "Height", "Depth", "Thickness", "Other"]);
-const MEASUREMENT_UNITS = new Set(["mm", "cm", "m"]);
 const STATUS_STYLES = {
   valid: "bg-emerald-500/10 text-emerald-300 border-emerald-500/30",
   warning: "bg-amber-500/10 text-amber-300 border-amber-500/30",
@@ -59,27 +53,52 @@ function isProvided(value) {
   return value !== null && value !== undefined && String(value).trim() !== "";
 }
 
-function measurementInCentimetres(value, unit) {
-  const numericValue = Number(value);
-  if (!Number.isFinite(numericValue)) return null;
-  if (unit === "mm") return numericValue / 10;
-  if (unit === "m") return numericValue * 100;
-  return numericValue;
-}
-
 function StatusBadge({ status }) {
   return <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${STATUS_STYLES[status]}`}><span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[status]}`} />{status}</span>;
+}
+
+function QualityIssueList({ issues, ruleColor = "text-emerald-200", compact = false }) {
+  if (!issues.length) return null;
+  return (
+    <ul className={`mt-4 ${compact ? "space-y-2" : "space-y-3"}`}>
+      {issues.map((issue, index) => (
+        <li key={`${issue.ruleId}-${index}`} className="rounded-xl border border-white/10 bg-black/10 p-3 text-xs text-white/70">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`font-mono ${ruleColor}`}>{issue.ruleId}</span>
+            <span className={issue.status === "error" ? "text-red-300" : "text-amber-300"}>{issue.severity}</span>
+            {!compact && <span className="text-white/35">{issue.category}</span>}
+          </div>
+          <p className="mt-2 font-medium text-white/80">{issue.ruleName}</p>
+          <p className="mt-1 leading-5">{issue.message}</p>
+          {!compact && (
+            <dl className="mt-2 grid gap-1 text-[11px] sm:grid-cols-2">
+              <div><dt className="inline text-white/30">Actual: </dt><dd className="inline">{issue.actualValue}</dd></div>
+              <div><dt className="inline text-white/30">Expected: </dt><dd className="inline">{issue.expectedValue}</dd></div>
+            </dl>
+          )}
+          <p className="mt-2 text-[11px] text-emerald-100/65"><span className="text-white/30">Recommendation: </span>{issue.recommendation}</p>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export default function DataQualityPage() {
   const navigate = useNavigate();
   const [specimens, setSpecimens] = useState([]);
   const [measurements, setMeasurements] = useState([]);
-  const [skeletalInputs, setSkeletalInputs] = useState([]);
+  const [sites, setSites] = useState([]);
   const [excavationRecords, setExcavationRecords] = useState([]);
   const [labDatingRecords, setLabDatingRecords] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [actionError, setActionError] = useState("");
+  const [deletingRecord, setDeletingRecord] = useState("");
+  const [lastUpdated, setLastUpdated] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
+  const [qualitySearch, setQualitySearch] = useState("");
+  const [severityFilter, setSeverityFilter] = useState("ALL");
+  const [categoryFilter, setCategoryFilter] = useState("ALL");
 
   useEffect(() => {
     fetchData();
@@ -87,18 +106,24 @@ export default function DataQualityPage() {
 
   async function fetchData() {
     setLoading(true);
-    const { data: specData } = await supabase.from("specimens").select("*");
-    const [{ data: measData }, { data: skeletalData }, { data: excavationData }, { data: labDatingData }] = await Promise.all([
+    setLoadError("");
+    const [specimenResult, measurementResult, siteResult, excavationResult, datingResult] = await Promise.all([
+      supabase.from("specimens").select("*"),
       supabase.from("measurements").select("*"),
-      supabase.from("skeletal_inputs").select("*"),
+      supabase.from("sites").select("id, site_id, site_name, district, province, latitude, longitude, site_type, excavation_year, time_period, risk_level, description, protected_status, image_url, created_at"),
       supabase.from("excavation_records").select("*"),
       supabase.from("laboratory_dating_results").select("*"),
     ]);
-    setSpecimens(specData || []);
-    setMeasurements(measData || []);
-    setSkeletalInputs(skeletalData || []);
-    setExcavationRecords(excavationData || []);
-    setLabDatingRecords(labDatingData || []);
+    const failed = [specimenResult, measurementResult, siteResult, excavationResult, datingResult]
+      .map((result) => result.error?.message)
+      .filter(Boolean);
+    setSpecimens(specimenResult.data || []);
+    setMeasurements(measurementResult.data || []);
+    setSites(siteResult.data || []);
+    setExcavationRecords(excavationResult.data || []);
+    setLabDatingRecords(datingResult.data || []);
+    setLoadError(failed.join(" "));
+    setLastUpdated(new Date());
     setLoading(false);
   }
 
@@ -144,12 +169,6 @@ export default function DataQualityPage() {
     rows.push(measurement);
     measurementsBySpecimen.set(measurement.specimen_id, rows);
   });
-  const skeletalInputsBySpecimen = new Map();
-  skeletalInputs.forEach((input) => {
-    const rows = skeletalInputsBySpecimen.get(input.specimen_id) || [];
-    rows.push(input);
-    skeletalInputsBySpecimen.set(input.specimen_id, rows);
-  });
   const excavationBySpecimen = new Map(excavationRecords.map((record) => [record.specimen_id, record]));
   const labDatingBySpecimen = new Map(labDatingRecords.map((record) => [record.specimen_id, record]));
   const getFormFieldCompleteness = (definition) => {
@@ -161,7 +180,7 @@ export default function DataQualityPage() {
       if (definition.source === "measurement") return (measurementsBySpecimen.get(specimen.specimen_id) || []).some((row) => isProvided(row[definition.field]));
       if (definition.source === "excavation") return isProvided(excavationBySpecimen.get(specimen.specimen_id)?.[definition.field]);
       if (definition.source === "dating") return isProvided(labDatingBySpecimen.get(specimen.specimen_id)?.[definition.field]);
-      return (skeletalInputsBySpecimen.get(specimen.specimen_id) || []).some((row) => isProvided(row[definition.field]));
+      return false;
     }).length;
     const total = applicableSpecimens.length;
     return { filled, total, pct: total === 0 ? null : Math.round((filled / total) * 100) };
@@ -174,54 +193,125 @@ export default function DataQualityPage() {
     ? 0
     : Math.round(applicableFormFieldPercentages.reduce((sum, pct) => sum + pct, 0) / applicableFormFieldPercentages.length);
 
-  const auditSpecimen = (specimen) => {
-    const issues = [];
-    const add = (status, field, message) => issues.push({ status, field, message });
-    const year = Number(specimen.excavation_year);
-    if ((idCounts[specimen.specimen_id] || 0) > 1) add("error", "Specimen ID", "Duplicate specimen ID.");
-    if (isProvided(specimen.bone_type) && !PP1_BONE_LABELS.includes(specimen.bone_type)) add("error", "Bone category", `Invalid bone category: ${specimen.bone_type}.`);
-    const sideError = isProvided(specimen.bone_type) ? validateCategorySide(specimen.bone_type, specimen.side) : "";
-    if (sideError) add("error", "Side", sideError);
-    [["District", specimen.district, DISTRICTS], ["Province", specimen.province, PROVINCES], ["Time period", specimen.time_period, TIME_PERIODS], ["Preservation state", specimen.preservation_state, PRESERVATION_STATES]].forEach(([field, value, options]) => {
-      if (isProvided(value) && !options.includes(value)) add("error", field, `Invalid option: ${value}.`);
-    });
-    if (isProvided(specimen.excavation_year) && (!Number.isInteger(year) || year > new Date().getFullYear())) add("error", "Excavation year", "Must be a whole year that is not in the future.");
-    else if (isProvided(specimen.excavation_year) && year < 1800) add("warning", "Excavation year", "Earlier than 1800; verify the recorded year.");
+  // The dashboard intentionally audits specimens, measurements, and canonical
+  // Sites records. It does not query or inspect skeletal_inputs.
+  const {
+    audits: qualityAudits,
+    siteAudits,
+    orphanIssues,
+    qualityCounts,
+    siteQualityCounts,
+    severityCounts,
+    categoryScores,
+    ruleCounts,
+    allIssues,
+  } = auditDataQuality({ specimens, measurements, sites });
+  const yearAnomalies = qualityAudits.filter((audit) => audit.issues.some((issue) => issue.fields.includes("excavation_year")));
+  const linkedSiteNames = new Set(sites.map((site) => String(site.site_name || "").trim().toLowerCase()).filter(Boolean));
+  const linkedSpecimens = specimens.filter((specimen) => linkedSiteNames.has(String(specimen.site_name || "").trim().toLowerCase())).length;
+  const siteLinkRate = totalSpecimens === 0 ? 0 : Math.round((linkedSpecimens / totalSpecimens) * 100);
+  const siteRecordsNeedingReview = siteAudits.filter((audit) => audit.status !== "valid");
+  const normalizedSearch = qualitySearch.trim().toLowerCase();
+  const filteredQualityAudits = qualityAudits.filter(({ specimen, issues }) => {
+    const matchesSearch = !normalizedSearch || [specimen.specimen_id, specimen.skeleton_code, specimen.bone_type, specimen.site_name]
+      .some((value) => String(value || "").toLowerCase().includes(normalizedSearch));
+    const matchesSeverity = severityFilter === "ALL" || issues.some((issue) => issue.severity === severityFilter);
+    const matchesCategory = categoryFilter === "ALL" || issues.some((issue) => issue.category === categoryFilter);
+    return matchesSearch && matchesSeverity && matchesCategory;
+  });
 
-    const missingFields = TRACKED_FIELDS.filter((field) => !isProvided(specimen[field]));
-    if (missingFields.length) add("warning", "Completeness", `${missingFields.length} tracked field${missingFields.length === 1 ? " is" : "s are"} missing.`);
-    const specimenMeasurements = measurementsBySpecimen.get(specimen.specimen_id) || [];
-    if (!specimenMeasurements.length) add("warning", "Measurements", "No measurements recorded.");
-    specimenMeasurements.forEach((measurement) => {
-      const value = Number(measurement.value);
-      const label = measurement.measurement_type || "Measurement";
-      if (!isProvided(measurement.bone_type) || !PP1_BONE_LABELS.includes(measurement.bone_type)) add("error", label, "Invalid or missing bone category.");
-      if (!MEASUREMENT_TYPES.has(measurement.measurement_type)) add("error", label, "Invalid or missing measurement type.");
-      if (!MEASUREMENT_UNITS.has(measurement.unit)) add("error", label, "Invalid measurement unit.");
-      if (!Number.isFinite(value) || value < 0) add("error", label, "Measurement must be a non-negative number.");
-      else if (value === 0 || measurementInCentimetres(value, measurement.unit) > 300) add("warning", label, "Unusual measurement; verify the value and unit.");
-    });
-    (skeletalInputsBySpecimen.get(specimen.specimen_id) || []).forEach((input) => {
-      getRelevantSkeletalInputFields(specimen.bone_type).forEach(({ field, label, type, options }) => {
-        if (!isProvided(input[field])) return;
-        if (type === "select" && !options.includes(input[field])) add("error", label, `Invalid option: ${input[field]}.`);
-        if (type === "number" && (!Number.isFinite(Number(input[field])) || Number(input[field]) < 0)) add("error", label, "Must be a non-negative number.");
-      });
-    });
-    const status = issues.some((issue) => issue.status === "error") ? "error" : issues.length ? "warning" : "valid";
-    return { specimen, status, issues };
-  };
-  const qualityAudits = specimens.map(auditSpecimen);
-  const qualityCounts = qualityAudits.reduce((counts, audit) => ({ ...counts, [audit.status]: counts[audit.status] + 1 }), { valid: 0, warning: 0, error: 0 });
-  const yearAnomalies = qualityAudits.filter((audit) => audit.issues.some((issue) => issue.field === "Excavation year"));
+  function exportQualityReport() {
+    const escapeCsv = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const header = ["record_type", "record_id", "rule_id", "severity", "category", "problem", "actual", "expected", "recommendation"];
+    const rows = allIssues.map((issue) => [issue.recordType, issue.recordId, issue.ruleId, issue.severity, issue.category, issue.message, issue.actualValue, issue.expectedValue, issue.recommendation]);
+    const csv = [header, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `oahris-data-quality-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function deleteSpecimenRecord(specimen) {
+    const specimenId = String(specimen.specimen_id || "").trim();
+    if (!specimenId || deletingRecord) return;
+    const confirmed = window.confirm(`Delete specimen ${specimenId}? This permanently removes the specimen and its related measurements, excavation details, dating results, skeletal inputs, and quality logs. Specimens with stored image evidence cannot be deleted here.`);
+    if (!confirmed) return;
+
+    setDeletingRecord(specimenId);
+    setActionError("");
+
+    // Preserve image evidence: a specimen must not disappear while uploaded files
+    // still reference it. Empty legacy image rows can be removed safely.
+    const { data: imageRecords, error: imageLoadError } = await supabase
+      .from("bone_images")
+      .select("image_id, image_url, file_url")
+      .eq("specimen_id", specimenId);
+
+    if (imageLoadError) {
+      setActionError(`Could not verify images for ${specimenId}: ${imageLoadError.message}`);
+      setDeletingRecord("");
+      return;
+    }
+
+    if ((imageRecords || []).some(hasStoredImage)) {
+      setActionError(`Could not delete ${specimenId}: this specimen has stored image evidence. Remove or reassign its images first.`);
+      setDeletingRecord("");
+      return;
+    }
+
+    const metadataOnlyImageIds = (imageRecords || []).map((record) => record.image_id).filter(Boolean);
+    if (metadataOnlyImageIds.length) {
+      const { error: imageCleanupError } = await supabase.from("bone_images").delete().in("image_id", metadataOnlyImageIds);
+      if (imageCleanupError) {
+        setActionError(`Could not remove image metadata for ${specimenId}: ${imageCleanupError.message}`);
+        setDeletingRecord("");
+        return;
+      }
+    }
+
+    // Foreign keys protect the specimen while child records exist, so remove each
+    // owned data set before deleting the parent record.
+    const relatedTables = [
+      ["measurements", "measurements"],
+      ["excavation_records", "excavation details"],
+      ["laboratory_dating_results", "dating results"],
+      ["skeletal_inputs", "skeletal inputs"],
+      ["data_quality_log", "quality logs"],
+    ];
+
+    for (const [table, label] of relatedTables) {
+      const { error: cleanupError } = await supabase.from(table).delete().eq("specimen_id", specimenId);
+      if (cleanupError) {
+        setActionError(`Could not remove ${label} for ${specimenId}: ${cleanupError.message}`);
+        setDeletingRecord("");
+        return;
+      }
+    }
+
+    const { error: specimenDeleteError } = await supabase.from("specimens").delete().eq("specimen_id", specimenId);
+    if (specimenDeleteError) {
+      setActionError(`Could not delete ${specimenId}: ${specimenDeleteError.message}`);
+      setDeletingRecord("");
+      return;
+    }
+
+    setDeletingRecord("");
+    await fetchData();
+  }
 
   // Overall health score
-  const healthScore = Math.round(
+  // Keep the existing score dimensions and add a small, transparent penalty for
+  // non-blocking rule warnings. This is a QA score, never an AI confidence score.
+  const reviewPenalty = Math.min(10, (severityCounts.MEDIUM * 1) + (severityCounts.LOW * 0.25) + (severityCounts.INFO * 0.1));
+  const healthScore = Math.max(0, Math.round(
     (avgCompleteness * 0.5) +
     (duplicates.length === 0 ? 25 : 0) +
-    (qualityCounts.error === 0 ? 15 : 0) +
-    (incompleteSpecimens.length / Math.max(totalSpecimens, 1) < 0.2 ? 10 : 0)
-  );
+    (qualityCounts.error + siteQualityCounts.error === 0 ? 15 : 0) +
+    (incompleteSpecimens.length / Math.max(totalSpecimens, 1) < 0.2 ? 10 : 0) -
+    reviewPenalty
+  ));
 
   const healthColor = healthScore >= 80 ? "text-emerald-400" :
     healthScore >= 60 ? "text-yellow-400" : "text-red-400";
@@ -260,6 +350,14 @@ export default function DataQualityPage() {
         </button>
         <div className="flex items-center gap-3">
           <button
+            type="button"
+            onClick={exportQualityReport}
+            disabled={allIssues.length === 0}
+            className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/45 transition-colors hover:border-emerald-500/30 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            Export CSV
+          </button>
+          <button
             onClick={fetchData}
             className="flex items-center gap-2 text-xs text-white/30 hover:text-white transition-colors"
           >
@@ -283,7 +381,10 @@ export default function DataQualityPage() {
             </div>
             <h1 className="text-3xl font-bold text-white">Data Quality Dashboard</h1>
             <p className="text-white/40 text-sm mt-1">
-              Monitor data completeness, anomalies, and quality issues
+              Explainable rule-based validation for specimens, measurements, and Sites records
+            </p>
+            <p className="mt-2 text-[11px] text-white/25">
+              {lastUpdated ? `Last refreshed ${lastUpdated.toLocaleString()}` : "Not refreshed"} · No skeletal input data is read
             </p>
           </div>
 
@@ -295,14 +396,21 @@ export default function DataQualityPage() {
           </div>
         </div>
 
+        {loadError && (
+          <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 px-5 py-4 text-sm text-red-200">
+            Some quality sources could not be loaded: {loadError}
+          </div>
+        )}
+
         {/* Stats cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
           {[
             { label: "Total Specimens", value: totalSpecimens, color: "text-white" },
+            { label: "Canonical Sites", value: sites.length, color: "text-cyan-300" },
             { label: "Avg Completeness", value: `${avgCompleteness}%`, color: avgCompleteness >= 70 ? "text-emerald-400" : "text-yellow-400" },
-            { label: "Valid", value: qualityCounts.valid, color: "text-emerald-400" },
-            { label: "Warnings", value: qualityCounts.warning, color: qualityCounts.warning ? "text-amber-400" : "text-emerald-400" },
-            { label: "Errors", value: qualityCounts.error, color: qualityCounts.error ? "text-red-400" : "text-emerald-400" },
+            { label: "Site Link Rate", value: `${siteLinkRate}%`, color: siteLinkRate >= 80 ? "text-emerald-400" : "text-amber-400" },
+            { label: "Need Review", value: qualityCounts.warning + siteQualityCounts.warning, color: "text-amber-400" },
+            { label: "Invalid", value: qualityCounts.error + siteQualityCounts.error, color: qualityCounts.error + siteQualityCounts.error ? "text-red-400" : "text-emerald-400" },
           ].map((stat) => (
             <div key={stat.label} className="bg-white/[0.03] border border-white/10 rounded-2xl p-5 text-center">
               <p className={`text-3xl font-bold ${stat.color}`}>{stat.value}</p>
@@ -312,13 +420,14 @@ export default function DataQualityPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-6 bg-white/[0.03] border border-white/10 rounded-xl p-1 w-fit">
+        <div className="mb-6 flex w-full gap-1 overflow-x-auto rounded-xl border border-white/10 bg-white/[0.03] p-1">
           {[
             { key: "overview", label: "Overview" },
             { key: "missing", label: "Missing Fields" },
             { key: "incomplete", label: `Incomplete (${incompleteSpecimens.length})` },
             { key: "duplicates", label: `Duplicates (${duplicates.length})` },
             { key: "quality", label: `Quality (${qualityCounts.error + qualityCounts.warning})` },
+            { key: "sites", label: `Sites (${siteRecordsNeedingReview.length})` },
             { key: "anomalies", label: `Year checks (${yearAnomalies.length})` },
           ].map((tab) => (
             <button
@@ -384,7 +493,7 @@ export default function DataQualityPage() {
             </div>
 
             {/* Summary alerts */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
               <div className={`border rounded-xl p-4 ${withoutMeasurements.length === 0 ? "bg-emerald-500/5 border-emerald-500/20" : "bg-yellow-500/5 border-yellow-500/20"}`}>
                 <p className="text-xs text-white/30 uppercase tracking-wider mb-1">Without Measurements</p>
                 <p className={`text-2xl font-bold ${withoutMeasurements.length === 0 ? "text-emerald-400" : "text-yellow-400"}`}>
@@ -398,6 +507,68 @@ export default function DataQualityPage() {
                   {duplicates.length}
                 </p>
                 <p className="text-xs text-white/30 mt-1">duplicate specimen IDs found</p>
+              </div>
+              <div className={`border rounded-xl p-4 ${siteRecordsNeedingReview.length === 0 ? "bg-emerald-500/5 border-emerald-500/20" : "bg-amber-500/5 border-amber-500/20"}`}>
+                <p className="text-xs text-white/30 uppercase tracking-wider mb-1">Sites Needing Review</p>
+                <p className={`text-2xl font-bold ${siteRecordsNeedingReview.length === 0 ? "text-emerald-400" : "text-amber-400"}`}>{siteRecordsNeedingReview.length}</p>
+                <p className="text-xs text-white/30 mt-1">from canonical Sites records</p>
+              </div>
+              <div className={`border rounded-xl p-4 ${siteLinkRate >= 80 ? "bg-emerald-500/5 border-emerald-500/20" : "bg-cyan-500/5 border-cyan-500/20"}`}>
+                <p className="text-xs text-white/30 uppercase tracking-wider mb-1">Specimen/Site Links</p>
+                <p className={`text-2xl font-bold ${siteLinkRate >= 80 ? "text-emerald-400" : "text-cyan-300"}`}>{linkedSpecimens}/{totalSpecimens}</p>
+                <p className="text-xs text-white/30 mt-1">matched by site name in Sites</p>
+              </div>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+                <p className="text-xs uppercase tracking-widest text-white/30">Most Frequent Rules</p>
+                <div className="mt-4 space-y-3">
+                  {ruleCounts.slice(0, 5).map(({ ruleId, count, issue }) => (
+                    <button key={ruleId} type="button" onClick={() => { setSeverityFilter("ALL"); setCategoryFilter(issue.category); setActiveTab("quality"); }} className="flex w-full items-center justify-between gap-4 rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3 text-left hover:bg-white/[0.05]">
+                      <div><p className="font-mono text-xs text-emerald-200">{ruleId}</p><p className="mt-1 text-xs text-white/45">{issue.ruleName}</p></div>
+                      <span className="rounded-full bg-white/5 px-2.5 py-1 text-xs text-white/65">{count}</span>
+                    </button>
+                  ))}
+                  {ruleCounts.length === 0 && <p className="text-sm text-emerald-200/70">No rules are currently triggered.</p>}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+                <p className="text-xs uppercase tracking-widest text-white/30">Evidence Sources</p>
+                <div className="mt-4 space-y-4">
+                  {[
+                    ["Specimens", specimens.length, "Core record and context"],
+                    ["Measurements", measurements.length, "Metric validation"],
+                    ["Canonical sites", sites.length, "Sites table details"],
+                    ["Excavation records", excavationRecords.length, "Completeness only"],
+                    ["Dating results", labDatingRecords.length, "Completeness only"],
+                  ].map(([label, count, note]) => (
+                    <div key={label} className="flex items-center justify-between border-b border-white/5 pb-3 last:border-0 last:pb-0">
+                      <div><p className="text-sm text-white/70">{label}</p><p className="mt-0.5 text-[11px] text-white/25">{note}</p></div>
+                      <span className="font-mono text-sm text-cyan-200">{count}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-4 rounded-lg border border-emerald-500/15 bg-emerald-500/5 px-3 py-2 text-[11px] text-emerald-100/55">skeletal_inputs is intentionally excluded from this dashboard.</p>
+              </div>
+            </div>
+
+            {/* Explainable rule-category scores. Each starts at 100 and is
+                reduced only by issues in that category. */}
+            <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-6">
+              <p className="text-xs text-white/30 uppercase tracking-widest mb-5">Rule-based Quality Dimensions</p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {Object.entries(categoryScores).map(([category, score]) => (
+                  <div key={category} className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-xs leading-5 text-white/55">{category}</p>
+                      <span className={`font-mono text-sm ${score >= 80 ? "text-emerald-400" : score >= 60 ? "text-amber-400" : "text-red-400"}`}>{score}%</span>
+                    </div>
+                    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/5">
+                      <div className={`h-full rounded-full ${completenessColor(score)}`} style={{ width: `${score}%` }} />
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -542,12 +713,38 @@ export default function DataQualityPage() {
               <span className="flex items-center gap-2"><StatusBadge status="warning" /> {qualityCounts.warning} need review</span>
               <span className="flex items-center gap-2"><StatusBadge status="error" /> {qualityCounts.error} invalid</span>
             </div>
-            {qualityAudits.map(({ specimen, status, issues }, index) => (
-              <button
-                type="button"
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+              {Object.entries(severityCounts).map(([severity, count]) => (
+                <div key={severity} className="rounded-xl border border-white/10 bg-white/[0.025] px-4 py-3">
+                  <p className="text-[10px] uppercase tracking-wider text-white/35">{severity}</p>
+                  <p className="mt-1 text-xl font-semibold text-white/80">{count}</p>
+                </div>
+              ))}
+            </div>
+            <div className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.025] p-4 md:grid-cols-3">
+              <input value={qualitySearch} onChange={(event) => setQualitySearch(event.target.value)} placeholder="Search specimen, skeleton, bone, or site" className="rounded-xl border border-white/10 bg-[#0f1a14] px-4 py-2.5 text-sm text-white outline-none placeholder:text-white/25 focus:border-emerald-500" />
+              <select value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)} className="rounded-xl border border-white/10 bg-[#0f1a14] px-4 py-2.5 text-sm text-white outline-none focus:border-emerald-500">
+                <option value="ALL">All severities</option>
+                {QUALITY_SEVERITIES.map((severity) => <option key={severity} value={severity}>{severity}</option>)}
+              </select>
+              <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)} className="rounded-xl border border-white/10 bg-[#0f1a14] px-4 py-2.5 text-sm text-white outline-none focus:border-emerald-500">
+                <option value="ALL">All categories</option>
+                {QUALITY_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
+              </select>
+            </div>
+            {orphanIssues.length > 0 && (
+              <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-5">
+                <p className="text-sm font-medium text-red-200">Unlinked related records</p>
+                <ul className="mt-3 space-y-2 text-xs text-red-100/75">
+                  {orphanIssues.map((issue, index) => <li key={`${issue.ruleId}-${index}`}><span className="font-mono text-red-300">{issue.ruleId}</span> · {issue.message} Reference: {issue.actualValue}</li>)}
+                </ul>
+              </div>
+            )}
+            {actionError && <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">{actionError}</div>}
+            {filteredQualityAudits.map(({ specimen, status, issues }, index) => (
+              <article
                 key={`${specimen.specimen_id}-${index}`}
-                onClick={() => navigate(`/specimens/${specimen.specimen_id}`)}
-                className={`block w-full rounded-2xl border p-5 text-left transition-colors hover:bg-white/[0.04] ${STATUS_STYLES[status]}`}
+                className={`block w-full rounded-2xl border p-5 text-left ${STATUS_STYLES[status]}`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -557,12 +754,39 @@ export default function DataQualityPage() {
                   <StatusBadge status={status} />
                 </div>
                 {issues.length ? (
-                  <ul className="mt-4 space-y-1.5 text-xs text-white/70">
-                    {issues.map((issue, issueIndex) => <li key={`${issue.field}-${issueIndex}`}><span className={issue.status === "error" ? "text-red-300" : "text-amber-300"}>{issue.field}:</span> {issue.message}</li>)}
-                  </ul>
+                  <QualityIssueList issues={issues} />
                 ) : <p className="mt-4 text-xs text-emerald-200">All checked values are normal.</p>}
+                <div className="mt-4 flex justify-end gap-2 border-t border-white/10 pt-4">
+                  <button type="button" onClick={() => navigate(`/specimens/${specimen.specimen_id}`)} className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-200 hover:bg-emerald-500/20">Edit record</button>
+                  <button type="button" disabled={deletingRecord === specimen.specimen_id} onClick={() => deleteSpecimenRecord(specimen)} className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-200 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40">{deletingRecord === specimen.specimen_id ? "Deleting..." : "Delete record"}</button>
+                </div>
+              </article>
+            ))}
+            {filteredQualityAudits.length === 0 && <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-8 text-center text-sm text-white/35">No specimen records match the current quality filters.</div>}
+          </div>
+        )}
+
+        {/* Canonical Sites quality */}
+        {activeTab === "sites" && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                ["Valid", siteQualityCounts.valid, "text-emerald-400"],
+                ["Review", siteQualityCounts.warning, "text-amber-400"],
+                ["Invalid", siteQualityCounts.error, "text-red-400"],
+              ].map(([label, value, color]) => <div key={label} className="rounded-xl border border-white/10 bg-white/[0.025] p-4 text-center"><p className={`text-2xl font-semibold ${color}`}>{value}</p><p className="mt-1 text-[10px] uppercase tracking-wider text-white/30">{label}</p></div>)}
+            </div>
+            {siteAudits.map(({ site, status, issues }, index) => (
+              <button type="button" key={site.site_id || site.id || index} onClick={() => site.site_id && navigate(`/minuri/sites/${site.site_id}`)} className={`block w-full rounded-2xl border p-5 text-left transition-colors hover:bg-white/[0.04] ${STATUS_STYLES[status]}`}>
+                <div className="flex items-start justify-between gap-4">
+                  <div><p className="font-mono text-sm text-white">{site.site_id || "No site ID"}</p><p className="mt-1 text-xs text-white/50">{site.site_name || "No site name"} · {[site.district, site.province].filter(Boolean).join(", ") || "No location"}</p></div>
+                  <StatusBadge status={status} />
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2 text-[10px] text-white/35"><span>{site.site_type || "No classification"}</span><span>·</span><span>{site.time_period || "No period"}</span><span>·</span><span>{site.risk_level ? `${site.risk_level} risk` : "No risk level"}</span></div>
+                {issues.length > 0 ? <QualityIssueList issues={issues} ruleColor="text-cyan-200" compact /> : <p className="mt-4 text-xs text-emerald-200">All Sites record checks passed.</p>}
               </button>
             ))}
+            {siteAudits.length === 0 && <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-8 text-center text-sm text-white/35">No records were returned from Sites.</div>}
           </div>
         )}
 
@@ -596,7 +820,7 @@ export default function DataQualityPage() {
                       >
                         <td className="px-5 py-3.5 font-mono text-emerald-400 text-xs">{s.specimen_id}</td>
                         <td className={`px-5 py-3.5 font-mono ${status === "error" ? "text-red-400" : "text-amber-400"}`}>{s.excavation_year}</td>
-                        <td className="px-5 py-3.5 text-white/40 text-xs">{issues.find((issue) => issue.field === "Excavation year")?.message}</td>
+                        <td className="px-5 py-3.5 text-white/40 text-xs">{issues.find((issue) => issue.fields.includes("excavation_year"))?.message}</td>
                       </tr>
                     ))}
                   </tbody>
