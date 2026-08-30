@@ -162,7 +162,6 @@ export default function DataQualityPage() {
     (s) => !specimenIdsWithMeasurements.has(s.specimen_id)
   );
 
-  // Anomalies — year outliers
   const measurementsBySpecimen = new Map();
   measurements.forEach((measurement) => {
     const rows = measurementsBySpecimen.get(measurement.specimen_id) || [];
@@ -206,7 +205,6 @@ export default function DataQualityPage() {
     ruleCounts,
     allIssues,
   } = auditDataQuality({ specimens, measurements, sites });
-  const yearAnomalies = qualityAudits.filter((audit) => audit.issues.some((issue) => issue.fields.includes("excavation_year")));
   const linkedSiteNames = new Set(sites.map((site) => String(site.site_name || "").trim().toLowerCase()).filter(Boolean));
   const linkedSpecimens = specimens.filter((specimen) => linkedSiteNames.has(String(specimen.site_name || "").trim().toLowerCase())).length;
   const siteLinkRate = totalSpecimens === 0 ? 0 : Math.round((linkedSpecimens / totalSpecimens) * 100);
@@ -428,7 +426,6 @@ export default function DataQualityPage() {
             { key: "duplicates", label: `Duplicates (${duplicates.length})` },
             { key: "quality", label: `Quality (${qualityCounts.error + qualityCounts.warning})` },
             { key: "sites", label: `Sites (${siteRecordsNeedingReview.length})` },
-            { key: "anomalies", label: `Year checks (${yearAnomalies.length})` },
           ].map((tab) => (
             <button
               key={tab.key}
@@ -787,46 +784,6 @@ export default function DataQualityPage() {
               </button>
             ))}
             {siteAudits.length === 0 && <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-8 text-center text-sm text-white/35">No records were returned from Sites.</div>}
-          </div>
-        )}
-
-        {/* Anomalies Tab */}
-        {activeTab === "anomalies" && (
-          <div className="space-y-4">
-            <div className="bg-white/[0.03] border border-white/10 rounded-2xl overflow-hidden">
-              <div className="px-6 py-4 border-b border-white/10">
-                <p className="text-xs text-white/30 uppercase tracking-widest">Year Anomalies (outside 1800 - {new Date().getFullYear()})</p>
-              </div>
-              {yearAnomalies.length === 0 ? (
-                <div className="p-8 text-center text-white/30">
-                  <p className="text-lg mb-1">✅ No year anomalies!</p>
-                  <p className="text-sm">All excavation years are within valid range</p>
-                </div>
-              ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-white/5 bg-white/[0.02]">
-                      <th className="text-left px-5 py-3 text-xs text-white/30 uppercase tracking-wider">Specimen ID</th>
-                      <th className="text-left px-5 py-3 text-xs text-white/30 uppercase tracking-wider">Year</th>
-                      <th className="text-left px-5 py-3 text-xs text-white/30 uppercase tracking-wider">Issue</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {yearAnomalies.map(({ specimen: s, status, issues }, i) => (
-                      <tr
-                        key={s.specimen_id}
-                        className={`border-b border-white/5 hover:bg-white/[0.04] cursor-pointer ${i % 2 === 0 ? "" : "bg-white/[0.01]"}`}
-                        onClick={() => navigate(`/specimens/${s.specimen_id}`)}
-                      >
-                        <td className="px-5 py-3.5 font-mono text-emerald-400 text-xs">{s.specimen_id}</td>
-                        <td className={`px-5 py-3.5 font-mono ${status === "error" ? "text-red-400" : "text-amber-400"}`}>{s.excavation_year}</td>
-                        <td className="px-5 py-3.5 text-white/40 text-xs">{issues.find((issue) => issue.fields.includes("excavation_year"))?.message}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
           </div>
         )}
 
