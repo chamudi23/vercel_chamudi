@@ -78,11 +78,56 @@ export const CSRM_TABLES = {
   skeletalInputs: 'skeletal_inputs',
 }
 
+/**
+ * Columns without which a candidate cannot be scored or rendered at all.
+ * If one of these ever disappears from CSRM the panel genuinely cannot work.
+ */
+const SPECIMEN_REQUIRED_COLUMNS = [
+  'specimen_id', 'skeleton_code', 'bone_type', 'side', 'site_name',
+  'district', 'province', 'excavation_year', 'time_period',
+  'preservation_state', 'location_stored', 'sex_estimate', 'age_estimate',
+  'height_estimate', 'created_at',
+]
+
+/**
+ * Columns that only enrich the record popup — no scoring channel reads them.
+ * CSRM owns this schema and has dropped a column here before (`burial_context`
+ * vanished when the catalogue table was rebuilt on 30 Aug 2026), which failed
+ * the whole SELECT with PostgREST 42703 and blanked the panel. Anything listed
+ * here is now dropped and retried instead of taking the panel down with it.
+ */
+const SPECIMEN_OPTIONAL_COLUMNS = ['burial_context']
+
+/** Optional columns this session has proven absent — never requested again. */
+const _absentColumns = new Set()
+
+/** PostgREST: undefined_column. The one error we can recover from. */
+const UNDEFINED_COLUMN = '42703'
+
+/** The optional columns still believed to exist. */
+function liveOptionalColumns() {
+  return SPECIMEN_OPTIONAL_COLUMNS.filter((c) => !_absentColumns.has(c))
+}
+
+function specimenSelect() {
+  return [...SPECIMEN_REQUIRED_COLUMNS, ...liveOptionalColumns()].join(', ')
+}
+
+/**
+ * Name the column PostgREST complained about, so only that one is dropped.
+ * Message shape: `column specimens.burial_context does not exist`.
+ */
+function missingColumnFrom(error) {
+  if (error?.code !== UNDEFINED_COLUMN) return null
+  const match = /column\s+\S*?\.?(\w+)\s+does not exist/i.exec(error.message || '')
+  const name = match?.[1]
+  return name && SPECIMEN_OPTIONAL_COLUMNS.includes(name) ? name : null
+}
+
 export const CSRM_COLUMNS = {
-  specimens:
-    'specimen_id, skeleton_code, bone_type, side, site_name, district, province, ' +
-    'excavation_year, time_period, preservation_state, location_stored, ' +
-    'burial_context, sex_estimate, age_estimate, height_estimate, created_at',
+  get specimens() {
+    return specimenSelect()
+  },
   measurements: 'measurement_id, specimen_id, bone_type, measurement_type, value, unit, notes',
   skeletalInputs: '*',
 }
@@ -109,18 +154,35 @@ export async function fetchSpecimensByBoneTokens(tokens) {
   // PostgREST `or=(a.ilike.*x*,b.ilike.*y*)` — a single round trip, no N+1.
   const orFilter = tokens.map((t) => `bone_type.ilike.*${t}*`).join(',')
 
-  const { data, error } = await db
-    .from(CSRM_TABLES.specimens)
-    .select(CSRM_COLUMNS.specimens)
-    .or(orFilter)
-    .order('created_at', { ascending: false })
-    .limit(CANDIDATE_LIMIT)
+  // One attempt per optional column, plus the required-only attempt: a column
+  // CSRM has dropped costs one extra round trip on the first read of the
+  // session and none afterwards, because `_absentColumns` remembers it.
+  for (let attempt = 0; attempt <= SPECIMEN_OPTIONAL_COLUMNS.length; attempt++) {
+    const { data, error } = await db
+      .from(CSRM_TABLES.specimens)
+      .select(specimenSelect())
+      .or(orFilter)
+      .order('created_at', { ascending: false })
+      .limit(CANDIDATE_LIMIT)
 
-  if (error) {
-    console.error('[csrm] specimens read failed:', error.message)
-    return { rows: [], error }
+    if (!error) return { rows: data || [], error: null }
+
+    const missing = missingColumnFrom(error)
+    if (!missing) {
+      console.error('[csrm] specimens read failed:', error.message)
+      return { rows: [], error }
+    }
+
+    // CSRM no longer publishes this column. Drop it and read again — a record
+    // detail field is worth losing, the whole Similar Cases panel is not.
+    _absentColumns.add(missing)
+    console.warn(
+      `[csrm] specimens.${missing} is not in the catalogue schema; ` +
+        'continuing without it. That field will be blank in the record popup.'
+    )
   }
-  return { rows: data || [], error: null }
+
+  return { rows: [], error: null }
 }
 
 /** Metric observations for the given specimen ids. */
