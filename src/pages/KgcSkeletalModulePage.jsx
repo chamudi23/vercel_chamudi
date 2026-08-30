@@ -1,4 +1,7 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { getAllAnalyses } from "../lib/analysisStore";
+import { averageConfidence } from "../lib/analysisStats";
 
 const features = [
   {
@@ -76,6 +79,25 @@ const features = [
 export default function SkeletalModulePage() {
   const navigate = useNavigate();
 
+  // Read from the same source the Dashboard uses, so the strip below always
+  // agrees with it. `null` while in flight — the stats render as "…" rather
+  // than flashing a zero that looks like a real, empty catalogue.
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    getAllAnalyses().then((list) => {
+      if (!active) return;
+      setStats({
+        totalCases: list.length,
+        avgConfidence: averageConfidence(list),
+      });
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#0f1219] text-white font-sans">
       {/* Top nav bar */}
@@ -118,8 +140,13 @@ export default function SkeletalModulePage() {
         {/* Quick stats strip */}
         <div className="flex flex-wrap gap-4 mt-8">
           {[
-            { label: "Total Cases", value: "158" },
-            { label: "Accuracy", value: "98.8%" },
+            { label: "Total Cases", value: stats ? stats.totalCases : "…" },
+            // "Avg Confidence", not "Accuracy": this is the mean confidence
+            // the model reports on its own predictions. The system holds no
+            // verified biological profile to score those predictions against,
+            // so it cannot measure accuracy. The Dashboard labels the same
+            // figure the same way.
+            { label: "Avg Confidence", value: stats ? `${stats.avgConfidence}%` : "…" },
             { label: "Module", value: "Chamudi" },
           ].map((s) => (
             <div

@@ -13,6 +13,7 @@ import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts';
 import SkeletalHeader from '../components/KgcSkeletalHeader';
 import { getAllAnalyses } from '../lib/analysisStore';
+import { averageConfidence } from '../lib/analysisStats';
 
 const COLORS = ['#3B82F6', '#EC4899', '#9CA3AF'];
 
@@ -93,12 +94,7 @@ export default function Dashboard() {
   // Aggregated stats
   const stats = useMemo(() => {
     const preds = analyses.map((a) => a.predictions || {});
-    const confidences = preds
-      .map((p) => parseFloat(String(p.confidence).replace('%', '')))
-      .filter((n) => !isNaN(n));
-    const avgConfidence = confidences.length
-      ? (confidences.reduce((s, n) => s + n, 0) / confidences.length).toFixed(1)
-      : '0.0';
+    const avgConfidence = averageConfidence(analyses);
 
     const genderCounts = { Male: 0, Female: 0, Indeterminate: 0 };
     preds.forEach((p) => {
