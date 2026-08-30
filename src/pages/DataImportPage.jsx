@@ -1,472 +1,148 @@
-import { useState, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
+import { CONTROLLED_BONE_CATEGORIES, normalizeBoneCategory, validateCategorySide } from "../utils/pp1ImageModule";
+import { DATING_METHODS, PRESERVATION_STATES, validateExcavationAndDating } from "../utils/specimenMetadata";
 
-const REQUIRED_COLUMNS = ["specimen_id", "skeleton_code"];
-
-const EXPECTED_COLUMNS = [
-  "specimen_id", "skeleton_code", "site_name", "district",
-  "province", "excavation_year", "time_period", "preservation_state",
-  "location_stored", "burial_context", "notes",
+const REQUIRED = ["specimen_id", "skeleton_code", "bone_type", "side"];
+const SPECIMEN = ["specimen_id", "skeleton_code", "bone_type", "side", "site_name", "district", "province", "time_period", "preservation_state", "location_stored", "notes", "age_estimate", "sex_estimate", "height_estimate"];
+const MEASUREMENT = ["measurement_type", "measurement_value", "measurement_unit", "measurement_notes"];
+const EXCAVATION = ["excavation_date", "depth_found", "excavator_name", "excavation_notes"];
+const DATING = ["dating_method", "date_result", "date_range_min", "date_range_max", "lab_name", "result_notes"];
+const COLUMNS = [...SPECIMEN, ...MEASUREMENT, ...EXCAVATION, ...DATING];
+const NUMBERS = ["height_estimate", "measurement_value", "depth_found", "date_range_min", "date_range_max"];
+const SEXES = ["Male", "Female", "Unknown"];
+const UNITS = ["mm", "cm", "m"];
+const CSV_GUIDE = [
+  ["Required identifiers", "specimen_id, skeleton_code, bone_type, and side must be completed for every row. IDs must be unique."],
+  ["Bone and side", "Use a bone category from the specimen form. Side must be Left, Right, Midline, or Unknown where that category allows it."],
+  ["Controlled values", `Preservation: ${PRESERVATION_STATES.join(", ")}. Sex: ${SEXES.join(", ")}. Units: ${UNITS.join(", ")}.`],
+  ["Numbers", "height_estimate, measurement_value, depth_found, and date ranges must be zero or positive numbers. Do not add units inside numeric cells."],
+  ["Dates", "Use YYYY-MM-DD for excavation_date, for example 2026-01-15."],
+  ["Measurements", "Provide measurement_type and measurement_value together. Leave all measurement fields blank when no measurement is available."],
+  ["Excavation and dating", "These sections are optional. A dating_method is required before a laboratory dating record can be created."],
+  ["Text containing commas", "Keep comma-containing text inside double quotes. The downloaded template already uses CSV-safe formatting."],
 ];
+
+function parseCSV(text) {
+  const records = [];
+  let record = [], field = "", quoted = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    if (char === '"') {
+      if (quoted && text[i + 1] === '"') { field += '"'; i += 1; } else quoted = !quoted;
+    } else if (char === "," && !quoted) { record.push(field.trim()); field = ""; }
+    else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && text[i + 1] === "\n") i += 1;
+      record.push(field.trim()); if (record.some(Boolean)) records.push(record); record = []; field = "";
+    } else field += char;
+  }
+  record.push(field.trim()); if (record.some(Boolean)) records.push(record);
+  if (!records.length) return { headers: [], rows: [] };
+  const headers = records[0].map((value) => value.replace(/^\uFEFF/, "").trim().toLowerCase());
+  return { headers, rows: records.slice(1).map((values, index) => ({ __row: index + 2, ...Object.fromEntries(headers.map((header, column) => [header, values[column] || ""])) })) };
+}
+
+function validate(rows, headers) {
+  const result = [];
+  const missing = REQUIRED.filter((column) => !headers.includes(column));
+  if (missing.length) result.push({ row: "Header", messages: [`Missing required columns: ${missing.join(", ")}`] });
+  const ids = new Set();
+  rows.forEach((row) => {
+    const messages = [];
+    REQUIRED.forEach((column) => { if (!row[column]?.trim()) messages.push(`${column} is required`); });
+    const id = row.specimen_id?.trim().toLowerCase();
+    if (id && ids.has(id)) messages.push("Duplicate specimen_id in this file");
+    if (id) ids.add(id);
+    const category = normalizeBoneCategory(row.bone_type);
+    if (row.bone_type && !category) messages.push("Unsupported bone_type");
+    if (category) { const issue = validateCategorySide(row.bone_type, row.side); if (issue) messages.push(issue); }
+    if (row.preservation_state && !PRESERVATION_STATES.includes(row.preservation_state)) messages.push(`preservation_state must be ${PRESERVATION_STATES.join(", ")}`);
+    if (row.sex_estimate && !SEXES.includes(row.sex_estimate)) messages.push(`sex_estimate must be ${SEXES.join(", ")}`);
+    if (row.measurement_unit && !UNITS.includes(row.measurement_unit)) messages.push(`measurement_unit must be ${UNITS.join(", ")}`);
+    if (row.measurement_value && !row.measurement_type) messages.push("measurement_type is required with a measurement_value");
+    if (row.measurement_type && !row.measurement_value) messages.push("measurement_value is required with a measurement_type");
+    NUMBERS.forEach((column) => { if (row[column] !== "" && (!Number.isFinite(Number(row[column])) || Number(row[column]) < 0)) messages.push(`${column} must be a non-negative number`); });
+    if (row.dating_method && !DATING_METHODS.includes(row.dating_method)) messages.push(`dating_method must be ${DATING_METHODS.join(", ")}`);
+    const metadata = validateExcavationAndDating(Object.fromEntries(EXCAVATION.map((key) => [key, row[key]])), Object.fromEntries(DATING.map((key) => [key, row[key]])));
+    Object.values(metadata).filter(Boolean).forEach((issue) => { if (!messages.includes(issue)) messages.push(issue); });
+    if (messages.length) result.push({ row: row.__row, messages });
+  });
+  return result;
+}
+
+const numberOrNull = (value) => value === "" ? null : Number(value);
+const id = (prefix) => `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+const cell = (value) => /[",\r\n]/.test(String(value)) ? `"${String(value).replace(/"/g, '""')}"` : String(value);
 
 export default function DataImportPage() {
   const navigate = useNavigate();
   const fileRef = useRef(null);
-
-  const [step, setStep] = useState(1); // 1=upload, 2=preview, 3=done
+  const [step, setStep] = useState(1);
   const [fileName, setFileName] = useState("");
   const [rows, setRows] = useState([]);
   const [errors, setErrors] = useState([]);
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState(null);
+  const [result, setResult] = useState(null);
   const [dragOver, setDragOver] = useState(false);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
+  const [bone, setBone] = useState("all");
+  const [side, setSide] = useState("all");
+  const invalidRows = useMemo(() => new Set(errors.filter((error) => Number.isInteger(error.row)).map((error) => error.row)), [errors]);
+  const choices = (key) => [...new Set(rows.map((row) => row[key]).filter(Boolean))].sort();
+  const filtered = useMemo(() => rows.filter((row) => {
+    const invalid = invalidRows.has(row.__row), query = search.trim().toLowerCase();
+    return !(status === "valid" && invalid) && !(status === "invalid" && !invalid) && (bone === "all" || row.bone_type === bone) && (side === "all" || row.side === side) && (!query || COLUMNS.some((key) => row[key]?.toLowerCase().includes(query)));
+  }), [rows, invalidRows, search, status, bone, side]);
 
-  function parseCSV(text) {
-    const lines = text.trim().split("\n");
-    const headers = lines[0].split(",").map((h) => h.trim().replace(/"/g, ""));
-    const parsed = [];
-
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(",").map((v) => v.trim().replace(/"/g, ""));
-      const row = {};
-      headers.forEach((h, idx) => {
-        row[h] = values[idx] || "";
-      });
-      parsed.push(row);
-    }
-    return { headers, rows: parsed };
-  }
-
-  function validateRows(rows) {
-    const errs = [];
-    rows.forEach((row, i) => {
-      const rowErrors = [];
-      REQUIRED_COLUMNS.forEach((col) => {
-        if (!row[col] || row[col].trim() === "") {
-          rowErrors.push(`"${col}" is required`);
-        }
-      });
-      if (row.excavation_year && isNaN(row.excavation_year)) {
-        rowErrors.push(`"excavation_year" must be a number`);
-      }
-      if (rowErrors.length > 0) {
-        errs.push({ row: i + 1, messages: rowErrors });
-      }
-    });
-    return errs;
-  }
-
-  function handleFile(file) {
-    if (!file) return;
-    if (!file.name.endsWith(".csv")) {
-      alert("Please upload a CSV file!");
-      return;
-    }
-
-    setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target.result;
-      const { rows: parsed } = parseCSV(text);
-      const validationErrors = validateRows(parsed);
-      setRows(parsed);
-      setErrors(validationErrors);
-      setStep(2);
-    };
-    reader.readAsText(file);
-  }
-
-  function handleFileInput(e) {
-    handleFile(e.target.files[0]);
-  }
-
-  function handleDrop(e) {
-    e.preventDefault();
-    setDragOver(false);
-    handleFile(e.dataTransfer.files[0]);
-  }
-
-  async function handleImport() {
-    if (errors.length > 0) {
-      alert("Please fix errors before importing!");
-      return;
-    }
-
-    setImporting(true);
-
-    let successCount = 0;
-    let failCount = 0;
-    const failedRows = [];
-
-    for (const row of rows) {
-      // Check duplicate
-      const { data: existing } = await supabase
-        .from("specimens")
-        .select("specimen_id")
-        .eq("specimen_id", row.specimen_id)
-        .single();
-
-      if (existing) {
-        failCount++;
-        failedRows.push({ id: row.specimen_id, reason: "Duplicate ID" });
-        continue;
-      }
-
-      const payload = {
-        specimen_id: row.specimen_id,
-        skeleton_code: row.skeleton_code,
-        site_name: row.site_name || null,
-        district: row.district || null,
-        province: row.province || null,
-        excavation_year: row.excavation_year ? parseInt(row.excavation_year) : null,
-        time_period: row.time_period || null,
-        preservation_state: row.preservation_state || null,
-        location_stored: row.location_stored || null,
-        burial_context: row.burial_context || null,
-        notes: row.notes || null,
-      };
-
-      const { error } = await supabase.from("specimens").insert([payload]);
-
-      if (error) {
-        failCount++;
-        failedRows.push({ id: row.specimen_id, reason: error.message });
-      } else {
-        successCount++;
-      }
-    }
-
-    // Log import
-    await supabase.from("data_import_logs").insert([{
-      file_name: fileName,
-      file_type: "CSV",
-      import_status: failCount === 0 ? "Success" : "Partial",
-      total_records: rows.length,
-      successful_records: successCount,
-      failed_records: failCount,
-    }]);
-
-    setImportResult({ successCount, failCount, failedRows });
-    setImporting(false);
-    setStep(3);
-  }
-
-  function handleReset() {
-    setStep(1);
-    setFileName("");
-    setRows([]);
-    setErrors([]);
-    setImportResult(null);
+  function reset() {
+    setStep(1); setFileName(""); setRows([]); setErrors([]); setResult(null); setSearch(""); setStatus("all"); setBone("all"); setSide("all");
     if (fileRef.current) fileRef.current.value = "";
   }
-
-  return (
-    <div className="min-h-screen bg-[#0f1a14] text-white">
-
-      {/* Top bar */}
-      <div className="border-b border-white/10 px-6 py-4 flex items-center justify-between">
-        <button
-          onClick={() => navigate("/minuri")}
-          className="flex items-center gap-2 text-sm text-white/50 hover:text-white transition-colors"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          Back to Module
-        </button>
-        <span className="text-xs text-white/30 tracking-widest uppercase">Data Import</span>
-      </div>
-
-      <div className="max-w-4xl mx-auto px-6 py-10">
-
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs tracking-[0.2em] uppercase text-emerald-400/80">Bulk Upload</span>
-          </div>
-          <h1 className="text-3xl font-bold text-white">Data Import</h1>
-          <p className="text-white/40 text-sm mt-2">
-            Upload a CSV file to import multiple specimen records at once.
-          </p>
-        </div>
-
-        {/* Step indicators */}
-        <div className="flex items-center gap-3 mb-8">
-          {["Upload CSV", "Preview & Validate", "Import Complete"].map((label, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                step > i + 1 ? "bg-emerald-500 text-white" :
-                step === i + 1 ? "bg-emerald-600 text-white" :
-                "bg-white/10 text-white/30"
-              }`}>
-                {step > i + 1 ? "✓" : i + 1}
-              </div>
-              <span className={`text-xs ${step === i + 1 ? "text-white" : "text-white/30"}`}>
-                {label}
-              </span>
-              {i < 2 && <div className="w-8 h-px bg-white/10 mx-1" />}
-            </div>
-          ))}
-        </div>
-
-        {/* Step 1 — Upload */}
-        {step === 1 && (
-          <div className="space-y-6">
-            {/* Drop zone */}
-            <div
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              onClick={() => fileRef.current?.click()}
-              className={`border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-colors ${
-                dragOver
-                  ? "border-emerald-400 bg-emerald-500/10"
-                  : "border-white/10 hover:border-white/20 bg-white/[0.02]"
-              }`}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="w-12 h-12 mx-auto text-white/20 mb-4">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-              </svg>
-              <p className="text-white/50 text-sm mb-1">
-                Drag and drop your CSV file here
-              </p>
-              <p className="text-white/25 text-xs">or click to browse</p>
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".csv"
-                onChange={handleFileInput}
-                className="hidden"
-              />
-            </div>
-
-            {/* CSV format guide */}
-            <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-6">
-              <p className="text-xs text-white/30 uppercase tracking-widest mb-4">
-                Expected CSV Format
-              </p>
-              <div className="overflow-x-auto">
-                <code className="text-xs text-emerald-400/70 whitespace-nowrap">
-                  specimen_id, skeleton_code, site_name, district, province, excavation_year, time_period, preservation_state, location_stored, burial_context, notes
-                </code>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {EXPECTED_COLUMNS.map((col) => (
-                  <span
-                    key={col}
-                    className={`text-[10px] px-2 py-1 rounded-full border ${
-                      REQUIRED_COLUMNS.includes(col)
-                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                        : "bg-white/5 text-white/30 border-white/10"
-                    }`}
-                  >
-                    {col} {REQUIRED_COLUMNS.includes(col) ? "*" : ""}
-                  </span>
-                ))}
-              </div>
-              <p className="text-[10px] text-white/20 mt-3">* Required fields</p>
-            </div>
-
-            {/* Download template */}
-            <button
-              onClick={() => {
-                const csv = EXPECTED_COLUMNS.join(",") + "\nSPEC-001,SK1,Site Name,Colombo,Western,1998,Mesolithic,Good,Lab Shelf A,Primary burial,Notes here";
-                const blob = new Blob([csv], { type: "text/csv" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = "specimen_import_template.csv";
-                a.click();
-              }}
-              className="flex items-center gap-2 text-sm text-emerald-400/70 hover:text-emerald-400 transition-colors"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-4 h-4">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              Download CSV Template
-            </button>
-          </div>
-        )}
-
-        {/* Step 2 — Preview */}
-        {step === 2 && (
-          <div className="space-y-6">
-
-            {/* File info */}
-            <div className="flex items-center justify-between bg-white/[0.03] border border-white/10 rounded-xl px-5 py-4">
-              <div className="flex items-center gap-3">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-5 h-5 text-emerald-400">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <div>
-                  <p className="text-sm text-white">{fileName}</p>
-                  <p className="text-xs text-white/30">{rows.length} records found</p>
-                </div>
-              </div>
-              <button
-                onClick={handleReset}
-                className="text-xs text-white/30 hover:text-white transition-colors"
-              >
-                Change file
-              </button>
-            </div>
-
-            {/* Validation errors */}
-            {errors.length > 0 && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-5">
-                <p className="text-xs text-red-400 uppercase tracking-wider mb-3">
-                  ⚠️ {errors.length} Validation Error{errors.length > 1 ? "s" : ""} Found
-                </p>
-                <div className="space-y-2 max-h-40 overflow-y-auto">
-                  {errors.map((e, i) => (
-                    <div key={i} className="text-xs text-red-300/70">
-                      Row {e.row}: {e.messages.join(", ")}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Preview table */}
-            <div className="border border-white/10 rounded-2xl overflow-hidden">
-              <div className="px-5 py-3 bg-white/[0.02] border-b border-white/10 flex items-center justify-between">
-                <p className="text-xs text-white/30 uppercase tracking-wider">Preview (first 5 rows)</p>
-                <span className={`text-xs px-2 py-1 rounded-full border ${
-                  errors.length === 0
-                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                    : "bg-red-500/10 text-red-400 border-red-500/20"
-                }`}>
-                  {errors.length === 0 ? "✓ Ready to import" : `${errors.length} errors`}
-                </span>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-white/5">
-                      {EXPECTED_COLUMNS.slice(0, 6).map((col) => (
-                        <th key={col} className="text-left px-4 py-2.5 text-white/25 uppercase tracking-wider font-medium">
-                          {col}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.slice(0, 5).map((row, i) => (
-                      <tr key={i} className="border-b border-white/5 hover:bg-white/[0.02]">
-                        {EXPECTED_COLUMNS.slice(0, 6).map((col) => (
-                          <td key={col} className="px-4 py-2.5 text-white/60">
-                            {row[col] || <span className="text-white/20">—</span>}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {rows.length > 5 && (
-                <div className="px-5 py-3 text-xs text-white/20 border-t border-white/5">
-                  +{rows.length - 5} more rows not shown
-                </div>
-              )}
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center justify-between">
-              <button
-                onClick={handleReset}
-                className="px-5 py-2.5 text-sm text-white/40 hover:text-white border border-white/10 hover:border-white/20 rounded-xl transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleImport}
-                disabled={importing || errors.length > 0}
-                className="px-8 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-900 disabled:text-emerald-700 text-white text-sm font-medium rounded-xl transition-colors flex items-center gap-2"
-              >
-                {importing ? (
-                  <>
-                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                    </svg>
-                    Importing...
-                  </>
-                ) : `Import ${rows.length} Records`}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3 — Done */}
-        {step === 3 && importResult && (
-          <div className="space-y-6">
-            <div className={`border rounded-2xl p-8 text-center ${
-              importResult.failCount === 0
-                ? "bg-emerald-500/10 border-emerald-500/20"
-                : "bg-yellow-500/10 border-yellow-500/20"
-            }`}>
-              <div className="text-5xl mb-4">
-                {importResult.failCount === 0 ? "🎉" : "⚠️"}
-              </div>
-              <h2 className="text-xl font-bold text-white mb-2">
-                {importResult.failCount === 0 ? "Import Successful!" : "Import Completed with Errors"}
-              </h2>
-              <p className="text-white/50 text-sm">
-                {importResult.successCount} records imported successfully
-                {importResult.failCount > 0 && `, ${importResult.failCount} failed`}
-              </p>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4 text-center">
-                <p className="text-2xl font-bold text-white">{rows.length}</p>
-                <p className="text-xs text-white/30 mt-1">Total Records</p>
-              </div>
-              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 text-center">
-                <p className="text-2xl font-bold text-emerald-400">{importResult.successCount}</p>
-                <p className="text-xs text-white/30 mt-1">Imported</p>
-              </div>
-              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-center">
-                <p className="text-2xl font-bold text-red-400">{importResult.failCount}</p>
-                <p className="text-xs text-white/30 mt-1">Failed</p>
-              </div>
-            </div>
-
-            {/* Failed rows */}
-            {importResult.failedRows.length > 0 && (
-              <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-5">
-                <p className="text-xs text-red-400 uppercase tracking-wider mb-3">Failed Records</p>
-                <div className="space-y-1">
-                  {importResult.failedRows.map((f, i) => (
-                    <div key={i} className="text-xs text-red-300/60">
-                      {f.id} — {f.reason}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="flex gap-3">
-              <button
-                onClick={handleReset}
-                className="flex-1 px-5 py-2.5 text-sm text-white/40 hover:text-white border border-white/10 hover:border-white/20 rounded-xl transition-colors"
-              >
-                Import Another File
-              </button>
-              <button
-                onClick={() => navigate("/specimens")}
-                className="flex-1 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-xl transition-colors"
-              >
-                View Specimens
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  function load(file) {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".csv")) return window.alert("Please upload a CSV file.");
+    const reader = new FileReader();
+    reader.onload = (event) => { const parsed = parseCSV(String(event.target.result || "")); const issues = validate(parsed.rows, parsed.headers); if (!parsed.rows.length) issues.push({ row: "File", messages: ["No data rows found"] }); setFileName(file.name); setRows(parsed.rows); setErrors(issues); setStep(2); };
+    reader.readAsText(file);
+  }
+  function downloadTemplate() {
+    const example = ["SPEC-001", "SK-001", CONTROLLED_BONE_CATEGORIES[0]?.label || "Femur", "Left", "Site Name", "Colombo", "Western", "Mesolithic", PRESERVATION_STATES[0] || "Good", "Lab Shelf A", "Optional notes", "Adult", "Unknown", "170", "Maximum Length", "420", "mm", "Landmark notes", "2026-01-15", "2.5", "Ms. Lakshmi", "Primary burial", DATING_METHODS[0] || "Radiocarbon", "2450 BP", "2400", "2500", "National Archaeology Lab", "Calibrated"];
+    const url = URL.createObjectURL(new Blob([`${COLUMNS.map(cell).join(",")}\r\n${example.map(cell).join(",")}\r\n`], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a"); link.href = url; link.download = "specimen_import_template.csv"; link.click(); URL.revokeObjectURL(url);
+  }
+  async function importRows() {
+    if (errors.length || !rows.length) return;
+    setImporting(true);
+    const { data: auth } = await supabase.auth.getUser();
+    let success = 0; const failed = [];
+    for (const row of rows) {
+      const specimenId = row.specimen_id.trim();
+      try {
+        const { data: duplicate, error: lookupError } = await supabase.from("specimens").select("specimen_id").eq("specimen_id", specimenId).maybeSingle();
+        if (lookupError) throw lookupError; if (duplicate) throw new Error("Duplicate specimen ID");
+        const payload = Object.fromEntries(SPECIMEN.map((key) => [key, row[key] || null]));
+        payload.specimen_id = specimenId; payload.skeleton_code = row.skeleton_code.trim(); payload.bone_type = normalizeBoneCategory(row.bone_type)?.label || row.bone_type.trim(); payload.side = row.side.trim(); payload.height_estimate = numberOrNull(row.height_estimate);
+        const { error: specimenError } = await supabase.from("specimens").insert([payload]); if (specimenError) throw specimenError;
+        if (row.measurement_type) { const { error } = await supabase.from("measurements").insert([{ measurement_id: id("M"), specimen_id: specimenId, bone_type: payload.bone_type, measurement_type: row.measurement_type, value: Number(row.measurement_value), unit: row.measurement_unit || "mm", notes: row.measurement_notes || "" }]); if (error) throw new Error(`Measurement: ${error.message}`); }
+        if (EXCAVATION.some((key) => row[key])) { const { error } = await supabase.from("excavation_records").insert([{ excavation_id: id("EX"), specimen_id: specimenId, excavation_date: row.excavation_date || null, depth_found: numberOrNull(row.depth_found), excavator_name: row.excavator_name || "", excavation_notes: row.excavation_notes || "", created_by: auth?.user?.id || null }]); if (error) throw new Error(`Excavation: ${error.message}`); }
+        if (row.dating_method) { const { error } = await supabase.from("laboratory_dating_results").insert([{ lab_id: id("LAB"), specimen_id: specimenId, dating_method: row.dating_method, date_result: row.date_result || "", date_range_min: numberOrNull(row.date_range_min), date_range_max: numberOrNull(row.date_range_max), lab_name: row.lab_name || "", result_notes: row.result_notes || "" }]); if (error) throw new Error(`Lab dating: ${error.message}`); }
+        success += 1;
+      } catch (error) { failed.push({ id: specimenId || `Row ${row.__row}`, reason: error.message }); }
+    }
+    await supabase.from("data_import_logs").insert([{ file_name: fileName, file_type: "CSV", import_status: failed.length ? (success ? "Partial" : "Failed") : "Success", total_records: rows.length, successful_records: success, failed_records: failed.length }]);
+    setResult({ success, failed }); setImporting(false); setStep(3);
+  }
+  const control = "rounded-xl border border-white/10 bg-[#0f1a14] px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none";
+  return <div className="min-h-screen bg-[#0f1a14] text-white">
+    <style>{`select option { background:#0f1a14; color:white }`}</style>
+    <header className="flex items-center justify-between border-b border-white/10 px-6 py-4"><button onClick={() => navigate("/minuri")} className="text-sm text-white/50 hover:text-white">← Back to Module</button><span className="text-xs uppercase tracking-widest text-white/30">Data Import</span></header>
+    <main className="mx-auto max-w-6xl px-6 py-10"><div className="mb-8"><p className="mb-2 text-xs uppercase tracking-[0.2em] text-emerald-400/80">Bulk registration</p><h1 className="text-3xl font-bold">Import Specimens</h1><p className="mt-2 text-sm text-white/40">Uses the specimen form fields and validation.</p></div>
+      <ol className="mb-8 grid grid-cols-3 gap-2">{["Upload CSV", "Preview & Validate", "Import Complete"].map((label, index) => <li key={label} className={`rounded-xl border px-3 py-2 text-xs ${step === index + 1 ? "border-emerald-400/70 bg-emerald-500/15 text-emerald-100" : step > index + 1 ? "border-emerald-500/30 text-emerald-300" : "border-white/10 text-white/35"}`}><span className="mr-2 font-bold">{step > index + 1 ? "✓" : index + 1}</span>{label}</li>)}</ol>
+      {step === 1 && <section className="space-y-6 rounded-2xl border border-white/10 bg-white/[0.03] p-6"><div onDragOver={(event) => { event.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={(event) => { event.preventDefault(); setDragOver(false); load(event.dataTransfer.files[0]); }} onClick={() => fileRef.current?.click()} className={`cursor-pointer rounded-2xl border-2 border-dashed p-12 text-center ${dragOver ? "border-emerald-400 bg-emerald-500/10" : "border-white/10"}`}><p className="text-4xl text-white/25">⇧</p><p className="mt-3 text-sm text-white/60">Drop a CSV here, or click to browse</p><p className="mt-1 text-xs text-white/30">One row creates one specimen and up to one measurement</p><input ref={fileRef} type="file" accept=".csv,text/csv" onChange={(event) => load(event.target.files[0])} className="hidden" /></div><div className="rounded-xl border border-white/10 p-5"><p className="text-sm text-white/55">The updated template covers skeleton and bone, site, condition, biological estimates, measurement, excavation, and lab dating.</p><div className="mt-4 flex flex-wrap gap-2">{COLUMNS.map((column) => <span key={column} className={`rounded-full border px-2 py-1 text-[10px] ${REQUIRED.includes(column) ? "border-emerald-500/30 text-emerald-300" : "border-white/10 text-white/35"}`}>{column}{REQUIRED.includes(column) && " *"}</span>)}</div><div className="mt-6 border-t border-white/10 pt-5"><div className="mb-4 flex items-center justify-between gap-3"><div><h2 className="text-sm font-medium text-white/85">CSV completion guide</h2><p className="mt-1 text-xs text-white/35">CSV files cannot provide dropdowns, so use these accepted formats and values.</p></div><span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-[10px] uppercase tracking-wider text-emerald-300">Before upload</span></div><dl className="grid gap-3 md:grid-cols-2">{CSV_GUIDE.map(([title, description]) => <div key={title} className="rounded-xl border border-white/10 bg-white/[0.025] p-3.5"><dt className="text-xs font-medium text-emerald-200">{title}</dt><dd className="mt-1.5 text-xs leading-5 text-white/45">{description}</dd></div>)}</dl><div className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-xs leading-5 text-amber-100/70"><span className="font-medium text-amber-200">Important:</span> Do not rename or remove header columns. Keep optional columns in the file and leave their cells empty when they do not apply.</div></div></div><button onClick={downloadTemplate} className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm">Download updated CSV template</button></section>}
+      {step === 2 && <section className="space-y-6"><div className="flex justify-between rounded-xl border border-white/10 bg-white/[0.03] p-5"><div><p className="text-sm">{fileName}</p><p className="text-xs text-white/35">{rows.length} records · {invalidRows.size} invalid</p></div><button onClick={reset} className="text-xs text-white/45">Change file</button></div>{errors.length > 0 && <div className="max-h-48 overflow-auto rounded-xl border border-red-500/30 bg-red-500/10 p-5">{errors.map((error, index) => <p key={index} className="mb-2 text-xs text-red-200/75">{Number.isInteger(error.row) ? `CSV row ${error.row}` : error.row}: {error.messages.join("; ")}</p>)}</div>}<div className="grid gap-3 rounded-xl border border-white/10 p-4 sm:grid-cols-2 lg:grid-cols-4"><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search any field…" className={control}/><select value={status} onChange={(event) => setStatus(event.target.value)} className={control}><option value="all">All validation states</option><option value="valid">Valid rows</option><option value="invalid">Invalid rows</option></select><select value={bone} onChange={(event) => setBone(event.target.value)} className={control}><option value="all">All bone categories</option>{choices("bone_type").map((value) => <option key={value}>{value}</option>)}</select><select value={side} onChange={(event) => setSide(event.target.value)} className={control}><option value="all">All sides</option>{choices("side").map((value) => <option key={value}>{value}</option>)}</select></div><div className="max-h-[34rem] overflow-auto rounded-2xl border border-white/10"><table className="min-w-full text-xs"><thead className="sticky top-0 bg-[#13231a]"><tr>{["status", ...SPECIMEN.slice(0, 10), ...MEASUREMENT.slice(0, 3)].map((column) => <th key={column} className="whitespace-nowrap px-4 py-3 text-left uppercase text-white/30">{column}</th>)}</tr></thead><tbody>{filtered.slice(0, 100).map((row) => <tr key={row.__row} className="border-t border-white/5"><td className={`px-4 py-3 ${invalidRows.has(row.__row) ? "text-red-300" : "text-emerald-300"}`}>{invalidRows.has(row.__row) ? "Issue" : "Valid"}</td>{[...SPECIMEN.slice(0, 10), ...MEASUREMENT.slice(0, 3)].map((column) => <td key={column} className="max-w-48 truncate whitespace-nowrap px-4 py-3 text-white/60">{row[column] || "—"}</td>)}</tr>)}</tbody></table>{!filtered.length && <p className="p-8 text-center text-sm text-white/35">No matching rows.</p>}</div><div className="flex justify-between"><button onClick={reset} className="rounded-xl border border-white/10 px-5 py-2.5 text-sm text-white/50">Cancel</button><button onClick={importRows} disabled={importing || errors.length > 0 || !rows.length} className="rounded-xl bg-emerald-600 px-7 py-2.5 text-sm disabled:bg-emerald-900 disabled:text-emerald-600">{importing ? "Importing…" : `Import all ${rows.length} records`}</button></div></section>}
+      {step === 3 && result && <section className="space-y-6"><div className={`rounded-2xl border p-8 text-center ${result.failed.length ? "border-amber-500/30 bg-amber-500/10" : "border-emerald-500/30 bg-emerald-500/10"}`}><p className="text-4xl">{result.failed.length ? "⚠" : "✓"}</p><h2 className="mt-3 text-xl font-semibold">{result.failed.length ? "Import completed with issues" : "Import successful"}</h2><p className="mt-2 text-sm text-white/50">{result.success} imported · {result.failed.length} failed</p></div>{result.failed.length > 0 && <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-5">{result.failed.map((failure, index) => <p key={index} className="mb-2 text-xs text-red-200/75">{failure.id} — {failure.reason}</p>)}</div>}<div className="flex gap-3"><button onClick={reset} className="flex-1 rounded-xl border border-white/10 px-5 py-2.5 text-sm">Import another</button><button onClick={() => navigate("/specimens")} className="flex-1 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm">View specimens</button></div></section>}
+    </main>
+  </div>;
 }
