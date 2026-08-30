@@ -283,9 +283,25 @@ export function validateCategorySide(categoryValue, sideValue) {
   const side = normalizeSide(sideValue)
   const allowedSides = categorySides(category, true)
   if (allowedSides.includes(side)) return ''
+  // Anatomical QA Rule: midline bones (for example the sternum or skull) cannot
+  // be assigned Left/Right. Paired bones retain Left, Right, and Unknown.
   return category.laterality === 'midline'
     ? `${category.label} must use Midline.`
     : `${category.label} must use Left, Right, or Unknown.`
+}
+
+// Anatomical QA Rule: generic measurement names (Maximum Length, Width, etc.)
+// can apply to any selected bone. A legacy bone-qualified name such as
+// "Femur Head Diameter" must agree with the measurement's bone category.
+export function isMeasurementBoneCompatible(boneValue, measurementType) {
+  const selectedCategory = normalizeBoneCategory(boneValue)
+  const type = normalize(measurementType)
+  if (!selectedCategory || !type) return true
+
+  const namedCategory = CONTROLLED_BONE_CATEGORIES.find((category) => (
+    type === normalize(category.label) || type.startsWith(`${normalize(category.label)} `)
+  ))
+  return !namedCategory || namedCategory.code === selectedCategory.code
 }
 
 export function specimenCategoryValues(record) {
@@ -301,6 +317,8 @@ export function findDuplicateSpecimen(records, { skeletonCode, boneCategory, sid
   const requestedKey = categorySideKey(boneCategory, side)
   if (!skeletonKey || !requestedCategory?.uniquePerSide || !requestedKey) return null
 
+  // Duplicate QA Rule: only categories explicitly marked uniquePerSide are
+  // restricted. This preserves legitimate fragment records for other bones.
   return (records || []).find((record) => {
     if (record.specimen_id === excludeSpecimenId || normalize(record.skeleton_code) !== skeletonKey) return false
     return specimenCategoryValues(record).some((value) => {
