@@ -12,15 +12,20 @@ const RISK_COLOUR = {
   Low:    '#34d399',
 }
 
-// Archaeological eras used to filter map markers by excavation period
-const TIME_PERIODS = [
-  { label: 'All Periods',      desc: 'All excavation phases',   values: null },
-  { label: 'Prehistoric',      desc: '50,000 BP – 1,000 BC',    values: ['Mesolithic', 'Prehistoric', 'Upper Paleolithic'] },
-  { label: 'Iron Age',         desc: '1,000 BC – 300 BC',       values: ['Iron Age'] },
-  { label: 'Early Historic',   desc: '300 BC – 1,000 AD',       values: ['Early Historic'] },
-  { label: 'Classical Period', desc: '300 AD – 1,200 AD',       values: ['Classical Period'] },
-  { label: 'Medieval',         desc: '1,200 AD – 1,500 AD',     values: ['Medieval'] },
-]
+// Display-only metadata for known periods: chronological sort order + a
+// human-readable date range. This never gates which sites show up — it's
+// purely cosmetic. A period value that isn't listed here still gets its own
+// filter button (sorted to the end, no date range), instead of silently
+// disappearing the way a hardcoded, closed list would.
+const PERIOD_INFO = {
+  'Upper Paleolithic': { order: 1, desc: '50,000 – 12,000 BP' },
+  'Mesolithic':         { order: 2, desc: '12,000 BP – 1,000 BC' },
+  'Prehistoric':        { order: 3, desc: 'Undated prehistoric' },
+  'Iron Age':           { order: 4, desc: '1,000 BC – 300 BC' },
+  'Early Historic':     { order: 5, desc: '300 BC – 1,000 AD' },
+  'Classical Period':   { order: 6, desc: '300 AD – 1,200 AD' },
+  'Medieval':           { order: 7, desc: '1,200 AD – 1,500 AD' },
+}
 
 function markerOptions(risk_level) {
   const colour = RISK_COLOUR[risk_level] || '#60a5fa'
@@ -49,6 +54,10 @@ const CLUSTER_COLOURS = [
   '#4ade80', '#facc15', '#f87171', '#34d399',
 ]
 
+// Minimum sites required before DBSCAN counts a group as a cluster. Fixed
+// rather than user-adjustable — only the search radius (ε) is exposed.
+const MIN_CLUSTER_POINTS = 2
+
 function ParamiModulePage() {
   const navigate = useNavigate()
   const [sites,        setSites]        = useState([])
@@ -59,7 +68,6 @@ function ParamiModulePage() {
   const [periodIdx,    setPeriodIdx]    = useState(0)
   const [showClusters, setShowClusters] = useState(false)
   const [eps,          setEps]          = useState(0.3)
-  const [minPts,       setMinPts]       = useState(2)
   const [activePanel,  setActivePanel]  = useState('temporal')
 
   // Load all sites with coordinates from Supabase, plus a count of
@@ -108,9 +116,22 @@ function ParamiModulePage() {
     load()
   }, [])
 
+  // Time period filter buttons, built from whatever time_period values are
+  // actually present in the loaded sites — so a new/unexpected value (a typo,
+  // or a period not in PERIOD_INFO) still gets its own filter button instead
+  // of silently dropping out of every filter except "All Periods".
+  const timePeriods = useMemo(() => {
+    const distinct = [...new Set(sites.map(s => s.time_period).filter(Boolean))]
+    const sorted = distinct.sort((a, b) => (PERIOD_INFO[a]?.order ?? 999) - (PERIOD_INFO[b]?.order ?? 999))
+    return [
+      { label: 'All Periods', desc: 'All excavation phases', values: null },
+      ...sorted.map(p => ({ label: p, desc: PERIOD_INFO[p]?.desc || 'Period', values: [p] })),
+    ]
+  }, [sites])
+
   // Filter sites by selected time period
- const filteredSites = useMemo(() => {
-    const period = TIME_PERIODS[periodIdx]
+  const filteredSites = useMemo(() => {
+    const period = timePeriods[periodIdx] || timePeriods[0]
     let result = sites
 
     if (period.values !== null) {
@@ -123,12 +144,11 @@ function ParamiModulePage() {
     }
 
     return result
-  }, [sites, periodIdx])
+  }, [sites, periodIdx, timePeriods])
 
   // DBSCAN groups sites that are geographically close together, without
   // needing to know the number of clusters in advance (unlike K-Means).
-  // eps = search radius in degrees (how close sites must be to group);
-  // minPts = minimum sites required before a group counts as a cluster.
+  // eps = search radius in degrees (how close sites must be to group).
   // Sites that don't have enough close neighbours are left unclustered.
   const clusters = useMemo(() => {
     if (!showClusters || filteredSites.length < 2) return []
@@ -137,9 +157,9 @@ function ParamiModulePage() {
       parseFloat(s.latitude),
       parseFloat(s.longitude),
     ])
-    const result = dbscan.run(points, eps, minPts)
+    const result = dbscan.run(points, eps, MIN_CLUSTER_POINTS)
     return result
-  }, [filteredSites, showClusters, eps, minPts])
+  }, [filteredSites, showClusters, eps])
 
   // Map each site index to its cluster id
   const siteClusterMap = useMemo(() => {
@@ -159,7 +179,7 @@ function ParamiModulePage() {
           
           <h2 className="text-2xl font-bold text-slate-100">GIS & Spatial Analysis</h2>
           <p className="text-slate-400 text-sm mt-1">
-            Site mapping, temporal layers, and AI spatial pattern detection
+            Site mapping, temporal layers, and spatial pattern detection
           </p>
         </div>
     <div className="flex items-center gap-3">
@@ -198,7 +218,7 @@ function ParamiModulePage() {
         <div className="flex border-b border-slate-700">
           {[
             { key: 'temporal', label: 'Time Period', on: periodIdx !== 0 },
-            { key: 'clusters', label: 'AI Clusters',  on: showClusters },
+            { key: 'clusters', label: 'Clusters',  on: showClusters },
           ].map(tab => (
             <button
               key={tab.key}
@@ -227,9 +247,9 @@ function ParamiModulePage() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {TIME_PERIODS.map((p, i) => (
+                {timePeriods.map((p, i) => (
                   <button
-                    key={i}
+                    key={p.label}
                     onClick={() => setPeriodIdx(i)}
                     className={`px-4 py-2 rounded-lg text-sm font-medium transition-all border text-left ${
                       periodIdx === i
@@ -245,12 +265,15 @@ function ParamiModulePage() {
                 ))}
               </div>
 
+              {/* Segment width is 1 / (number of real periods, excluding "All
+                  Periods") so this stays correct regardless of how many
+                  distinct time_period values the database actually has. */}
               <div className="relative h-2 bg-slate-700 rounded-full overflow-hidden mt-4">
                 <div
                   className="absolute h-full bg-blue-500 rounded-full transition-all duration-300"
                   style={{
-                    left: periodIdx === 0 ? '0%' : `${(periodIdx - 1) * 20}%`,
-                    width: periodIdx === 0 ? '100%' : '20%',
+                    left: periodIdx === 0 ? '0%' : `${((periodIdx - 1) / (timePeriods.length - 1)) * 100}%`,
+                    width: periodIdx === 0 ? '100%' : `${100 / (timePeriods.length - 1)}%`,
                   }}
                 />
               </div>
@@ -285,31 +308,17 @@ function ParamiModulePage() {
 
               {showClusters && (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <label className="text-slate-400 text-sm">Search radius (ε): {eps.toFixed(1)}°</label>
-                        <span className="text-slate-500 text-xs">~{Math.round(eps * 111)} km</span>
-                      </div>
-                      <input
-                        type="range" min="0.1" max="3" step="0.1" value={eps}
-                        onChange={e => setEps(parseFloat(e.target.value))}
-                        className="w-full accent-purple-500"
-                      />
-                      <p className="text-slate-600 text-xs mt-1">How far apart sites can be to be in the same cluster</p>
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <label className="text-slate-400 text-sm">Search radius (ε): {eps.toFixed(1)}°</label>
+                      <span className="text-slate-500 text-xs">~{Math.round(eps * 111)} km</span>
                     </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <label className="text-slate-400 text-sm">Min points: {minPts}</label>
-                        <span className="text-slate-500 text-xs">per cluster</span>
-                      </div>
-                      <input
-                        type="range" min="2" max="6" step="1" value={minPts}
-                        onChange={e => setMinPts(parseInt(e.target.value))}
-                        className="w-full accent-purple-500"
-                      />
-                      <p className="text-slate-600 text-xs mt-1">Minimum sites needed to form a cluster</p>
-                    </div>
+                    <input
+                      type="range" min="0.1" max="3" step="0.1" value={eps}
+                      onChange={e => setEps(parseFloat(e.target.value))}
+                      className="w-full accent-purple-500"
+                    />
+                    <p className="text-slate-600 text-xs mt-1">How far apart sites can be to be in the same cluster</p>
                   </div>
 
                   {clusters.length > 0 ? (
@@ -355,7 +364,7 @@ function ParamiModulePage() {
                     <div className="mt-3 bg-slate-700 rounded-lg p-4">
                       <p className="text-slate-400 text-sm font-medium">No clusters found</p>
                       <p className="text-slate-500 text-xs mt-1">
-                        Try increasing ε (search radius) or reducing min points. Current: ε={eps.toFixed(1)}° (~{Math.round(eps * 111)}km), minPts={minPts}
+                        Try increasing the search radius (ε). Current: ε={eps.toFixed(1)}° (~{Math.round(eps * 111)}km)
                       </p>
                     </div>
                   )}
@@ -375,7 +384,7 @@ function ParamiModulePage() {
           <h3 className="text-slate-200 font-semibold">
             Site Map
             <span className="text-slate-500 font-normal text-sm ml-2">
-              — {TIME_PERIODS[periodIdx].label}
+              — {(timePeriods[periodIdx] || timePeriods[0])?.label}
             </span>
           </h3>
           <div className="flex items-center gap-4 text-xs text-slate-400">

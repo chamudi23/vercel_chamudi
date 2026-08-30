@@ -16,6 +16,102 @@ function areSimilar(a, b, lengthTolerance = 3.0) {
   )
 }
 
+// ── Measurement extraction ──────────────────────────────────────────────────
+// `specimens` doesn't store length/width itself — each is a separate row in
+// `measurements` (one row per measurement_type; the form blocks duplicate
+// types per specimen, so at most one row per type per specimen). This turns
+// those rows into the flat length_cm/width_cm the rest of this page's
+// matching logic is written against. "Maximum X" is preferred (the standard
+// osteometric measure); "Minimum X" is used only when no maximum was
+// recorded for that specimen.
+function toCm(value, unit) {
+  if (unit === 'mm') return value / 10
+  if (unit === 'm')  return value * 100
+  return value
+}
+
+function pickMeasurement(rows, primaryType, fallbackType) {
+  const row = rows.find(r => r.measurement_type === primaryType) ||
+              rows.find(r => r.measurement_type === fallbackType)
+  return row ? toCm(row.value, row.unit) : null
+}
+
+// ── Possible-same-individual rule ───────────────────────────────────────────
+// Different intent from areSimilar(): that one groups the SAME bone type
+// across DIFFERENT individuals (typology). This groups DIFFERENT bone types
+// that could belong to the SAME individual — same excavation site, same time
+// period, and (see individualGroups below) currently filed under different
+// skeleton_codes. No sex/age estimate is used here — this page matches purely
+// on measurements, site and time period.
+//
+// This is a simple equality match on (site, period) — not transitive
+// grouping like Rule-Based's Union-Find. It doesn't need to be: exact tuple
+// equality is already transitive by itself. (An earlier version of this ran
+// Union-Find with a size check on same-bone-type pairs, but that let two
+// mismatched same-type bones — e.g. two very differently-sized Mandibles —
+// end up in one group anyway, "bridged" through a third bone with no
+// length/width recorded to check against either one. Grouping by the exact
+// tuple directly avoids that leak; measurementConflict() below flags groups
+// where measurements argue against the same-individual hypothesis instead.)
+//
+// Compares every measurement_type the two specimens have in common (not just
+// length/width — Maximum Diameter, Thickness, Circumference, whatever was
+// actually recorded), so a same-bone-type pair is checked against the full
+// set of metrics on file for it, not a fixed pair of fields.
+function measurementConflict(a, b) {
+  if (a.bone_type !== b.bone_type) return false // nothing to compare
+  const rowsA = a.measurementRows || []
+  const rowsB = b.measurementRows || []
+  const tolerance = 0.15
+  return rowsA.some(ra => {
+    const rb = rowsB.find(r => r.measurement_type === ra.measurement_type)
+    if (!rb) return false
+    const va = toCm(ra.value, ra.unit)
+    const vb = toCm(rb.value, rb.unit)
+    if (!va || !vb) return false
+    return Math.abs(va - vb) / Math.max(va, vb) > tolerance
+  })
+}
+
+// ── Cross-site paired-bone rule ─────────────────────────────────────────────
+// Narrower than the site-bucketing above, and deliberately so: this drops the
+// "same site" requirement entirely (e.g. a right hand bone at Sigiriya and a
+// left hand bone at Pothana), which removes the strongest real evidence tying
+// two bones together. To compensate, it demands much stronger evidence in
+// its place — a genuine Left/Right pair of the SAME bone type, same period,
+// AND both specimens must actually have length/width recorded and be
+// size-consistent (within 15%). Sex estimate is deliberately NOT part of this
+// match — hand/limb bones aren't a reliable basis for sex estimation the way
+// the pelvis or skull are, so requiring it to match here would lean on a
+// number that's often unreliable for exactly this kind of specimen. Unlike
+// sizeConflict() above, which only flags a conflict as a warning, size
+// consistency is a hard requirement here: a pair with no measurements to
+// check isn't shown at all, since without a shared site, size match is the
+// only real evidence this rule has to go on.
+function isPairedAcrossSites(a, b) {
+  if (a.bone_type !== b.bone_type) return false
+  const isOppositeSides =
+    (a.side === 'Left' && b.side === 'Right') || (a.side === 'Right' && b.side === 'Left')
+  if (!isOppositeSides) return false
+  if (a.time_period !== b.time_period) return false
+  if (!a.length_cm || !b.length_cm || !a.width_cm || !b.width_cm) return false
+
+  const tolerance = 0.15
+  const lengthDiff = Math.abs(a.length_cm - b.length_cm) / Math.max(a.length_cm, b.length_cm)
+  const widthDiff  = Math.abs(a.width_cm  - b.width_cm)  / Math.max(a.width_cm,  b.width_cm)
+  return lengthDiff <= tolerance && widthDiff <= tolerance
+}
+
+// Turns the same length/width comparison into a 0-100 confidence score for
+// display, instead of just the pass/fail from isPairedAcrossSites() above.
+// 100% would mean identical length and width; the score drops in proportion
+// to how far apart the two measurements are, averaged across both dimensions.
+function matchConfidence(a, b) {
+  const lengthDiff = Math.abs(a.length_cm - b.length_cm) / Math.max(a.length_cm, b.length_cm)
+  const widthDiff  = Math.abs(a.width_cm  - b.width_cm)  / Math.max(a.width_cm,  b.width_cm)
+  return Math.max(0, 100 - ((lengthDiff + widthDiff) / 2) * 100)
+}
+
 // ── Union-Find (Disjoint Set) helpers ───────────────────────────────────────
 // Used for rule-based grouping so similarity is transitive (A~B, B~C => A,B,C
 // grouped together) instead of only being compared against a single seed item.
@@ -105,12 +201,34 @@ function SimilarFindingsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const { data, error: err } = await supabase
+        const { data: specimenData, error: specErr } = await supabase
           .from('specimens')
           .select('*')
           .order('bone_type', { ascending: true })
-        if (err) throw err
-        setFindings(data || [])
+        if (specErr) throw specErr
+
+        const { data: measurementData, error: measErr } = await supabase
+          .from('measurements')
+          .select('specimen_id, measurement_type, value, unit')
+        if (measErr) throw measErr
+
+        const rowsBySpecimen = new Map()
+        ;(measurementData || []).forEach(m => {
+          if (!rowsBySpecimen.has(m.specimen_id)) rowsBySpecimen.set(m.specimen_id, [])
+          rowsBySpecimen.get(m.specimen_id).push(m)
+        })
+
+        const enriched = (specimenData || []).map(s => {
+          const rows = rowsBySpecimen.get(s.specimen_id) || []
+          return {
+            ...s,
+            length_cm: pickMeasurement(rows, 'Maximum Length', 'Minimum Length'),
+            width_cm:  pickMeasurement(rows, 'Maximum Width',  'Minimum Width'),
+            measurementRows: rows,
+          }
+        })
+
+        setFindings(enriched)
       } catch (e) {
         setError(e.message)
       } finally {
@@ -125,6 +243,13 @@ function SimilarFindingsPage() {
   const switchTab = (tabId) => {
     setActiveTab(tabId)
     setSelectedGroup(null)
+    // A bone type only present on midline specimens (e.g. "Skull") isn't a
+    // valid filter on this tab — see boneTypes above. Reset rather than leave
+    // the dropdown pointing at an option that no longer exists in its list.
+    if (tabId === 'individual' && boneFilter !== 'All') {
+      const stillValid = findings.some(f => f.side !== 'Midline' && f.bone_type === boneFilter)
+      if (!stillValid) setBoneFilter('All')
+    }
   }
 
   // Filtered findings — respects the Bone Type / Time Period filters above,
@@ -218,8 +343,16 @@ function SimilarFindingsPage() {
     setKnnResults(sorted)
   }
 
-  // Unique filter values
-  const boneTypes   = useMemo(() => ['All', ...new Set(findings.map(f => f.bone_type).filter(Boolean))], [findings])
+  // Unique filter values. Shared across all 4 tabs, but the Bone Type list
+  // itself is tab-aware: on Possible Same Individual, midline-sided bones
+  // (Skull, Mandible, Sternum, ...) are never part of a group (see
+  // individualGroups below), so offering them as a filter option there would
+  // just be a dead end — every other tab still lists every bone type that
+  // exists, midline included.
+  const boneTypes = useMemo(() => {
+    const source = activeTab === 'individual' ? findings.filter(f => f.side !== 'Midline') : findings
+    return ['All', ...new Set(source.map(f => f.bone_type).filter(Boolean))]
+  }, [findings, activeTab])
   const timePeriods = useMemo(() => ['All', ...new Set(findings.map(f => f.time_period).filter(Boolean))], [findings])
 
   // Rule-based groups (Union-Find so similarity is transitive: if A~B and
@@ -251,6 +384,64 @@ function SimilarFindingsPage() {
       .filter(group => group.length > 1)
       .sort((a, b) => b.length - a.length)
   }, [filtered, tolerance])
+
+  // Possible-same-individual groups: bucket specimens by the exact
+  // (site, period) tuple — deliberately allowing DIFFERENT bone types into
+  // one group, since the whole point is spotting e.g. a pelvis and a hand
+  // bone that could be from the same person, not just repeats of one bone
+  // type. Midline-sided bones (Skull, Mandible, Sternum, ...) are excluded
+  // HERE ONLY — a skeleton only ever has one of each, so they don't carry the
+  // same paired-bone evidence Left/Right specimens do for this particular
+  // comparison, but they still belong in Rule-Based, KNN and All Findings, so
+  // the exclusion is scoped to this tab rather than applied to
+  // `filtered`/`findings` itself. Each group is then checked for a
+  // same-bone-type measurement conflict (measurementConflict(), across every
+  // shared measurement_type, not just length/width) and flagged rather than
+  // hidden, so evidence against the same-individual hypothesis is visible
+  // instead of silently producing a false "worth investigating" group.
+  //
+  // A group is only kept if it mixes specimens the catalogue currently treats
+  // as DIFFERENT skeletons (distinct skeleton_code) — that's the actual
+  // hypothesis being raised: "these two catalogued-separate skeletons might
+  // really be one person." A group where every specimen already shares one
+  // skeleton_code is already a documented, known individual (e.g. its own
+  // Left and Right femur) — nothing to investigate, so it's dropped.
+  const individualGroups = useMemo(() => {
+    const buckets = new Map()
+    filtered.forEach(f => {
+      if (f.side === 'Midline') return
+      const key = `${f.site_name}|${f.time_period}`
+      if (!buckets.has(key)) buckets.set(key, [])
+      buckets.get(key).push(f)
+    })
+
+    return [...buckets.values()]
+      .filter(specimens => specimens.length > 1)
+      .filter(specimens => new Set(specimens.map(f => f.skeleton_code)).size > 1)
+      .map(specimens => ({
+        specimens,
+        hasSizeConflict: specimens.some((a, i) =>
+          specimens.some((b, j) => i < j && measurementConflict(a, b))
+        ),
+      }))
+      .sort((a, b) => b.specimens.length - a.specimens.length)
+  }, [filtered])
+
+  // Cross-site paired bones: every pair of specimens satisfying
+  // isPairedAcrossSites() above. Not transitive/grouped like individualGroups
+  // — each is its own standalone pair, since "site" isn't shared here to tie
+  // more than two specimens together.
+  const crossSitePairs = useMemo(() => {
+    const pairs = []
+    for (let i = 0; i < filtered.length; i++) {
+      for (let j = i + 1; j < filtered.length; j++) {
+        if (isPairedAcrossSites(filtered[i], filtered[j])) {
+          pairs.push({ a: filtered[i], b: filtered[j], confidence: matchConfidence(filtered[i], filtered[j]) })
+        }
+      }
+    }
+    return pairs.sort((x, y) => y.confidence - x.confidence)
+  }, [filtered])
 
   if (loading) {
     return (
@@ -302,7 +493,7 @@ function SimilarFindingsPage() {
       {/* Filters */}
       <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 mb-6">
         <h3 className="text-slate-200 font-semibold mb-4">🔍 Filters</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="text-slate-400 text-sm mb-1.5 block">Bone Type</label>
             <select value={boneFilter} onChange={e => setBoneFilter(e.target.value)}
@@ -317,23 +508,16 @@ function SimilarFindingsPage() {
               {timePeriods.map(p => <option key={p}>{p}</option>)}
             </select>
           </div>
-          <div>
-            <label className="text-slate-400 text-sm mb-1.5 block">
-              Showing: <span className="text-blue-400">{filtered.length}</span> findings
-            </label>
-            <div className="bg-slate-700 rounded-lg px-3 py-2 text-slate-400 text-sm">
-              from {new Set(filtered.map(f => f.site_name)).size} sites
-            </div>
-          </div>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-2 mb-6 border-b border-slate-700 overflow-x-auto">
         {[
-          { id: 'rule',   label: '📋 Rule-Based' },
-          { id: 'knn',    label: '🧠 KNN Machine Learning' },
-          { id: 'all',    label: '📊 All Findings' },
+          { id: 'rule',       label: '📋 Rule-Based' },
+          { id: 'individual', label: '🧍 Possible Same Individual' },
+          { id: 'knn',        label: '🧠 KNN Machine Learning' },
+          { id: 'all',        label: '📊 All Findings' },
         ].map(tab => (
           <button key={tab.id} onClick={() => switchTab(tab.id)}
             className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
@@ -403,7 +587,7 @@ function SimilarFindingsPage() {
                         <table className="w-full text-sm">
                           <thead>
                             <tr className="border-b border-slate-700">
-                              {['Site', 'Bone', 'Side', 'Period', 'Length', 'Width', 'Preservation', 'Age', 'Sex', 'Year'].map(h => (
+                              {['Site', 'Bone', 'Side', 'Period', 'Length', 'Width', 'Preservation', 'Year'].map(h => (
                                 <th key={h} className="text-left px-4 py-3 text-slate-400 font-medium whitespace-nowrap">{h}</th>
                               ))}
                             </tr>
@@ -418,8 +602,6 @@ function SimilarFindingsPage() {
                                 <td className="px-4 py-3 text-emerald-400 font-mono">{f.length_cm} cm</td>
                                 <td className="px-4 py-3 text-slate-400 font-mono">{f.width_cm} cm</td>
                                 <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs ${PRESERVATION_BADGE[f.preservation_state] || 'bg-slate-700 text-slate-400'}`}>{f.preservation_state}</span></td>
-                                <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">{f.age_estimate}</td>
-                                <td className="px-4 py-3 text-slate-400">{f.sex_estimate}</td>
                                 <td className="px-4 py-3 text-slate-500">{f.excavation_year}</td>
                               </tr>
                             ))}
@@ -435,6 +617,131 @@ function SimilarFindingsPage() {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Possible Same Individual Tab ── */}
+      {activeTab === 'individual' && (
+        <div>
+          {individualGroups.length === 0 ? (
+            <div className="bg-slate-800 rounded-xl border border-slate-700 p-8 text-center">
+              <p className="text-slate-500 text-4xl mb-3">🧍</p>
+              <p className="text-slate-400">No candidate groups found. Needs 2+ non-midline specimens, currently filed under different skeleton codes, sharing the same site and time period.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {individualGroups.map(({ specimens, hasSizeConflict }, gi) => {
+                const colour = hasSizeConflict
+                  ? { bg: 'bg-red-900/20', border: 'border-red-800', text: 'text-red-300', dot: '#f87171' }
+                  : CLUSTER_COLOURS[gi % CLUSTER_COLOURS.length]
+                const boneTypesInGroup = [...new Set(specimens.map(f => f.bone_type))]
+                const key = `ind${gi}`
+                return (
+                  <div key={key} className={`rounded-xl border ${colour.border} ${colour.bg} overflow-hidden`}>
+                    <div className="px-6 py-4 flex items-center justify-between cursor-pointer"
+                      onClick={() => setSelectedGroup(selectedGroup === key ? null : key)}>
+                      <div className="flex items-center gap-3">
+                        <span className="w-3 h-3 rounded-full" style={{ background: colour.dot }} />
+                        <div>
+                          <p className={`font-semibold ${colour.text}`}>
+                            Group {gi + 1} — {specimens[0].site_name} · {specimens[0].time_period}
+                            {hasSizeConflict && <span className="ml-2 text-xs font-normal">⚠️ measurement conflict</span>}
+                          </p>
+                          <p className="text-slate-400 text-xs mt-0.5">
+                            {specimens.length} bones · {boneTypesInGroup.length} different bone type{boneTypesInGroup.length > 1 ? 's' : ''}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap gap-1">
+                          {boneTypesInGroup.slice(0, 4).map(b => <span key={b} className="bg-slate-800 text-slate-300 text-xs px-2 py-0.5 rounded-full">{b}</span>)}
+                        </div>
+                        <span className="text-slate-500">{selectedGroup === key ? '▲' : '▼'}</span>
+                      </div>
+                    </div>
+                    {selectedGroup === key && (
+                      <div className="border-t border-slate-700 overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-slate-700">
+                              {['Bone', 'Side', 'Preservation', 'Length', 'Width', 'Specimen ID'].map(h => (
+                                <th key={h} className="text-left px-4 py-3 text-slate-400 font-medium whitespace-nowrap">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {specimens.map((f, fi) => (
+                              <tr key={fi} className={`border-b border-slate-700 hover:bg-slate-700/50 ${fi % 2 !== 0 ? 'bg-slate-800/30' : ''}`}>
+                                <td className="px-4 py-3 text-slate-200 font-medium whitespace-nowrap">{f.bone_type}</td>
+                                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${f.side === 'Left' ? 'bg-blue-900 text-blue-300' : 'bg-orange-900 text-orange-300'}`}>{f.side}</span></td>
+                                <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs ${PRESERVATION_BADGE[f.preservation_state] || 'bg-slate-700 text-slate-400'}`}>{f.preservation_state}</span></td>
+                                <td className="px-4 py-3 text-emerald-400 font-mono">{f.length_cm ? `${f.length_cm} cm` : '—'}</td>
+                                <td className="px-4 py-3 text-slate-400 font-mono">{f.width_cm ? `${f.width_cm} cm` : '—'}</td>
+                                <td className="px-4 py-3 text-slate-500">{f.specimen_id}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        <div className={`px-6 py-3 text-xs ${hasSizeConflict ? 'bg-red-900/20 text-red-300' : 'bg-slate-900/40 text-slate-400'}`}>
+                          {hasSizeConflict ? (
+                            <>⚠️ <strong>Conflict:</strong> this group contains same-type bones with measurements too different to be from one individual — it likely represents more than one person despite matching site/period. Treat as unreliable.</>
+                          ) : (
+                            <>💡 <strong className="text-slate-300">Insight:</strong> {specimens.length} bones ({boneTypesInGroup.join(', ')}) from {specimens[0].site_name} share the same time period, currently filed under different skeleton codes — worth investigating whether they came from the same individual.</>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Cross-site paired bones — no shared site required, but needs
+              stronger evidence in its place: a genuine Left/Right pair of
+              the same bone type, size-consistent, same period and sex. */}
+          <div className="mt-8">
+            <h3 className="text-slate-200 font-semibold mb-1 flex items-center gap-2">
+              🔗 Cross-Site Paired Bones
+            </h3>
+            <p className="text-slate-500 text-xs mb-4">
+              Left/Right pairs of the same bone type, size-consistent, same time period — regardless of which site each was found at. Sex estimate isn&apos;t used here, since it isn&apos;t reliably determined from limb/hand bones.
+            </p>
+
+            {crossSitePairs.length === 0 ? (
+              <div className="bg-slate-800 rounded-xl border border-slate-700 p-6 text-center">
+                <p className="text-slate-400 text-sm">No cross-site paired matches found.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {crossSitePairs.map(({ a, b, confidence }, pi) => (
+                  <div key={pi} className="bg-slate-800 rounded-xl border border-slate-700 p-4">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <p className="text-slate-200 text-sm font-medium">
+                        {a.bone_type} — {a.site_name} ({a.side}) ↔ {b.site_name} ({b.side})
+                      </p>
+                      <div className="text-right">
+                        <span className="text-emerald-400 text-sm font-semibold font-mono">{confidence.toFixed(2)}%</span>
+                        <span className="text-slate-500 text-xs ml-2">{a.time_period}</span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 mt-3">
+                      {[a, b].map((f, fi) => (
+                        <div key={fi} className="bg-slate-700 rounded-lg p-3">
+                          <p className="text-slate-300 text-xs font-medium">{f.specimen_id} · {f.side}</p>
+                          <p className="text-slate-500 text-xs mt-1">{f.site_name}</p>
+                          <p className="text-emerald-400 text-xs font-mono mt-1">{f.length_cm} cm × {f.width_cm} cm</p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-slate-500 text-xs mt-3 bg-slate-900/40 rounded-lg px-3 py-2">
+                      💡 <strong className="text-slate-400">Why {confidence.toFixed(2)}%:</strong> 100% minus the average percentage difference between the two specimens&apos; length and width. A Left/Right bone pair from the same person should be nearly identical in size — the closer the measurements, the higher the score.
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -639,7 +946,7 @@ function SimilarFindingsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-700">
-                  {['Site', 'Bone', 'Side', 'Period', 'Length', 'Width', 'Preservation', 'Age', 'Sex', 'Year'].map(h => (
+                  {['Site', 'Bone', 'Side', 'Period', 'Length', 'Width', 'Preservation', 'Year'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-slate-400 font-medium whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -654,8 +961,6 @@ function SimilarFindingsPage() {
                     <td className="px-4 py-3 text-emerald-400 font-mono">{f.length_cm} cm</td>
                     <td className="px-4 py-3 text-slate-400 font-mono">{f.width_cm} cm</td>
                     <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded-full text-xs ${PRESERVATION_BADGE[f.preservation_state] || 'bg-slate-700 text-slate-400'}`}>{f.preservation_state}</span></td>
-                    <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">{f.age_estimate}</td>
-                    <td className="px-4 py-3 text-slate-400">{f.sex_estimate}</td>
                     <td className="px-4 py-3 text-slate-500">{f.excavation_year}</td>
                   </tr>
                 ))}
